@@ -1,6 +1,8 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
+const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -12,13 +14,22 @@ const generateToken = (user) => {
   );
 };
 
-router.post('/register', async (req, res) => {
+router.post('/register', [
+  body('name').trim().notEmpty().withMessage('Name is required'),
+  body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+], async (req, res) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: errors.array()[0].msg });
+    }
+
     const { name, email, password, phone } = req.body;
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ message: 'User already exists' });
+      return res.status(400).json({ message: 'User already exists with this email' });
     }
 
     const user = new User({ name, email, password, phone });
@@ -36,22 +47,33 @@ router.post('/register', async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    if (error.code === 11000) {
+      return res.status(400).json({ message: 'Email already registered' });
+    }
+    res.status(400).json({ message: error.message || 'Registration failed' });
   }
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', [
+  body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
+  body('password').notEmpty().withMessage('Password is required'),
+], async (req, res) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: errors.array()[0].msg });
+    }
+
     const { email, password } = req.body;
 
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      return res.status(400).json({ message: 'Invalid email or password' });
     }
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      return res.status(400).json({ message: 'Invalid email or password' });
     }
 
     const token = generateToken(user);
@@ -66,7 +88,7 @@ router.post('/login', async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(400).json({ message: error.message || 'Login failed' });
   }
 });
 
@@ -88,6 +110,34 @@ router.get('/profile', async (req, res) => {
     res.json(user);
   } catch (error) {
     res.status(401).json({ message: 'Invalid token' });
+  }
+});
+
+router.put('/profile', authMiddleware, async (req, res) => {
+  try {
+    const { name, phone, address } = req.body;
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    if (name) user.name = name;
+    if (phone !== undefined) user.phone = phone;
+    if (address) {
+      user.address = { ...user.address, ...address };
+    }
+    
+    await user.save();
+    res.json({
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      phone: user.phone,
+      address: user.address,
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message || 'Update failed' });
   }
 });
 

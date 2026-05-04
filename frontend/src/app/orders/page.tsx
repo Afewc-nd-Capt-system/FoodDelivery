@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Clock, CheckCircle, Truck, Home, CookingPot } from 'lucide-react';
+import { Clock, CheckCircle, Truck, Home, UtensilsCrossed } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 
@@ -21,7 +21,7 @@ interface Order {
 const statusSteps = [
   { key: 'pending', label: 'Order Placed', icon: Clock },
   { key: 'confirmed', label: 'Confirmed', icon: CheckCircle },
-  { key: 'preparing', label: 'Preparing', icon: CookingPot },
+  { key: 'preparing', label: 'Preparing', icon: UtensilsCrossed },
   { key: 'out-for-delivery', label: 'Out for Delivery', icon: Truck },
   { key: 'delivered', label: 'Delivered', icon: Home },
 ];
@@ -79,7 +79,7 @@ export default function OrdersPage() {
           {orders.map(order => {
             const currentStep = getStatusStep(order.status);
             return (
-              <div key={order._id} className="card p-6">
+                  <div key={order._id} className="card p-6 hover:shadow-md transition-shadow cursor-pointer" onClick={() => router.push(`/orders/${order._id}`)}>
                 <div className="flex flex-col sm:flex-row justify-between items-start mb-4">
                   <div>
                     <h3 className="font-bold text-lg">{order.restaurantName}</h3>

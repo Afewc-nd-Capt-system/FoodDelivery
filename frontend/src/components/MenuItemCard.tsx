@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { Star, Plus, Minus, Leaf } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
+import { useAuth } from '@/context/AuthContext';
 
 interface MenuItem {
   _id: string;
@@ -23,8 +24,9 @@ interface MenuItemCardProps {
 }
 
 export default function MenuItemCard({ item, restaurantId, restaurantName }: MenuItemCardProps) {
-  const { items, addItem, updateItem } = useCart();
-  const cartItem = items.find((i) => i.itemId === item._id);
+  const { cart, addToCart, updateQuantity } = useCart();
+  const { token } = useAuth();
+  const cartItem = cart.items.find((i) => i.itemId === item._id);
   const quantity = cartItem?.quantity || 0;
 
   return (
@@ -60,7 +62,7 @@ export default function MenuItemCard({ item, restaurantId, restaurantName }: Men
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2">
           {quantity === 0 ? (
             <button
-              onClick={() => addItem({ itemId: item._id, name: item.name, price: item.price, quantity: 1, restaurantId, restaurantName })}
+              onClick={() => addToCart({ itemId: item._id, name: item.name, price: item.price, quantity: 1, restaurantId, restaurantName }, token)}
               className="bg-white text-green-600 font-semibold px-6 py-1.5 rounded-md shadow-md hover:bg-green-50 transition-colors border border-green-600"
             >
               ADD
@@ -68,14 +70,14 @@ export default function MenuItemCard({ item, restaurantId, restaurantName }: Men
           ) : (
             <div className="flex items-center gap-2 bg-green-600 text-white rounded-md shadow-md">
               <button
-                onClick={() => updateItem(item._id, quantity - 1)}
+                onClick={() => updateQuantity(item._id, quantity - 1, token)}
                 className="px-2 py-1.5 hover:bg-green-700 transition-colors rounded-l-md"
               >
                 <Minus className="w-4 h-4" />
               </button>
               <span className="font-semibold w-6 text-center">{quantity}</span>
               <button
-                onClick={() => addItem({ itemId: item._id, name: item.name, price: item.price, quantity: 1, restaurantId, restaurantName })}
+                 onClick={() => addToCart({ itemId: item._id, name: item.name, price: item.price, quantity: 1, restaurantId, restaurantName }, token)}
                 className="px-2 py-1.5 hover:bg-green-700 transition-colors rounded-r-md"
               >
                 <Plus className="w-4 h-4" />

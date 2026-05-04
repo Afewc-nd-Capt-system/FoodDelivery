@@ -31,14 +31,16 @@ export default function Navbar() {
                 </span>
               )}
             </Link>
-            {user ? (
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-gray-600">Hi, {user.name.split(' ')[0]}</span>
-                <button onClick={logout} className="text-sm text-red-500 hover:text-red-600">
-                  Logout
-                </button>
-              </div>
-            ) : (
+          {user ? (
+            <div className="flex items-center gap-4">
+              <Link href="/profile" className="text-sm text-gray-600 hover:text-primary-500">
+                Hi, {user.name.split(' ')[0]}
+              </Link>
+              <button onClick={logout} className="text-sm text-red-500 hover:text-red-600">
+                Logout
+              </button>
+            </div>
+          ) : (
               <div className="flex items-center gap-4">
                 <Link href="/auth/login" className="text-gray-600 hover:text-primary-500">
                   Login
@@ -66,7 +68,9 @@ export default function Navbar() {
               </Link>
               {user ? (
                 <>
-                  <span className="text-gray-600">Hi, {user.name}</span>
+                  <Link href="/profile" className="text-gray-600" onClick={() => setMenuOpen(false)}>
+                    Hi, {user.name.split(' ')[0]}
+                  </Link>
                   <button onClick={() => { logout(); setMenuOpen(false); }} className="text-red-500 text-left">
                     Logout
                   </button>

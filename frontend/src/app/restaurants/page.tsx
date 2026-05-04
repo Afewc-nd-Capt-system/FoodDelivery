@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -22,7 +22,7 @@ interface Restaurant {
   address: string;
 }
 
-export default function RestaurantsPage() {
+function RestaurantsContent() {
   const searchParams = useSearchParams();
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [filtered, setFiltered] = useState<Restaurant[]>([]);
@@ -234,5 +234,17 @@ export default function RestaurantsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function RestaurantsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+      </div>
+    }>
+      <RestaurantsContent />
+    </Suspense>
   );
 }

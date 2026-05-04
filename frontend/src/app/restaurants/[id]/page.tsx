@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Star, Clock, MapPin, Plus, Minus, ShoppingCart, ArrowLeft } from 'lucide-react';
+import { Star, Clock, MapPin, Plus, Minus, ShoppingCart, ArrowLeft, Send } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { api } from '@/lib/api';
@@ -54,6 +54,13 @@ export default function RestaurantDetailPage() {
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [addingItem, setAddingItem] = useState<string | null>(null);
+  
+  // Review form state
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewError, setReviewError] = useState('');
+  const [reviewSuccess, setReviewSuccess] = useState(false);
 
   useEffect(() => {
     if (params.id) {
@@ -91,6 +98,44 @@ export default function RestaurantDetailPage() {
       alert(error.message || 'Failed to add item');
     } finally {
       setAddingItem(null);
+    }
+  };
+
+  const handleSubmitReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) {
+      router.push('/auth/login');
+      return;
+    }
+    if (!reviewComment.trim()) {
+      setReviewError('Please write a comment');
+      return;
+    }
+    setSubmittingReview(true);
+    setReviewError('');
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const res = await fetch(`${API_URL}/restaurants/${params.id}/reviews`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ rating: reviewRating, comment: reviewComment }),
+      });
+      if (res.ok) {
+        setReviewSuccess(true);
+        setReviewComment('');
+        // Reload restaurant to show new review
+        await loadRestaurant(params.id as string);
+      } else {
+        const data = await res.json();
+        setReviewError(data.message || 'Failed to submit review');
+      }
+    } catch (error) {
+      setReviewError('Failed to submit review');
+    } finally {
+      setSubmittingReview(false);
     }
   };
 
@@ -237,9 +282,75 @@ export default function RestaurantDetailPage() {
         </div>
 
         {/* Reviews Section */}
-        {restaurant.reviews && restaurant.reviews.length > 0 && (
-          <div className="mt-12">
-            <h2 className="text-2xl font-bold mb-6">Reviews</h2>
+        <div className="mt-12">
+          <h2 className="text-2xl font-bold mb-6">Reviews</h2>
+          
+          {/* Add Review Form */}
+          {token && (
+            <div className="card p-6 mb-8">
+              <h3 className="font-bold text-lg mb-4">Write a Review</h3>
+              {reviewSuccess && (
+                <div className="bg-green-50 text-green-700 px-4 py-3 rounded-lg mb-4">
+                  Review submitted successfully!
+                </div>
+              )}
+              {reviewError && (
+                <div className="bg-red-50 text-red-700 px-4 py-3 rounded-lg mb-4">
+                  {reviewError}
+                </div>
+              )}
+              <form onSubmit={handleSubmitReview} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Rating</label>
+                  <div className="flex gap-2">
+                    {[1, 2, 3, 4, 5].map(star => (
+                      <button
+                        type="button"
+                        key={star}
+                        onClick={() => setReviewRating(star)}
+                        className="focus:outline-none"
+                      >
+                        <Star
+                          className={`w-8 h-8 ${
+                            star <= reviewRating
+                              ? 'fill-yellow-400 text-yellow-400'
+                              : 'text-gray-300'
+                          }`}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="comment" className="block text-sm font-medium mb-2">Comment</label>
+                  <textarea
+                    id="comment"
+                    value={reviewComment}
+                    onChange={(e) => setReviewComment(e.target.value)}
+                    placeholder="Share your experience..."
+                    className="input-field min-h-[100px]"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={submittingReview}
+                  className="btn-primary py-2 px-6 flex items-center gap-2"
+                >
+                  {submittingReview ? (
+                    'Submitting...'
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" /> Submit Review
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
+          )}
+          
+          {/* Reviews List */}
+          {restaurant.reviews && restaurant.reviews.length > 0 ? (
             <div className="space-y-4">
               {restaurant.reviews.map((review, idx) => (
                 <div key={idx} className="card p-4">
@@ -265,8 +376,10 @@ export default function RestaurantDetailPage() {
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <p className="text-gray-500">No reviews yet. Be the first to review!</p>
+          )}
+        </div>
       </div>
     </div>
   );
