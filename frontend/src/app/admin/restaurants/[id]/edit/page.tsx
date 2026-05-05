@@ -46,6 +46,35 @@ export default function EditRestaurant() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || !e.target.files[0]) return;
+
+    setUploadingImage(true);
+    const formData = new FormData();
+    formData.append('image', e.target.files[0]);
+
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const res = await fetch(`${API_URL}/uploads/restaurant/${params.id}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setFormData(prev => ({ ...prev, image: data.imageUrl }));
+      }
+    } catch (error) {
+      console.error('Failed to upload image', error);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   useEffect(() => {
     if (!user || user.role !== 'admin') {
@@ -189,13 +218,18 @@ export default function EditRestaurant() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Image URL</label>
+                <label className="block text-sm font-medium mb-2">Image</label>
+                {formData.image && (
+                  <img src={formData.image} alt="Restaurant" className="w-32 h-32 object-cover rounded-lg mb-2" />
+                )}
                 <input
-                  name="image"
-                  value={formData.image}
-                  onChange={handleChange}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  disabled={uploadingImage}
                   className="input-field"
                 />
+                {uploadingImage && <p className="text-sm text-gray-500 mt-1">Uploading...</p>}
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium mb-2">Description *</label>

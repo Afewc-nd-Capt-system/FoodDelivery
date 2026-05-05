@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { useOrderSocket, useSocket } from '@/context/SocketContext';
 import { CheckCircle, Clock, Truck, UtensilsCrossed, Home, X } from 'lucide-react';
 
 interface Order {
@@ -29,9 +30,12 @@ export default function OrderDetail() {
   const params = useParams();
   const router = useRouter();
   const { user, token } = useAuth();
+  const { orderUpdates } = useSocket();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
+
+  useOrderSocket(params.id as string);
 
   useEffect(() => {
     if (!user) {
@@ -42,6 +46,15 @@ export default function OrderDetail() {
       fetchOrder();
     }
   }, [user, params.id, token]);
+
+  useEffect(() => {
+    if (orderUpdates.length > 0) {
+      const latestUpdate = orderUpdates[orderUpdates.length - 1];
+      if (latestUpdate.orderId === params.id) {
+        setOrder(latestUpdate.order);
+      }
+    }
+  }, [orderUpdates, params.id]);
 
   const fetchOrder = async () => {
     try {

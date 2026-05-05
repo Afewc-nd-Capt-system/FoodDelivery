@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "seed": "node src/seed/seedData.js"
+    "seed": "node src/seed/seedData.js",
+    "test": "jest --testPathPattern=tests"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -18,7 +19,10 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.0.0",
-    "paystack-api": "^2.0.6"
+    "multer": "^2.1.1",
+    "nodemailer": "^8.0.7",
+    "paystack-api": "^2.0.6",
+    "socket.io": "^4.8.3"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

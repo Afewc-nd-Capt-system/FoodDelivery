@@ -3,6 +3,7 @@ const Order = require('../models/Order');
 const User = require('../models/User');
 const Restaurant = require('../models/Restaurant');
 const authMiddleware = require('../middleware/auth');
+const { sendOrderConfirmation, sendOrderStatusUpdate } = require('../utils/email');
 
 const router = express.Router();
 
@@ -53,6 +54,17 @@ router.post('/', authMiddleware, async (req, res) => {
     });
 
     await order.save();
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`user-${req.user.id}`).emit('order-created', order);
+    }
+
+    const user = await User.findById(req.user.id);
+    if (user && user.email) {
+      await sendOrderConfirmation(user.email, order);
+    }
+
     res.status(201).json({ order });
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -143,8 +155,22 @@ router.put('/:id/status', authMiddleware, async (req, res) => {
       await user.save();
     }
 
+    const oldStatus = order.status;
     order.status = status;
     await order.save();
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`order-${order._id}`).emit('order-status-update', { orderId: order._id, status, order });
+      io.to(`user-${order.user}`).emit('order-status-update', { orderId: order._id, status, order });
+    }
+
+    if (oldStatus !== status) {
+      const user = await User.findById(order.user);
+      if (user && user.email) {
+        await sendOrderStatusUpdate(user.email, order);
+      }
+    }
 
     res.json(order);
   } catch (error) {
