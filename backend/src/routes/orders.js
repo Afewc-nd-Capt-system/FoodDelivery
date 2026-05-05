@@ -32,10 +32,22 @@ router.post('/', authMiddleware, async (req, res) => {
 
 router.get('/', authMiddleware, async (req, res) => {
   try {
+    const { page = 1, limit = 10 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const total = await Order.countDocuments({ user: req.user.id });
+
     const orders = await Order.find({ user: req.user.id })
       .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
       .populate('restaurant', 'name');
-    res.json(orders);
+
+    res.json({
+      orders,
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / parseInt(limit)),
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

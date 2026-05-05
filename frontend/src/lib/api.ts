@@ -52,8 +52,8 @@ export const api = {
   orders: {
     create: (data: any, token: string) =>
       request('/orders', { method: 'POST', body: data, token }),
-    getAll: (token: string) =>
-      request('/orders', { token }),
+    getAll: (token: string, page: number = 1) =>
+      request('/orders?page=' + page, { token }),
     getById: (id: string, token: string) =>
       request('/orders/' + id, { token }),
     updateStatus: (id: string, status: string, token: string) =>

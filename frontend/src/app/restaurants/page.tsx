@@ -25,7 +25,6 @@ interface Restaurant {
 function RestaurantsContent() {
   const searchParams = useSearchParams();
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-  const [filtered, setFiltered] = useState<Restaurant[]>([]);
   const [cuisines, setCuisines] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
@@ -34,29 +33,65 @@ function RestaurantsContent() {
   const [selectedCuisine, setSelectedCuisine] = useState(searchParams.get('cuisine') || '');
   const [sortBy, setSortBy] = useState(searchParams.get('sortBy') || 'rating');
   const [priceFilter, setPriceFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     loadData();
-  }, []);
-
-  useEffect(() => {
-    applyFilters();
-  }, [restaurants, selectedCuisine, sortBy, priceFilter]);
+  }, [page, selectedCuisine, sortBy, priceFilter]);
 
   const loadData = useCallback(async () => {
     try {
+      const params: Record<string, string> = {
+        page: page.toString(),
+        limit: '12',
+      };
+      if (selectedCuisine) params.cuisine = selectedCuisine;
+      if (priceFilter) params.priceRange = priceFilter;
+      if (sortBy) params.sortBy = sortBy;
+      if (search) params.search = search;
+
       const [restData, cuisineData] = await Promise.all([
-        api.restaurants.getAll(),
+        api.restaurants.getAll(params),
         api.restaurants.getCuisines(),
       ]);
-      setRestaurants(restData);
+      setRestaurants(restData.restaurants || restData);
+      setTotalPages(restData.totalPages || 1);
       setCuisines(cuisineData);
     } catch (error) {
       console.error('Failed to load', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, selectedCuisine, sortBy, priceFilter, search]);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPage(1);
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (selectedCuisine) params.set('cuisine', selectedCuisine);
+    if (sortBy) params.set('sortBy', sortBy);
+    window.location.href = `/restaurants?${params.toString()}`;
+  };
+      if (selectedCuisine) params.cuisine = selectedCuisine;
+      if (priceFilter) params.priceRange = priceFilter;
+      if (sortBy) params.sortBy = sortBy;
+      if (search) params.search = search;
+
+      const [restData, cuisineData] = await Promise.all([
+        api.restaurants.getAll(params),
+        api.restaurants.getCuisines(),
+      ]);
+      setRestaurants(restData.restaurants || restData);
+      setTotalPages(restData.totalPages || 1);
+      setCuisines(cuisineData);
+    } catch (error) {
+      console.error('Failed to load', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, selectedCuisine, sortBy, priceFilter, search]);
 
   const applyFilters = useCallback(() => {
     let result = [...restaurants];
@@ -218,18 +253,52 @@ function RestaurantsContent() {
             </form>
           </div>
 
-          <p className="text-gray-500 mb-4">{filtered.length} restaurants found</p>
+          <p className="text-gray-500 mb-4">{restaurants.length} restaurants found</p>
 
-          {filtered.length === 0 ? (
+          {restaurants.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-gray-500 text-lg">No restaurants found. Try adjusting your filters.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filtered.map(r => (
-                <RestaurantCard key={r._id} restaurant={r} />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {restaurants.map(r => (
+                  <RestaurantCard key={r._id} restaurant={r} />
+                ))}
+              </div>
+              
+              {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-2 mt-8">
+                  <button
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="px-4 py-2 border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+                  >
+                    Previous
+                  </button>
+                  {[...Array(totalPages)].map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setPage(i + 1)}
+                      className={`w-10 h-10 rounded-lg ${
+                        page === i + 1
+                          ? 'bg-primary-500 text-white'
+                          : 'border hover:bg-gray-50'
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                    className="px-4 py-2 border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

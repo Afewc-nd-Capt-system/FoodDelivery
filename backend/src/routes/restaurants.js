@@ -6,45 +6,52 @@ const router = express.Router();
 
 router.get('/', async (req, res) => {
   try {
-    const { cuisine, rating, priceRange, search, sortBy } = req.query;
-
+    const { cuisine, search, sortBy, priceRange, page = 1, limit = 12 } = req.query;
+    
     let query = {};
-
+    
     if (cuisine) {
-      query.cuisine = { $in: [cuisine] };
+      query.cuisine = cuisine;
     }
-
-    if (rating) {
-      query.rating = { $gte: parseFloat(rating) };
-    }
-
+    
     if (priceRange) {
       query.priceRange = priceRange;
     }
-
+    
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
-        { cuisine: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
+        { cuisine: { $regex: search, $options: 'i' } }
       ];
     }
-
-    let sortOption = {};
+    
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const total = await Restaurant.countDocuments(query);
+    
+    let restaurants = await Restaurant.find(query)
+      .skip(skip)
+      .limit(parseInt(limit));
+    
     if (sortBy === 'rating') {
-      sortOption.rating = -1;
+      restaurants.sort((a, b) => b.rating - a.rating);
     } else if (sortBy === 'deliveryTime') {
-      sortOption.deliveryTime = 1;
+      restaurants.sort((a, b) => {
+        const aTime = parseInt(a.deliveryTime) || 30;
+        const bTime = parseInt(b.deliveryTime) || 30;
+        return aTime - bTime;
+      });
     } else if (sortBy === 'priceLow') {
-      sortOption.priceForTwo = 1;
+      restaurants.sort((a, b) => a.priceForTwo - b.priceForTwo);
     } else if (sortBy === 'priceHigh') {
-      sortOption.priceForTwo = -1;
-    } else {
-      sortOption.rating = -1;
+      restaurants.sort((a, b) => b.priceForTwo - a.priceForTwo);
     }
-
-    const restaurants = await Restaurant.find(query).sort(sortOption);
-    res.json(restaurants);
+    
+    res.json({
+      restaurants,
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / parseInt(limit)),
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

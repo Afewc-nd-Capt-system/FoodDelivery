@@ -31,6 +31,8 @@ export default function OrdersPage() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     if (!user) {
@@ -38,12 +40,13 @@ export default function OrdersPage() {
       return;
     }
     loadOrders();
-  }, [user, token]);
+  }, [user, token, page]);
 
   const loadOrders = async () => {
     try {
-      const data = await api.orders.getAll(token!);
-      setOrders(data);
+      const data = await api.orders.getAll(token!, page);
+      setOrders(data.orders || data);
+      setTotalPages(data.totalPages || 1);
     } catch (error) {
       console.error('Failed to load orders', error);
     } finally {
@@ -75,76 +78,110 @@ export default function OrdersPage() {
           </Link>
         </div>
       ) : (
-        <div className="space-y-6">
-          {orders.map(order => {
-            const currentStep = getStatusStep(order.status);
-            return (
-                  <div key={order._id} className="card p-6 hover:shadow-md transition-shadow cursor-pointer" onClick={() => router.push(`/orders/${order._id}`)}>
-                <div className="flex flex-col sm:flex-row justify-between items-start mb-4">
-                  <div>
-                    <h3 className="font-bold text-lg">{order.restaurantName}</h3>
-                    <p className="text-sm text-gray-500">
-                      {new Date(order.createdAt).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                      })}
-                    </p>
-                  </div>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    order.status === 'delivered' ? 'bg-green-100 text-green-700' :
-                    order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                    'bg-blue-100 text-blue-700'
-                  }`}>
-                    {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                  </span>
-                </div>
-
-                <div className="mb-4">
-                  {order.items.map((item, idx) => (
-                    <div key={idx} className="flex justify-between py-2 border-b last:border-0">
-                      <span>{item.quantity}x {item.name}</span>
-                      <span className="text-gray-600">${(item.price * item.quantity).toFixed(2)}</span>
+        <>
+          <div className="space-y-6">
+            {orders.map(order => {
+              const currentStep = getStatusStep(order.status);
+              return (
+                <div key={order._id} className="card p-6 hover:shadow-md transition-shadow cursor-pointer" onClick={() => router.push(`/orders/${order._id}`)}>
+                  <div className="flex flex-col sm:flex-row justify-between items-start mb-4">
+                    <div>
+                      <h3 className="font-bold text-lg">{order.restaurantName}</h3>
+                      <p className="text-sm text-gray-500">
+                        {new Date(order.createdAt).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                        })}
+                      </p>
                     </div>
-                  ))}
-                </div>
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      order.status === 'delivered' ? 'bg-green-100 text-green-700' :
+                      order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                      'bg-blue-100 text-blue-700'
+                    }`}>
+                      {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                    </span>
+                  </div>
 
-                <div className="flex justify-between font-bold text-lg mb-6">
-                  <span>Total</span>
-                  <span>${order.totalAmount.toFixed(2)}</span>
-                </div>
+                  <div className="mb-4">
+                    {order.items.map((item, idx) => (
+                      <div key={idx} className="flex justify-between py-2 border-b last:border-0">
+                        <span>{item.quantity}x {item.name}</span>
+                        <span className="text-gray-600">${(item.price * item.quantity).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
 
-                {order.status !== 'cancelled' && order.status !== 'delivered' && (
-                  <div className="border-t pt-4">
-                    <div className="flex items-center justify-between">
-                      {statusSteps.map((step, idx) => {
-                        const StepIcon = step.icon;
-                        const isActive = idx <= currentStep;
-                        const isCurrent = idx === currentStep;
-                        return (
-                          <div key={step.key} className={`flex flex-col items-center ${
-                            idx < statusSteps.length - 1 ? 'flex-1' : ''
-                          }`}>
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                              isActive ? 'bg-primary-500 text-white' : 'bg-gray-200 text-gray-400'
-                            } ${isCurrent ? 'ring-4 ring-primary-200' : ''}`}>
-                              <StepIcon className="w-5 h-5" />
-                            </div>
-                            <span className={`text-xs mt-1 ${
-                              isActive ? 'text-primary-500 font-medium' : 'text-gray-400'
+                  <div className="flex justify-between font-bold text-lg mb-6">
+                    <span>Total</span>
+                    <span>${order.totalAmount.toFixed(2)}</span>
+                  </div>
+
+                  {order.status !== 'cancelled' && order.status !== 'delivered' && (
+                    <div className="border-t pt-4">
+                      <div className="flex items-center justify-between">
+                        {statusSteps.map((step, idx) => {
+                          const StepIcon = step.icon;
+                          const isActive = idx <= currentStep;
+                          const isCurrent = idx === currentStep;
+                          return (
+                            <div key={step.key} className={`flex flex-col items-center ${
+                              idx < statusSteps.length - 1 ? 'flex-1' : ''
                             }`}>
-                              {step.label}
-                            </span>
-                          </div>
-                        );
-                      })}
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                isActive ? 'bg-primary-500 text-white' : 'bg-gray-200 text-gray-400'
+                              } ${isCurrent ? 'ring-4 ring-primary-200' : ''}`}>
+                                <StepIcon className="w-5 h-5" />
+                              </div>
+                              <span className={`text-xs mt-1 ${
+                                isActive ? 'text-primary-500 font-medium' : 'text-gray-400'
+                              }`}>
+                                {step.label}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          
+          {totalPages > 1 && (
+            <div className="flex justify-center items-center gap-2 mt-8">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-4 py-2 border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+              >
+                Previous
+              </button>
+              {[...Array(totalPages)].map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setPage(i + 1)}
+                  className={`w-10 h-10 rounded-lg ${
+                    page === i + 1
+                      ? 'bg-primary-500 text-white'
+                      : 'border hover:bg-gray-50'
+                  }`}
+                >
+                  {i + 1}
+                </button>
+              ))}
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="px-4 py-2 border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

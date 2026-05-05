@@ -42,7 +42,7 @@ export default function CheckoutPage() {
     setError('');
 
     try {
-      await api.orders.create({
+      const response = await api.orders.create({
         restaurant: cart.restaurantId,
         restaurantName: cart.restaurantName,
         items: cart.items.map(item => ({
@@ -58,7 +58,8 @@ export default function CheckoutPage() {
       }, token!);
 
       await clearCart(token);
-      router.push('/orders');
+      const orderId = response.order?._id || response._id;
+      router.push(`/orders/success/${orderId}`);
     } catch (err: any) {
       setError(err.message || 'Failed to place order');
     } finally {
