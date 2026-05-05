@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 
 export default function NewRestaurant() {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
   
   const [formData, setFormData] = useState({
@@ -64,10 +64,8 @@ export default function NewRestaurant() {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
       const res = await fetch(`${API_URL}/restaurants`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           ...formData,
           cuisine: formData.cuisine.split(',').map(c => c.trim()).filter(Boolean),

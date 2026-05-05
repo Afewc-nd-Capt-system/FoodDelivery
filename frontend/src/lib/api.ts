@@ -3,23 +3,17 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 interface RequestOptions {
   method?: string;
   body?: any;
-  token?: string | null;
 }
 
 async function request(endpoint: string, options: RequestOptions = {}) {
-  const { method = 'GET', body, token } = options;
-
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
-
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
+  const { method = 'GET', body } = options;
 
   const res = await fetch(API_URL + endpoint, {
     method,
-    headers,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
     body: body ? JSON.stringify(body) : undefined,
   });
 
@@ -38,8 +32,8 @@ export const api = {
       request('/auth/register', { method: 'POST', body: data }),
     login: (data: { email: string; password: string }) =>
       request('/auth/login', { method: 'POST', body: data }),
-    getProfile: (token: string) =>
-      request('/auth/profile', { token }),
+    getProfile: () =>
+      request('/auth/profile'),
   },
   restaurants: {
     getAll: (params?: Record<string, string>) => {
@@ -50,30 +44,30 @@ export const api = {
     getById: (id: string) => request('/restaurants/' + id),
   },
   orders: {
-    create: (data: any, token: string) =>
-      request('/orders', { method: 'POST', body: data, token }),
-    getAll: (token: string, page: number = 1) =>
-      request('/orders?page=' + page, { token }),
-    getById: (id: string, token: string) =>
-      request('/orders/' + id, { token }),
-    updateStatus: (id: string, status: string, token: string) =>
-      request('/orders/' + id + '/status', { method: 'PUT', body: { status }, token }),
+    create: (data: any) =>
+      request('/orders', { method: 'POST', body: data }),
+    getAll: (page: number = 1) =>
+      request('/orders?page=' + page),
+    getById: (id: string) =>
+      request('/orders/' + id),
+    updateStatus: (id: string, status: string) =>
+      request('/orders/' + id + '/status', { method: 'PUT', body: { status } }),
   },
   cart: {
-    get: (token: string) => request('/cart', { token }),
-    addItem: (data: any, token: string) =>
-      request('/cart/add', { method: 'POST', body: data, token }),
-    updateItem: (data: any, token: string) =>
-      request('/cart/update', { method: 'POST', body: data, token }),
-    clear: (token: string) =>
-      request('/cart/clear', { method: 'DELETE', token }),
+    get: () => request('/cart'),
+    addItem: (data: any) =>
+      request('/cart/add', { method: 'POST', body: data }),
+    updateItem: (data: any) =>
+      request('/cart/update', { method: 'POST', body: data }),
+    clear: () =>
+      request('/cart/clear', { method: 'DELETE' }),
   },
   payments: {
-    initialize: (data: { orderId: string; email: string; amount: number }, token: string) =>
-      request('/payments/initialize', { method: 'POST', body: data, token }),
-    verify: (reference: string, token: string) =>
-      request('/payments/verify/' + reference, { token }),
-    checkEligibility: (restaurantId: string, totalAmount: number, token: string) =>
-      request(`/payments/eligibility?restaurantId=${restaurantId}&totalAmount=${totalAmount}`, { token }),
+    initialize: (data: { orderId: string; email: string; amount: number }) =>
+      request('/payments/initialize', { method: 'POST', body: data }),
+    verify: (reference: string) =>
+      request('/payments/verify/' + reference),
+    checkEligibility: (restaurantId: string, totalAmount: number) =>
+      request(`/payments/eligibility?restaurantId=${restaurantId}&totalAmount=${totalAmount}`),
   },
 };

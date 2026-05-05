@@ -16,6 +16,15 @@ const generateToken = (user) => {
   );
 };
 
+const setTokenCookie = (res, token) => {
+  res.cookie('token', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  });
+};
+
 router.post('/register', [
   body('name').trim().notEmpty().withMessage('Name is required'),
   body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
@@ -43,9 +52,9 @@ router.post('/register', [
     await user.save();
 
     const token = generateToken(user);
+    setTokenCookie(res, token);
 
     res.status(201).json({
-      token,
       user: {
         id: user._id,
         name: user.name,
@@ -84,9 +93,9 @@ router.post('/login', loginLimiter, bruteForceProtection, [
     }
 
     const token = generateToken(user);
+    setTokenCookie(res, token);
 
     res.json({
-      token,
       user: {
         id: user._id,
         name: user.name,
@@ -99,17 +108,9 @@ router.post('/login', loginLimiter, bruteForceProtection, [
   }
 });
 
-router.get('/profile', async (req, res) => {
+router.get('/profile', authMiddleware, async (req, res) => {
   try {
-    const authHeader = req.header('Authorization');
-    if (!authHeader) {
-      return res.status(401).json({ message: 'No token provided' });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
-
-    const user = await User.findById(decoded.id).select('-password');
+    const user = await User.findById(req.user.id).select('-password');
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -154,11 +155,12 @@ router.put('/profile', authMiddleware, [
 
 router.post('/logout', authMiddleware, async (req, res) => {
   try {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
+    const token = req.cookies?.token || req.header('Authorization')?.replace('Bearer ', '');
     if (token) {
       const { addToBlacklist } = require('../utils/tokenBlacklist');
       addToBlacklist(token);
     }
+    res.clearCookie('token');
     res.json({ message: 'Logged out successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });

@@ -19,7 +19,7 @@ declare global {
 }
 
 export default function CheckoutPage() {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const { cart, clearCart } = useCart();
   const router = useRouter();
   const [address, setAddress] = useState('');
@@ -42,13 +42,12 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     const checkEligibility = async () => {
-      if (!token || !cart.restaurantId) return;
+      if (!cart.restaurantId) return;
 
       try {
         const data = await api.payments.checkEligibility(
           cart.restaurantId,
-          cart.items.reduce((sum, item) => sum + item.price * item.quantity, 0) + 40,
-          token
+          cart.items.reduce((sum, item) => sum + item.price * item.quantity, 0) + 40
         );
         setPayOnDeliveryEligible(data.eligible);
         setEligibilityReason(data.reason || '');
@@ -60,7 +59,7 @@ export default function CheckoutPage() {
     };
 
     checkEligibility();
-  }, [token, cart.restaurantId]);
+  }, [cart.restaurantId]);
 
   useEffect(() => {
     if (paymentMethod === 'card' && !(window as any).PaystackPop) {
@@ -104,16 +103,16 @@ export default function CheckoutPage() {
         deliveryAddress: address,
         paymentMethod,
         deliveryFee,
-      }, token!);
+      });
 
       const orderId = response.order?._id || response._id;
 
       if (paymentMethod === 'card') {
         const paystackResponse = await api.payments.initialize({
           orderId,
-          email: user!.email,
+          email: user?.email || '',
           amount: total,
-        }, token!);
+        });
 
         if (paystackResponse.authorizationUrl) {
           window.location.href = paystackResponse.authorizationUrl;
@@ -121,7 +120,7 @@ export default function CheckoutPage() {
         }
       }
 
-      await clearCart(token);
+      await clearCart();
       router.push(`/orders/success/${orderId}`);
     } catch (err: any) {
       setError(err.message || 'Failed to place order');

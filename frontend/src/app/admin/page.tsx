@@ -23,7 +23,7 @@ interface Order {
 }
 
 export default function AdminDashboard() {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
   const [stats, setStats] = useState<Stats | null>(null);
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
@@ -43,7 +43,7 @@ export default function AdminDashboard() {
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
       const res = await fetch(`${API_URL}/admin/stats`, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       if (res.ok) {
         const data = await res.json();

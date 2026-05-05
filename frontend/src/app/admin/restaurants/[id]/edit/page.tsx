@@ -23,7 +23,7 @@ interface Restaurant {
 export default function EditRestaurant() {
   const params = useParams();
   const router = useRouter();
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   
   const [formData, setFormData] = useState({
     name: '',
@@ -59,9 +59,7 @@ export default function EditRestaurant() {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
       const res = await fetch(`${API_URL}/uploads/restaurant/${params.id}`, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        credentials: 'include',
         body: formData,
       });
 
@@ -153,10 +151,8 @@ export default function EditRestaurant() {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
       const res = await fetch(`${API_URL}/restaurants/${params.id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           ...formData,
           cuisine: formData.cuisine.split(',').map((c: string) => c.trim()).filter(Boolean),

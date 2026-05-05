@@ -4,6 +4,8 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const http = require('http');
+const cookieParser = require('cookie-parser');
+const morgan = require('morgan');
 const { Server } = require('socket.io');
 const authMiddleware = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
@@ -14,7 +16,6 @@ const adminRoutes = require('./routes/admin');
 const paymentRoutes = require('./routes/payments');
 const { authLimiter, apiLimiter } = require('./middleware/security');
 const { blacklistMiddleware } = require('./utils/tokenBlacklist');
-
 const { xssProtection } = require('./middleware/sanitize');
 
 const app = express();
@@ -47,6 +48,7 @@ const corsOptions = {
   optionsSuccessStatus: 200,
 };
 
+app.use(morgan('combined'));
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -79,12 +81,12 @@ app.use(helmet({
   referrerPolicy: { policy: "strict-origin-when-cross-origin" },
   xssFilter: true,
 }));
-
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+app.use(cookieParser());
 app.use(xssProtection);
-app.use('/api/', require('./middleware/security').apiLimiter);
+app.use('/api/', apiLimiter);
 app.use(blacklistMiddleware);
 app.use('/uploads', express.static('uploads'));
 

@@ -15,7 +15,7 @@ interface User {
 }
 
 export default function AdminUsers() {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,7 +33,7 @@ export default function AdminUsers() {
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
       const res = await fetch(`${API_URL}/admin/users?limit=100`, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       if (res.ok) {
         const data = await res.json();

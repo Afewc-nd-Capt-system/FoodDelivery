@@ -17,10 +17,10 @@ interface Cart {
 
 interface CartContextType {
   cart: Cart;
-  addToCart: (item: CartItem & { restaurantId: string; restaurantName: string }, token: string | null) => Promise<void>;
-  updateQuantity: (itemId: string, quantity: number, token: string | null) => Promise<void>;
-  clearCart: (token: string | null) => Promise<void>;
-  refreshCart: (token: string | null) => Promise<void>;
+  addToCart: (item: CartItem & { restaurantId: string; restaurantName: string }) => Promise<void>;
+  updateQuantity: (itemId: string, quantity: number) => Promise<void>;
+  clearCart: () => Promise<void>;
+  refreshCart: () => Promise<void>;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -30,11 +30,10 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<Cart>({ items: [], restaurantId: null, restaurantName: null });
 
-  const refreshCart = async (token: string | null) => {
-    if (!token) return;
+  const refreshCart = async () => {
     try {
       const res = await fetch(API_BASE + '/cart', {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       if (res.ok) {
         const data = await res.json();
@@ -45,11 +44,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const addToCart = async (item: CartItem & { restaurantId: string; restaurantName: string }, token: string | null) => {
-    if (!token) throw new Error('Please login to add items');
+  const addToCart = async (item: CartItem & { restaurantId: string; restaurantName: string }) => {
     const res = await fetch(API_BASE + '/cart/add', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(item),
     });
     const data = await res.json();
@@ -57,11 +56,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setCart(data);
   };
 
-  const updateQuantity = async (itemId: string, quantity: number, token: string | null) => {
-    if (!token) return;
+  const updateQuantity = async (itemId: string, quantity: number) => {
     const res = await fetch(API_BASE + '/cart/update', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ itemId, quantity }),
     });
     const data = await res.json();
@@ -69,11 +68,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setCart(data);
   };
 
-  const clearCart = async (token: string | null) => {
-    if (!token) return;
+  const clearCart = async () => {
     const res = await fetch(API_BASE + '/cart/clear', {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
+      credentials: 'include',
     });
     if (res.ok) {
       setCart({ items: [], restaurantId: null, restaurantName: null });

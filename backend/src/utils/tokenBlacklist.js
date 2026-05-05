@@ -1,32 +1,36 @@
 const jwt = require('jsonwebtoken');
+const TokenBlacklist = require('../models/TokenBlacklist');
 
-const blacklistedTokens = new Set();
-
-const addToBlacklist = (token) => {
-  blacklistedTokens.add(token);
+const addToBlacklist = async (token) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
-    const expiresIn = decoded.exp * 1000 - Date.now();
-    if (expiresIn > 0) {
-      setTimeout(() => {
-        blacklistedTokens.delete(token);
-      }, expiresIn);
-    }
+    const expiresAt = new Date(decoded.exp * 1000);
+    
+    await TokenBlacklist.create({ token, expiresAt });
   } catch (error) {
-    blacklistedTokens.delete(token);
+    // Token already expired or invalid, no need to blacklist
   }
 };
 
-const isBlacklisted = (token) => {
-  return blacklistedTokens.has(token);
+const isBlacklisted = async (token) => {
+  try {
+    const blacklisted = await TokenBlacklist.findOne({ token });
+    return !!blacklisted;
+  } catch (error) {
+    return false;
+  }
 };
 
-const blacklistMiddleware = (req, res, next) => {
-  const token = req.header('Authorization')?.replace('Bearer ', '');
-  if (token && isBlacklisted(token)) {
-    return res.status(401).json({ message: 'Token has been invalidated. Please login again.' });
+const blacklistMiddleware = async (req, res, next) => {
+  try {
+    const token = req.cookies?.token || req.header('Authorization')?.replace('Bearer ', '');
+    if (token && await isBlacklisted(token)) {
+      return res.status(401).json({ message: 'Token has been invalidated. Please login again.' });
+    }
+    next();
+  } catch (error) {
+    next();
   }
-  next();
 };
 
 module.exports = { addToBlacklist, isBlacklisted, blacklistMiddleware };

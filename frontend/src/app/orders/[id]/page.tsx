@@ -29,7 +29,7 @@ const statusSteps = [
 export default function OrderDetail() {
   const params = useParams();
   const router = useRouter();
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const { orderUpdates } = useSocket();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,10 +42,10 @@ export default function OrderDetail() {
       router.push('/auth/login');
       return;
     }
-    if (params.id && token) {
+    if (params.id) {
       fetchOrder();
     }
-  }, [user, params.id, token]);
+  }, [user, params.id]);
 
   useEffect(() => {
     if (orderUpdates.length > 0) {
@@ -60,7 +60,7 @@ export default function OrderDetail() {
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
       const res = await fetch(`${API_URL}/orders/${params.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       if (res.ok) {
         const data = await res.json();
@@ -80,10 +80,8 @@ export default function OrderDetail() {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
       const res = await fetch(`${API_URL}/orders/${params.id}/status`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ status: 'cancelled' }),
       });
       if (res.ok) {

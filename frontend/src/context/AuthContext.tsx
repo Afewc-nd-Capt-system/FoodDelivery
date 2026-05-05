@@ -18,7 +18,6 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string, phone?: string) => Promise<void>;
@@ -32,35 +31,24 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const updateUser = (userData: User) => {
     setUser(userData);
-    localStorage.setItem('user', JSON.stringify(userData));
   };
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token');
-    if (storedToken) {
-      setToken(storedToken);
-      fetchUser(storedToken);
-    } else {
-      setLoading(false);
-    }
+    fetchUser();
   }, []);
 
-  const fetchUser = async (tok: string) => {
+  const fetchUser = async () => {
     try {
       const res = await fetch(API_BASE + '/auth/profile', {
-        headers: { Authorization: `Bearer ${tok}` },
+        credentials: 'include',
       });
       if (res.ok) {
         const data = await res.json();
         setUser(data);
-      } else {
-        localStorage.removeItem('token');
-        setToken(null);
       }
     } catch (error) {
       console.error('Failed to fetch user', error);
@@ -73,48 +61,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const res = await fetch(API_BASE + '/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ email, password }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Login failed');
-    localStorage.setItem('token', data.token);
-    setToken(data.token);
     setUser(data.user);
+    await fetchUser();
   };
 
   const register = async (name: string, email: string, password: string, phone?: string) => {
     const res = await fetch(API_BASE + '/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ name, email, password, phone }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Registration failed');
-    localStorage.setItem('token', data.token);
-    setToken(data.token);
     setUser(data.user);
+    await fetchUser();
   };
 
   const logout = async () => {
-    const currentToken = token;
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setToken(null);
-    setUser(null);
-    if (currentToken) {
-      try {
-        await fetch(API_BASE + '/auth/logout', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${currentToken}` },
-        });
-      } catch (error) {
-        console.error('Logout error:', error);
-      }
+    try {
+      await fetch(API_BASE + '/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setUser(null);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

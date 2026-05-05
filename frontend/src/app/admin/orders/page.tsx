@@ -26,7 +26,7 @@ const statusConfig: Record<string, { label: string; color: string; icon: any }> 
 };
 
 export default function AdminOrders() {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,7 +47,7 @@ export default function AdminOrders() {
         ? `${API_URL}/admin/orders?status=${filterStatus}`
         : `${API_URL}/admin/orders`;
       const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       if (res.ok) {
         const data = await res.json();
@@ -65,10 +65,8 @@ export default function AdminOrders() {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
       const res = await fetch(`${API_URL}/admin/orders/${orderId}/status`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ status: newStatus }),
       });
       if (res.ok) {

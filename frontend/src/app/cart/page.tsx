@@ -9,7 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 
 export default function CartPage() {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const { cart, updateQuantity, clearCart, refreshCart } = useCart();
   const router = useRouter();
   const [updating, setUpdating] = useState<string | null>(null);
@@ -23,7 +23,7 @@ export default function CartPage() {
   const handleUpdateQuantity = async (itemId: string, newQty: number) => {
     setUpdating(itemId);
     try {
-      await updateQuantity(itemId, newQty, token);
+      await updateQuantity(itemId, newQty);
     } catch (error) {
       console.error('Failed to update', error);
     } finally {
@@ -33,7 +33,7 @@ export default function CartPage() {
 
   const handleClearCart = async () => {
     if (confirm('Are you sure you want to clear the cart?')) {
-      await clearCart(token);
+      await clearCart();
     }
   };
 
