@@ -58,6 +58,19 @@ const orderSchema = new mongoose.Schema({
     type: Number,
     default: 40,
   },
+  paymentStatus: {
+    type: String,
+    enum: ['pending', 'paid', 'failed'],
+    default: 'pending',
+  },
+  paystackReference: {
+    type: String,
+    default: '',
+  },
+  isPaid: {
+    type: Boolean,
+    default: false,
+  },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Order', orderSchema);

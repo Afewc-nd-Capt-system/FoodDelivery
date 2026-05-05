@@ -116,6 +116,14 @@ const restaurantSchema = new mongoose.Schema({
   offers: [{
     type: String,
   }],
+  payOnDeliveryEnabled: {
+    type: Boolean,
+    default: true,
+  },
+  minOrderForPayOnDelivery: {
+    type: Number,
+    default: 0,
+  },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Restaurant', restaurantSchema);

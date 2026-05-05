@@ -20,6 +20,8 @@ export default function NewRestaurant() {
     priceRange: '$$',
     address: '',
     isOpen: true,
+    payOnDeliveryEnabled: true,
+    minOrderForPayOnDelivery: 0,
   });
   
   const [menuItems, setMenuItems] = useState([
@@ -70,6 +72,8 @@ export default function NewRestaurant() {
           ...formData,
           cuisine: formData.cuisine.split(',').map(c => c.trim()).filter(Boolean),
           menu: menuItems.filter(item => item.name),
+          payOnDeliveryEnabled: formData.payOnDeliveryEnabled,
+          minOrderForPayOnDelivery: formData.minOrderForPayOnDelivery,
         }),
       });
 
@@ -189,6 +193,31 @@ export default function NewRestaurant() {
                   <option value="$$$$">$$$$ (Luxury)</option>
                 </select>
               </div>
+              <div>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    name="payOnDeliveryEnabled"
+                    checked={formData.payOnDeliveryEnabled}
+                    onChange={(e) => setFormData(prev => ({ ...prev, payOnDeliveryEnabled: e.target.checked }))}
+                    className="text-primary-500"
+                  />
+                  <span className="text-sm font-medium">Enable Pay on Delivery</span>
+                </label>
+              </div>
+              {formData.payOnDeliveryEnabled && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">Minimum Order Amount for Pay on Delivery ($)</label>
+                  <input
+                    type="number"
+                    name="minOrderForPayOnDelivery"
+                    value={formData.minOrderForPayOnDelivery}
+                    onChange={(e) => setFormData(prev => ({ ...prev, minOrderForPayOnDelivery: Number(e.target.value) }))}
+                    className="input-field"
+                    min="0"
+                  />
+                </div>
+              )}
             </div>
           </div>
 

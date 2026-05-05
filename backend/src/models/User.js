@@ -34,6 +34,26 @@ const userSchema = new mongoose.Schema({
     enum: ['user', 'admin'],
     default: 'user',
   },
+  consecutiveCancellations: {
+    type: Number,
+    default: 0,
+  },
+  totalCancellations: {
+    type: Number,
+    default: 0,
+  },
+  payOnDeliveryEnabled: {
+    type: Boolean,
+    default: true,
+  },
+  ordersSincePenalty: {
+    type: Number,
+    default: 0,
+  },
+  penaltyApplied: {
+    type: Boolean,
+    default: false,
+  },
 }, { timestamps: true });
 
 userSchema.pre('save', async function (next) {

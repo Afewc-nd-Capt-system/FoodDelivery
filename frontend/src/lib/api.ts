@@ -68,4 +68,12 @@ export const api = {
     clear: (token: string) =>
       request('/cart/clear', { method: 'DELETE', token }),
   },
+  payments: {
+    initialize: (data: { orderId: string; email: string; amount: number }, token: string) =>
+      request('/payments/initialize', { method: 'POST', body: data, token }),
+    verify: (reference: string, token: string) =>
+      request('/payments/verify/' + reference, { token }),
+    checkEligibility: (restaurantId: string, totalAmount: number, token: string) =>
+      request(`/payments/eligibility?restaurantId=${restaurantId}&totalAmount=${totalAmount}`, { token }),
+  },
 };

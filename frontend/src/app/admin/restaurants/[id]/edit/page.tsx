@@ -35,6 +35,8 @@ export default function EditRestaurant() {
     priceRange: '$$',
     address: '',
     isOpen: true,
+    payOnDeliveryEnabled: true,
+    minOrderForPayOnDelivery: 0,
   });
   
   const [menuItems, setMenuItems] = useState<any[]>([
@@ -71,6 +73,8 @@ export default function EditRestaurant() {
           priceRange: data.priceRange || '$$',
           address: data.address || '',
           isOpen: data.isOpen ?? true,
+          payOnDeliveryEnabled: data.payOnDeliveryEnabled ?? true,
+          minOrderForPayOnDelivery: data.minOrderForPayOnDelivery || 0,
         });
         if (data.menu && data.menu.length > 0) {
           setMenuItems(data.menu.map((item: any) => ({
@@ -128,6 +132,8 @@ export default function EditRestaurant() {
           ...formData,
           cuisine: formData.cuisine.split(',').map((c: string) => c.trim()).filter(Boolean),
           menu: menuItems.filter(item => item.name),
+          payOnDeliveryEnabled: formData.payOnDeliveryEnabled,
+          minOrderForPayOnDelivery: formData.minOrderForPayOnDelivery,
         }),
       });
 
@@ -255,6 +261,31 @@ export default function EditRestaurant() {
                   <option value="$$$$">$$$$ (Luxury)</option>
                 </select>
               </div>
+              <div>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    name="payOnDeliveryEnabled"
+                    checked={formData.payOnDeliveryEnabled}
+                    onChange={(e) => setFormData(prev => ({ ...prev, payOnDeliveryEnabled: e.target.checked }))}
+                    className="text-primary-500"
+                  />
+                  <span className="text-sm font-medium">Enable Pay on Delivery</span>
+                </label>
+              </div>
+              {formData.payOnDeliveryEnabled && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">Minimum Order Amount for Pay on Delivery ($)</label>
+                  <input
+                    type="number"
+                    name="minOrderForPayOnDelivery"
+                    value={formData.minOrderForPayOnDelivery}
+                    onChange={(e) => setFormData(prev => ({ ...prev, minOrderForPayOnDelivery: Number(e.target.value) }))}
+                    className="input-field"
+                    min="0"
+                  />
+                </div>
+              )}
             </div>
           </div>
 

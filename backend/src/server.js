@@ -9,6 +9,7 @@ const restaurantRoutes = require('./routes/restaurants');
 const orderRoutes = require('./routes/orders');
 const cartRoutes = require('./routes/cart');
 const adminRoutes = require('./routes/admin');
+const paymentRoutes = require('./routes/payments');
 const { authLimiter, apiLimiter } = require('./middleware/security');
 
 const app = express();
@@ -29,6 +30,7 @@ app.use('/api/restaurants', restaurantRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/payments', paymentRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Food Delivery API is running' });

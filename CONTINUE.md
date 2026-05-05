@@ -65,21 +65,36 @@
 - ✅ Updated checkout flow to redirect to success page
 - ✅ Pagination for restaurants (backend + frontend)
 - ✅ Pagination for orders (backend + frontend)
+- ✅ Paystack payment integration (initialize, verify, webhook)
+- ✅ Pay-on-delivery eligibility system with rules:
+  - Only for consistent customers
+  - Penalty after 2 consecutive cancellations OR 5 total cancellations
+  - Penalty removed after 5 successful orders
+  - Restaurants can disable pay-on-delivery entirely
+  - Restaurants can set minimum order amount for pay-on-delivery
+- ✅ Admin routes to manage pay-on-delivery settings
+- ✅ Updated admin restaurant pages to configure pay-on-delivery
 
 **Priority 1 - Push to GitHub:**
 - ✅ DONE: Code already pushed to https://github.com/Afewc-nd-Capt-system/FoodDelivery.git
 
 **Priority 2 - Remaining Features:**
-1. Payment integration (Stripe/Razorpay) - replace mock payment methods
+1. ~~Payment integration (Stripe/Razorpay)~~ ✅ DONE (Paystack integrated)
 2. Real-time order tracking (WebSockets or SSE)
 3. Image upload for restaurant/menu items
 4. Email notifications (order confirmation, status updates)
 5. Unit and integration tests
 6. ~~Pagination for restaurants, orders, users~~ ✅
-7. Search optimization (use backend search instead of client-side) - PARTIALLY DONE (restaurants now use backend search)
+7. ~~Search optimization (use backend search instead of client-side)~~ ✅ (restaurants now use backend search)
 8. Responsive fixes and mobile testing
 9. ~~Order success page after checkout~~ ✅
 10. ~~Better empty states (cart, orders, restaurants)~~ ✅ (already implemented)
+
+**SETUP REQUIRED:**
+- Add real Paystack secret key to `backend/.env` (PAYSTACK_SECRET_KEY)
+- Add frontend URL to `backend/.env` (FRONTEND_URL)
+- Install Paystack package in backend: `cd backend && npm install paystack-api` (DONE)
+- For frontend, Paystack inline script is loaded dynamically (no package needed)
 
 **Nice to Have:**
 - Forgot password functionality

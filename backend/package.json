@@ -17,7 +17,8 @@
     "express-validator": "^7.0.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.0.0"
+    "mongoose": "^8.0.0",
+    "paystack-api": "^2.0.6"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

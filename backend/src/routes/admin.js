@@ -137,4 +137,51 @@ router.get('/restaurants', async (req, res) => {
   }
 });
 
+router.put('/restaurants/:id/pay-on-delivery', async (req, res) => {
+  try {
+    const { payOnDeliveryEnabled, minOrderForPayOnDelivery } = req.body;
+
+    const restaurant = await Restaurant.findByIdAndUpdate(
+      req.params.id,
+      {
+        ...(payOnDeliveryEnabled !== undefined && { payOnDeliveryEnabled }),
+        ...(minOrderForPayOnDelivery !== undefined && { minOrderForPayOnDelivery }),
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!restaurant) {
+      return res.status(404).json({ message: 'Restaurant not found' });
+    }
+
+    res.json(restaurant);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+router.put('/users/:id/pay-on-delivery', async (req, res) => {
+  try {
+    const { payOnDeliveryEnabled } = req.body;
+
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      {
+        payOnDeliveryEnabled,
+        penaltyApplied: !payOnDeliveryEnabled,
+        ordersSincePenalty: 0,
+      },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json(user);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
 module.exports = router;
