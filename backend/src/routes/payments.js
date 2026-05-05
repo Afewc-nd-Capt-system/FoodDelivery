@@ -89,13 +89,13 @@ router.get('/verify/:reference', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/webhook', async (req, res) => {
+router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   try {
     const hash = req.headers['x-paystack-signature'];
     const crypto = require('crypto');
     const expectedHash = crypto
       .createHmac('sha512', PAYSTACK_SECRET_KEY)
-      .update(JSON.stringify(req.body))
+      .update(req.body)
       .digest('hex');
 
     if (hash !== expectedHash) {
