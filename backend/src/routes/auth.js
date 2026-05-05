@@ -3,6 +3,8 @@ const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
+const { bruteForceProtection, loginLimiter } = require('../middleware/bruteForce');
+const { xssProtection } = require('../middleware/sanitize');
 
 const router = express.Router();
 
@@ -18,7 +20,7 @@ router.post('/register', [
   body('name').trim().notEmpty().withMessage('Name is required'),
   body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-], async (req, res) => {
+], xssProtection, async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -54,10 +56,10 @@ router.post('/register', [
   }
 });
 
-router.post('/login', [
+router.post('/login', loginLimiter, bruteForceProtection, [
   body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
   body('password').notEmpty().withMessage('Password is required'),
-], async (req, res) => {
+], xssProtection, async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -113,7 +115,11 @@ router.get('/profile', async (req, res) => {
   }
 });
 
-router.put('/profile', authMiddleware, async (req, res) => {
+router.put('/profile', authMiddleware, [
+  body('name').optional().trim().notEmpty(),
+  body('phone').optional().trim(),
+  body('address').optional(),
+], xssProtection, async (req, res) => {
   try {
     const { name, phone, address } = req.body;
     const user = await User.findById(req.user.id);
@@ -138,6 +144,19 @@ router.put('/profile', authMiddleware, async (req, res) => {
     });
   } catch (error) {
     res.status(400).json({ message: error.message || 'Update failed' });
+  }
+});
+
+router.post('/logout', authMiddleware, async (req, res) => {
+  try {
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    if (token) {
+      const { addToBlacklist } = require('../utils/tokenBlacklist');
+      addToBlacklist(token);
+    }
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 });
 

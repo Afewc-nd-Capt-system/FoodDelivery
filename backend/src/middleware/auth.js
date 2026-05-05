@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { isBlacklisted } = require('../utils/tokenBlacklist');
 
 const authMiddleware = (req, res, next) => {
   try {
@@ -6,6 +7,10 @@ const authMiddleware = (req, res, next) => {
 
     if (!token) {
       return res.status(401).json({ message: 'No token, authorization denied' });
+    }
+
+    if (isBlacklisted(token)) {
+      return res.status(401).json({ message: 'Token has been invalidated. Please login again.' });
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-change-in-production');

@@ -6,7 +6,6 @@ const helmet = require('helmet');
 const http = require('http');
 const { Server } = require('socket.io');
 const authMiddleware = require('./middleware/auth');
-
 const authRoutes = require('./routes/auth');
 const restaurantRoutes = require('./routes/restaurants');
 const orderRoutes = require('./routes/orders');
@@ -14,6 +13,7 @@ const cartRoutes = require('./routes/cart');
 const adminRoutes = require('./routes/admin');
 const paymentRoutes = require('./routes/payments');
 const { authLimiter, apiLimiter } = require('./middleware/security');
+const { blacklistMiddleware } = require('./utils/tokenBlacklist');
 
 const app = express();
 const server = http.createServer(app);
@@ -27,29 +27,62 @@ const io = new Server(server, {
 
 app.set('io', io);
 
-io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
+const corsOptions = {
+  origin: (origin, callback) => {
+    const allowedOrigins = [
+      process.env.FRONTEND_URL || 'http://localhost:3000',
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+    ];
+    
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS policy: Origin not allowed'));
+    }
+  },
+  credentials: true,
+  optionsSuccessStatus: 200,
+};
 
-  socket.on('join-order', (orderId) => {
-    socket.join(`order-${orderId}`);
-    console.log(`Socket ${socket.id} joined order-${orderId}`);
-  });
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://js.paystack.co"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:", "http:"],
+      connectSrc: ["'self'", process.env.FRONTEND_URL || 'http://localhost:3000'],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: true,
+  crossOriginOpenerPolicy: true,
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  dnsPrefetchControl: true,
+  frameguard: { action: 'deny' },
+  hidePoweredBy: true,
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true,
+  },
+  ieNoOpen: true,
+  noSniff: true,
+  originAgentCluster: true,
+  permittedCrossDomainPolicies: false,
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  xssFilter: true,
+}));
 
-  socket.on('join-user', (userId) => {
-    socket.join(`user-${userId}`);
-    console.log(`Socket ${socket.id} joined user-${userId}`);
-  });
-
-  socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
-  });
-});
-
-app.use(helmet());
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:3000', credentials: true }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use('/api/', apiLimiter);
+app.use(cors(corsOptions));
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+app.use('/api/', require('./middleware/security').apiLimiter);
+app.use(blacklistMiddleware);
 app.use('/uploads', express.static('uploads'));
 
 mongoose
