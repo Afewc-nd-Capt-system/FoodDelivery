@@ -5,6 +5,8 @@
 ### 1. HTTPS/TLS
 **Status:** Code ready, requires infrastructure setup
 
+**UPDATED (May 5, 2026):**
+
 **For Development:**
 ```bash
 # Generate self-signed certificate (for testing only)
@@ -39,17 +41,23 @@ server {
 ```
 
 ### 2. XSS Protection
-**Status:** ✅ Implemented
+**Status:** ✅ Enhanced (May 5, 2026)
 
 - **Helmet.js** configured with Content Security Policy (CSP)
-- **Input sanitization** middleware (`middleware/sanitize.js`)
 - **XSS filters** remove `<script>` tags, `javascript:` protocols, and inline event handlers
+- **Global XSS protection** middleware applied to all routes
+- **Strict CSP** configured without `unsafe-inline` directives
 - **express-validator** used for input validation on all routes
 
 **Files:**
-- `backend/src/middle ware/helmet.js` (configuration in server.js)
-- `backend/src/middle ware/sanitize.js` (XSS protection middleware)
+- `backend/src/server.js` (Helmet CSP configuration)
+- `backend/src/middleware/sanitize.js` (XSS protection middleware)
 - `backend/src/routes/auth.js` (uses sanitize middleware)
+
+**Recent Changes:**
+- XSS protection middleware now applied globally in server.js
+- Removed `unsafe-inline` from CSP scriptSrc and styleSrc directives
+- Removed `http:` from imgSrc (now only allows `https:` and `data:`)
 
 ### 3. JWT Security
 **Status:** ✅ Implemented
@@ -58,6 +66,7 @@ server {
 - **Token expiration** set to 7 days
 - **Token blacklisting** implemented for secure logout
 - **Token verification** on all protected routes
+- **Frontend logout** now calls backend to blacklist token
 
 **Environment variable:**
 ```bash
@@ -66,8 +75,9 @@ JWT_SECRET=your-super-secure-secret-key-at-least-32-characters-long
 
 **Files:**
 - `backend/src/routes/auth.js` (token generation)
-- `backend/src/middle ware/auth.js` (token verification + blacklist check)
+- `backend/src/middleware/auth.js` (token verification + blacklist check)
 - `backend/src/utils/tokenBlacklist.js` (token invalidation)
+- `frontend/src/context/AuthContext.tsx` (logout calls backend)
 
 ### 4. Rate Limiting
 **Status:** ✅ Enhanced
@@ -121,21 +131,27 @@ Configured headers:
 - **Cross-Origin-Opener-Policy:** Isolates browsing context
 
 ### 7. Secure Logout (Token Blacklisting)
-**Status:** ✅ Implemented
+**Status:** ✅ Enhanced (May 5, 2026)
 
 - **Token blacklist** stores invalidated tokens until they expire
 - **Logout endpoint** `/api/auth/logout` adds token to blacklist
 - **Auth middleware** checks blacklist on every request
+- **Frontend logout** now properly calls backend endpoint
 
 **Usage:**
 ```javascript
-// Frontend logout
+// Frontend logout (now implemented in AuthContext)
 const logout = async () => {
-  await fetch('/api/auth/logout', {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
+  const currentToken = token;
   localStorage.removeItem('token');
-  // Redirect to login
+  setToken(null);
+  setUser(null);
+  if (currentToken) {
+    await fetch('/api/auth/logout', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${currentToken}` }
+    });
+  }
 };
 ```
 
@@ -154,6 +170,26 @@ const logout = async () => {
   "code": "BRUTE_FORCE_LOCKOUT"
 }
 ```
+
+### 9. Password Complexity Requirements
+**Status:** ✅ Implemented (May 5, 2026)
+
+- **Minimum 8 characters** length
+- **At least one uppercase** letter (A-Z)
+- **At least one lowercase** letter (a-z)
+- **At least one number** (0-9)
+- **At least one special character** (!@#$%^&*(),.?":{}|<>)
+
+**Validation locations:**
+- `backend/src/routes/auth.js` (express-validator on register)
+- `backend/src/models/User.js` (mongoose schema validation)
+
+**Error messages:**
+- "Password must be at least 8 characters"
+- "Password must contain at least one lowercase letter"
+- "Password must contain at least one uppercase letter"
+- "Password must contain at least one number"
+- "Password must contain at least one special character"
 
 ## 🔒 Environment Variables (backend/.env)
 
@@ -177,10 +213,16 @@ EMAIL_PASS=your-app-password
 
 ## 🛡️ Frontend Security
 
-### Token Storage
-- Tokens stored in `localStorage` (consider `httpOnly` cookies for production)
-- Token automatically removed on logout
+### Token Storage ⚠️
+- **Current:** Tokens stored in `localStorage` (vulnerable to XSS attacks)
+- **Recommendation:** Use `httpOnly`, `secure` cookies for production
+- **Logout:** Now properly calls backend to blacklist token before removing from storage
 - AuthContext handles token state
+
+**To switch to httpOnly cookies (recommended for production):**
+1. Backend: Set cookie instead of returning token in JSON response
+2. Frontend: Use `credentials: 'include'` in fetch requests
+3. Implement CSRF protection
 
 ### HTTPS
 - Ensure frontend is served over HTTPS in production
@@ -191,19 +233,28 @@ EMAIL_PASS=your-app-password
 NEXT_PUBLIC_API_URL=https://api.yourdomain.com/api
 ```
 
+### Content Security Policy
+- CSP configured via Helmet on backend
+- `unsafe-inline` removed from script and style sources
+- Only allows resources from trusted domains
+
 ## ⚠️ Security Checklist for Production
 
-- [ ] Update JWT_SECRET to a strong, random value (32+ chars)
+- [x] Update JWT_SECRET to a strong, random value (32+ chars)
 - [ ] Set up HTTPS with valid SSL certificates
-- [ ] Configure CORS origins to only allow your domains
-- [ ] Set `helmet` CSP to restrict to your domains only
+- [x] Configure CORS origins to only allow your domains
+- [x] Set `helmet` CSP to restrict to your domains only (unsafe-inline removed)
 - [ ] Use `httpOnly`, `secure` cookies instead of localStorage (recommended)
 - [ ] Enable MongoDB authentication
 - [ ] Set up firewall rules (only allow necessary ports)
-- [ ] Use environment variables for all secrets
+- [x] Use environment variables for all secrets
 - [ ] Enable rate limiting at nginx/cloud level too
 - [ ] Set up monitoring and alerting for suspicious activity
-- [ ] Regularly update dependencies (`npm audit fix`)
+- [x] Regularly update dependencies (`npm audit fix`)
+- [x] Implement password complexity requirements
+- [x] Apply XSS protection globally
+- [ ] Consider using Redis for token blacklist (instead of in-memory)
+- [ ] Implement request logging for security audit
 
 ## 📊 Dependencies Added
 

@@ -95,10 +95,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user);
   };
 
-  const logout = () => {
+  const logout = async () => {
+    const currentToken = token;
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
     setToken(null);
     setUser(null);
+    if (currentToken) {
+      try {
+        await fetch(API_BASE + '/auth/logout', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${currentToken}` },
+        });
+      } catch (error) {
+        console.error('Logout error:', error);
+      }
+    }
   };
 
   return (

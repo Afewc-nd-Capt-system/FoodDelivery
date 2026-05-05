@@ -74,24 +74,6 @@ function RestaurantsContent() {
     if (sortBy) params.set('sortBy', sortBy);
     window.location.href = `/restaurants?${params.toString()}`;
   };
-      if (selectedCuisine) params.cuisine = selectedCuisine;
-      if (priceFilter) params.priceRange = priceFilter;
-      if (sortBy) params.sortBy = sortBy;
-      if (search) params.search = search;
-
-      const [restData, cuisineData] = await Promise.all([
-        api.restaurants.getAll(params),
-        api.restaurants.getCuisines(),
-      ]);
-      setRestaurants(restData.restaurants || restData);
-      setTotalPages(restData.totalPages || 1);
-      setCuisines(cuisineData);
-    } catch (error) {
-      console.error('Failed to load', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [page, selectedCuisine, sortBy, priceFilter, search]);
 
   const applyFilters = useCallback(() => {
     let result = [...restaurants];
@@ -120,15 +102,6 @@ function RestaurantsContent() {
 
     setFiltered(result);
   }, [restaurants, selectedCuisine, sortBy, priceFilter]);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    const params = new URLSearchParams();
-    if (search) params.set('search', search);
-    if (selectedCuisine) params.set('cuisine', selectedCuisine);
-    if (sortBy) params.set('sortBy', sortBy);
-    window.location.href = `/restaurants?${params.toString()}`;
-  };
 
   const cuisineIcons: Record<string, string> = useMemo(() => ({
     Indian: 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=200',

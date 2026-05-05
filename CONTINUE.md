@@ -80,6 +80,16 @@
 - ✅ **Unit/integration test structure created (Jest/Supertest)**
 - ✅ **Responsive design with Tailwind CSS**
 
+**SECURITY FIXES (May 5, 2026 - Second Session):**
+- ✅ Applied XSS protection middleware globally in server.js
+- ✅ Fixed Helmet CSP to remove `unsafe-inline` directives
+- ✅ Added strong password complexity validation (8+ chars, upper, lower, number, special)
+- ✅ Updated User model with password validation at schema level
+- ✅ Fixed frontend logout to call backend and blacklist token
+- ✅ Updated SECURITY.md with all improvements
+- ✅ Removed `http:` from CSP imgSrc (now only `https:` and `data:`)
+- ✅ Added password complexity requirements documentation
+
 **Priority 1 - Push to GitHub:**
 - ✅ DONE: Code pushed to https://github.com/Afewc-nd-Capt-system/FoodDelivery.git
 
