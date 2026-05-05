@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
-import { ShoppingCart, User, Menu, X } from 'lucide-react';
+import { ShoppingCart, User, Menu, X, Heart, MapPin } from 'lucide-react';
 import { useState } from 'react';
 
 export default function Navbar() {
@@ -16,7 +16,7 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <Link href="/" className="flex items-center gap-2">
-            <span className="text-2xl font-bold text-primary-500">FlavorDash</span>
+            <span className="text-2xl font-bold text-primary-500">VibeChops</span>
           </Link>
 
           <div className="hidden md:flex items-center gap-8">
@@ -33,6 +33,9 @@ export default function Navbar() {
             </Link>
           {user ? (
             <div className="flex items-center gap-4">
+              <Link href="/favorites" className="text-gray-600 hover:text-primary-500 transition-colors">
+                <Heart className="w-5 h-5" />
+              </Link>
               <Link href="/profile" className="text-sm text-gray-600 hover:text-primary-500">
                 Hi, {user.name.split(' ')[0]}
               </Link>
@@ -50,6 +53,9 @@ export default function Navbar() {
                 </Link>
               </div>
             )}
+            <Link href="/delivery/login" className="text-sm text-gray-500 hover:text-primary-500 flex items-center gap-1">
+              <MapPin className="w-4 h-4" /> Become a Partner
+            </Link>
           </div>
 
           <button className="md:hidden" onClick={() => setMenuOpen(!menuOpen)}>
@@ -68,6 +74,9 @@ export default function Navbar() {
               </Link>
               {user ? (
                 <>
+                  <Link href="/favorites" className="text-gray-600" onClick={() => setMenuOpen(false)}>
+                    Favorites
+                  </Link>
                   <Link href="/profile" className="text-gray-600" onClick={() => setMenuOpen(false)}>
                     Hi, {user.name.split(' ')[0]}
                   </Link>
@@ -81,6 +90,9 @@ export default function Navbar() {
                   <Link href="/auth/register" onClick={() => setMenuOpen(false)}>Sign Up</Link>
                 </>
               )}
+              <Link href="/delivery/login" className="text-gray-600" onClick={() => setMenuOpen(false)}>
+                Become a Partner
+              </Link>
             </div>
           </div>
         )}

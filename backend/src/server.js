@@ -101,6 +101,9 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/promo-codes', require('./routes/promoCodes'));
+app.use('/api/delivery', require('./routes/delivery'));
+app.use('/api/vendors', require('./routes/vendors'));
 app.use('/api/uploads', authMiddleware, require('./routes/uploads'));
 
 app.get('/api/health', (req, res) => {

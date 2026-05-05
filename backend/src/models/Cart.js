@@ -18,6 +18,19 @@ const cartItemSchema = new mongoose.Schema({
     required: true,
     min: 1,
   },
+  customizations: {
+    type: Map,
+    of: [{
+      name: String,
+      option: String,
+      price: Number,
+    }],
+    default: {},
+  },
+  specialInstructions: {
+    type: String,
+    default: '',
+  },
 });
 
 const cartSchema = new mongoose.Schema({

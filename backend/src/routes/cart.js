@@ -22,7 +22,7 @@ router.get('/', authMiddleware, async (req, res) => {
 
 router.post('/add', authMiddleware, async (req, res) => {
   try {
-    const { itemId, name, price, quantity, restaurantId, restaurantName } = req.body;
+    const { itemId, name, price, quantity, restaurantId, restaurantName, customizations, specialInstructions } = req.body;
 
     if (!itemId || !name || !price || !quantity || !restaurantId) {
       return res.status(400).json({ message: 'Missing required fields' });
@@ -43,7 +43,14 @@ router.post('/add', authMiddleware, async (req, res) => {
     if (existingItem) {
       existingItem.quantity += quantity;
     } else {
-      cart.items.push({ itemId, name, price, quantity });
+      cart.items.push({ 
+        itemId, 
+        name, 
+        price, 
+        quantity,
+        customizations: customizations || {},
+        specialInstructions: specialInstructions || ''
+      });
       cart.restaurantId = restaurantId;
       cart.restaurantName = restaurantName;
     }

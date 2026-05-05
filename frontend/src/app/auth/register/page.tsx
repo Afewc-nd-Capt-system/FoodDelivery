@@ -36,7 +36,7 @@ export default function RegisterPage() {
       <div className="card w-full max-w-md p-8">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Create Account</h1>
-          <p className="text-gray-500 mt-2">Join FlavorDash today</p>
+          <p className="text-gray-500 mt-2">Join VibeChops today</p>
         </div>
 
         {error && (

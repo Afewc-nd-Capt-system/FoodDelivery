@@ -18,6 +18,12 @@ const orderItemSchema = new mongoose.Schema({
     required: true,
     min: 1,
   },
+  customizations: [{
+    name: String,
+    option: String,
+    price: Number,
+  }],
+  specialInstructions: String,
 });
 
 const orderSchema = new mongoose.Schema({
@@ -71,6 +77,20 @@ const orderSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  deliveryPartner: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'DeliveryPartner',
+  },
+  otp: {
+    type: String,
+    default: () => Math.floor(1000 + Math.random() * 9000).toString(),
+  },
+  promoDiscount: {
+    type: Number,
+    default: 0,
+  },
+  promoCode: String,
+  deliveredAt: Date,
 }, { timestamps: true });
 
 module.exports = mongoose.model('Order', orderSchema);

@@ -1,5 +1,36 @@
 const mongoose = require('mongoose');
 
+const customizationOptionSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+  },
+  type: {
+    type: String,
+    enum: ['single', 'multiple', 'quantity'],
+    default: 'single',
+  },
+  required: {
+    type: Boolean,
+    default: false,
+  },
+  options: [{
+    name: String,
+    price: {
+      type: Number,
+      default: 0,
+    },
+  }],
+  min: {
+    type: Number,
+    default: 1,
+  },
+  max: {
+    type: Number,
+    default: 1,
+  },
+});
+
 const menuItemSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -35,6 +66,11 @@ const menuItemSchema = new mongoose.Schema({
     min: 0,
     max: 5,
     default: 4,
+  },
+  customizationOptions: [customizationOptionSchema],
+  allowSpecialInstructions: {
+    type: Boolean,
+    default: true,
   },
 });
 
@@ -123,6 +159,18 @@ const restaurantSchema = new mongoose.Schema({
   minOrderForPayOnDelivery: {
     type: Number,
     default: 0,
+  },
+  photoGallery: [{
+    url: String,
+    caption: String,
+    isPrimary: {
+      type: Boolean,
+      default: false,
+    },
+  }],
+  locationCoords: {
+    lat: Number,
+    lng: Number,
   },
 }, { timestamps: true });
 

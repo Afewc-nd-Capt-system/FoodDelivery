@@ -60,6 +60,18 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  favoriteRestaurants: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Restaurant'
+  }],
+  resetPasswordToken: String,
+  resetPasswordExpires: Date,
+  socialId: String,
+  socialProvider: {
+    type: String,
+    enum: ['google', 'facebook', null],
+    default: null
+  },
 }, { timestamps: true });
 
 userSchema.pre('save', async function (next) {

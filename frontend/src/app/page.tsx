@@ -83,10 +83,10 @@ export default function HomePage() {
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-4xl md:text-6xl font-extrabold text-white mb-6 animate-fade-in">
-            Craving something <span className="text-accent-400">delicious</span>?
+            Discover, Explore and <span className="text-accent-400">Eat what you love</span>
           </h1>
           <p className="text-lg md:text-xl text-white/90 mb-8 max-w-2xl mx-auto animate-slide-up">
-            Order from the best restaurants near you. Fast delivery, great food, and amazing deals.
+            Order from the best restaurants and local vendors near you. Fast delivery, great food, and amazing deals.
           </p>
 
           <div className="max-w-2xl mx-auto animate-slide-up" style={{ animationDelay: '0.2s' }}>
@@ -210,14 +210,22 @@ export default function HomePage() {
             Hungry? Let us help!
           </h2>
           <p className="text-white/90 text-lg mb-8 max-w-xl mx-auto">
-            Browse hundreds of restaurants, order your favorite meals, and get them delivered fast.
+            Browse hundreds of restaurants and local vendors. Order your favorite meals and get them delivered fast.
           </p>
-          <Link
-            href="/restaurants"
-            className="bg-white text-accent-600 font-bold py-3 px-8 rounded-lg hover:bg-gray-100 transition-all duration-200 transform hover:scale-105 inline-flex items-center gap-2"
-          >
-            Order Now <ArrowRight className="w-5 h-5" />
-          </Link>
+          <div className="flex flex-wrap justify-center gap-4">
+            <Link
+              href="/restaurants"
+              className="bg-white text-accent-600 font-bold py-3 px-8 rounded-lg hover:bg-gray-100 transition-all duration-200 transform hover:scale-105 inline-flex items-center gap-2"
+            >
+              Restaurants <ArrowRight className="w-5 h-5" />
+            </Link>
+            <Link
+              href="/vendors"
+              className="bg-white/20 text-white font-bold py-3 px-8 rounded-lg hover:bg-white/30 transition-all duration-200 transform hover:scale-105 inline-flex items-center gap-2"
+            >
+              Local Vendors <ArrowRight className="w-5 h-5" />
+            </Link>
+          </div>
         </div>
       </section>
     </div>

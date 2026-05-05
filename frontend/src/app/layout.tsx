@@ -10,8 +10,8 @@ import Footer from '@/components/Footer';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'FlavorDash - Food Delivery',
-  description: 'Order delicious food from the best restaurants near you',
+  title: 'VibeChops - Discover, Explore and Eat what you love',
+  description: 'Discover, Explore and Eat what you love. Order from restaurants and local vendors.',
 };
 
 export default function RootLayout({

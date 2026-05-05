@@ -1,10 +1,12 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
 const { bruteForceProtection, loginLimiter } = require('../middleware/bruteForce');
 const { xssProtection } = require('../middleware/sanitize');
+const { sendEmail } = require('../utils/email');
 
 const router = express.Router();
 
@@ -164,6 +166,181 @@ router.post('/logout', authMiddleware, async (req, res) => {
     res.json({ message: 'Logged out successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+});
+
+router.post('/forgot-password', [
+  body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: errors.array()[0].msg });
+    }
+
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ message: 'If the email exists, a reset link will be sent' });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    user.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
+    await user.save();
+
+    const resetUrl = `${process.env.API_URL || 'http://localhost:5000'}/api/auth/reset-password/${resetToken}`;
+    
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: 'Password Reset Request',
+        html: `
+          <h2>Password Reset</h2>
+          <p>You requested a password reset. Click the link below to reset your password:</p>
+          <a href="${resetUrl}" style="background: #f97316; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin: 16px 0;">Reset Password</a>
+          <p>This link expires in 1 hour.</p>
+          <p>If you didn't request this, please ignore this email.</p>
+        `,
+      });
+    } catch (emailError) {
+      console.error('Email send error:', emailError.message);
+    }
+
+    res.json({ message: 'If the email exists, a reset link will be sent' });
+  } catch (error) {
+    res.status(500).json({ message: 'An error occurred' });
+  }
+});
+
+router.post('/reset-password/:token', [
+  body('password')
+    .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
+    .matches(/[a-z]/).withMessage('Password must contain at least one lowercase letter')
+    .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
+    .matches(/[0-9]/).withMessage('Password must contain at least one number')
+    .matches(/[!@#$%^&*(),.?":{}|<>]/).withMessage('Password must contain at least one special character'),
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: errors.array()[0].msg });
+    }
+
+    const { token } = req.params;
+    const { password } = req.body;
+
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid or expired reset token' });
+    }
+
+    user.password = password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    res.json({ message: 'Password reset successful' });
+  } catch (error) {
+    res.status(500).json({ message: 'An error occurred' });
+  }
+});
+
+router.post('/social-login', [
+  body('email').isEmail().normalizeEmail(),
+  body('provider').isIn(['google', 'facebook']),
+  body('socialId').notEmpty(),
+  body('name').notEmpty(),
+], async (req, res) => {
+  try {
+    const { email, provider, socialId, name, avatar } = req.body;
+
+    let user = await User.findOne({ 
+      $or: [
+        { email },
+        { socialId, socialProvider: provider }
+      ]
+    });
+
+    if (user) {
+      if (!user.socialId) {
+        user.socialId = socialId;
+        user.socialProvider = provider;
+        await user.save();
+      }
+    } else {
+      const randomPassword = crypto.randomBytes(16).toString('hex');
+      user = new User({
+        name,
+        email,
+        password: randomPassword,
+        socialId,
+        socialProvider: provider,
+      });
+      await user.save();
+    }
+
+    const token = generateToken(user);
+    setTokenCookie(res, token);
+
+    res.json({
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Social login failed' });
+  }
+});
+
+router.get('/favorites', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).populate('favoriteRestaurants');
+    res.json(user.favoriteRestaurants || []);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to get favorites' });
+  }
+});
+
+router.post('/favorites/:restaurantId', authMiddleware, async (req, res) => {
+  try {
+    const { restaurantId } = req.params;
+    const user = await User.findById(req.user.id);
+    
+    if (!user.favoriteRestaurants.includes(restaurantId)) {
+      user.favoriteRestaurants.push(restaurantId);
+      await user.save();
+    }
+    
+    res.json({ message: 'Added to favorites' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to add favorite' });
+  }
+});
+
+router.delete('/favorites/:restaurantId', authMiddleware, async (req, res) => {
+  try {
+    const { restaurantId } = req.params;
+    const user = await User.findById(req.user.id);
+    
+    user.favoriteRestaurants = user.favoriteRestaurants.filter(
+      id => id.toString() !== restaurantId
+    );
+    await user.save();
+    
+    res.json({ message: 'Removed from favorites' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to remove favorite' });
   }
 });
 

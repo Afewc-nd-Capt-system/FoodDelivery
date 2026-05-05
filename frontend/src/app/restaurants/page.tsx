@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Search, SlidersHorizontal, Star, Clock, ChevronDown } from 'lucide-react';
+import { Search, SlidersHorizontal, Star, Clock, ChevronDown, MapPin } from 'lucide-react';
 import { api } from '@/lib/api';
 import RestaurantCard from '@/components/RestaurantCard';
 
@@ -20,6 +20,7 @@ interface Restaurant {
   priceRange: string;
   offers: string[];
   address: string;
+  location: { city: string; area: string };
 }
 
 function RestaurantsContent() {
@@ -35,10 +36,14 @@ function RestaurantsContent() {
   const [priceFilter, setPriceFilter] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [city, setCity] = useState(searchParams.get('city') || '');
+  const [area, setArea] = useState(searchParams.get('area') || '');
+  const [showLocationSearch, setShowLocationSearch] = useState(false);
+  const [filtered, setFiltered] = useState<Restaurant[]>([]);
 
   useEffect(() => {
     loadData();
-  }, [page, selectedCuisine, sortBy, priceFilter]);
+  }, [page, selectedCuisine, sortBy, priceFilter, city, area]);
 
   const loadData = useCallback(async () => {
     try {
@@ -50,6 +55,8 @@ function RestaurantsContent() {
       if (priceFilter) params.priceRange = priceFilter;
       if (sortBy) params.sortBy = sortBy;
       if (search) params.search = search;
+      if (city) params.city = city;
+      if (area) params.area = area;
 
       const [restData, cuisineData] = await Promise.all([
         api.restaurants.getAll(params),
@@ -63,7 +70,16 @@ function RestaurantsContent() {
     } finally {
       setLoading(false);
     }
-  }, [page, selectedCuisine, sortBy, priceFilter, search]);
+  }, [page, selectedCuisine, sortBy, priceFilter, search, city, area]);
+
+  const handleLocationSearch = () => {
+    setShowLocationSearch(false);
+    setPage(1);
+    const params = new URLSearchParams();
+    if (city) params.set('city', city);
+    if (area) params.set('area', area);
+    window.location.href = `/restaurants?${params.toString()}`;
+  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -211,20 +227,64 @@ function RestaurantsContent() {
         {/* Restaurant List */}
         <div className="flex-1">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-            <h1 className="text-3xl font-bold">Restaurants</h1>
-            <form onSubmit={handleSearch} className="flex gap-2 w-full sm:w-auto">
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search restaurants..."
-                className="input-field flex-1"
-              />
-              <button type="submit" className="btn-primary px-4">
-                <Search className="w-5 h-5" />
+            <div>
+              <h1 className="text-3xl font-bold">Restaurants</h1>
+              {(city || area) && (
+                <p className="text-sm text-gray-500 flex items-center gap-1 mt-1">
+                  <MapPin className="w-4 h-4" />
+                  {area && <span>{area}</span>}
+                  {city && <span>, {city}</span>}
+                  <button onClick={() => { setCity(''); setArea(''); }} className="text-orange-500 ml-2">Clear</button>
+                </p>
+              )}
+            </div>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <button
+                onClick={() => setShowLocationSearch(!showLocationSearch)}
+                className="px-3 py-2 border rounded-lg hover:bg-gray-50 flex items-center gap-1 text-sm"
+              >
+                <MapPin className="w-4 h-4" />
+                {city || area ? 'Change Location' : 'Location'}
               </button>
-            </form>
+              <form onSubmit={handleSearch} className="flex gap-2 flex-1 sm:flex-none">
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search..."
+                  className="input-field flex-1"
+                />
+                <button type="submit" className="btn-primary px-4">
+                  <Search className="w-5 h-5" />
+                </button>
+              </form>
+            </div>
           </div>
+
+          {showLocationSearch && (
+            <div className="bg-white rounded-lg shadow p-4 mb-4">
+              <h3 className="font-semibold mb-3">Search by Location</h3>
+              <div className="flex gap-2 flex-wrap">
+                <input
+                  type="text"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  placeholder="City (e.g., Mumbai)"
+                  className="input-field flex-1 min-w-[150px]"
+                />
+                <input
+                  type="text"
+                  value={area}
+                  onChange={(e) => setArea(e.target.value)}
+                  placeholder="Area (e.g., Andheri)"
+                  className="input-field flex-1 min-w-[150px]"
+                />
+                <button onClick={handleLocationSearch} className="btn-primary px-4">
+                  Search
+                </button>
+              </div>
+            </div>
+          )}
 
           <p className="text-gray-500 mb-4">{restaurants.length} restaurants found</p>
 

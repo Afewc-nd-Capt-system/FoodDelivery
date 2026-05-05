@@ -36,6 +36,17 @@ interface MenuItem {
   isVeg: boolean;
   isAvailable: boolean;
   rating: number;
+  customizationOptions?: CustomizationOption[];
+  allowSpecialInstructions?: boolean;
+}
+
+interface CustomizationOption {
+  name: string;
+  type: 'single' | 'multiple' | 'quantity';
+  required: boolean;
+  options: { name: string; price: number }[];
+  min: number;
+  max: number;
 }
 
 interface Review {
@@ -61,6 +72,12 @@ export default function RestaurantDetailPage() {
   const [submittingReview, setSubmittingReview] = useState(false);
   const [reviewError, setReviewError] = useState('');
   const [reviewSuccess, setReviewSuccess] = useState(false);
+  
+  // Customization modal
+  const [showCustomization, setShowCustomization] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
+  const [customizations, setCustomizations] = useState<Record<string, { name: string; option: string; price: number }[]>>({});
+  const [specialInstructions, setSpecialInstructions] = useState('');
 
   useEffect(() => {
     if (params.id) {
@@ -84,21 +101,89 @@ export default function RestaurantDetailPage() {
       router.push('/auth/login');
       return;
     }
+    
+    // If item has customization options, show modal
+    if (item.customizationOptions && item.customizationOptions.length > 0) {
+      setSelectedItem(item);
+      setCustomizations({});
+      setSpecialInstructions('');
+      setShowCustomization(true);
+      return;
+    }
+    
+    // Otherwise add directly
+    await addItemToCart(item, {}, '');
+  };
+
+  const addItemToCart = async (item: MenuItem, customizationsData: Record<string, any>, instructions: string) => {
     setAddingItem(item._id);
     try {
+      let totalPrice = item.price;
+      Object.values(customizationsData).forEach((opts: any) => {
+        opts.forEach((o: any) => totalPrice += o.price);
+      });
+      
       await addToCart({
         itemId: item._id,
         name: item.name,
-        price: item.price,
+        price: totalPrice,
         quantity: 1,
         restaurantId: restaurant!._id,
         restaurantName: restaurant!.name,
-      }, token);
+        customizations: customizationsData,
+        specialInstructions: instructions,
+      });
     } catch (error: any) {
       alert(error.message || 'Failed to add item');
     } finally {
       setAddingItem(null);
+      setShowCustomization(false);
     }
+  };
+
+  const handleCustomizationChange = (optionName: string, option: { name: string; price: number }, checked: boolean) => {
+    const itemCustomization = selectedItem?.customizationOptions?.find(c => c.name === optionName);
+    if (!itemCustomization) return;
+
+    setCustomizations(prev => {
+      const current = prev[optionName] || [];
+      
+      if (itemCustomization.type === 'single') {
+        return {
+          ...prev,
+          [optionName]: checked ? [{ name: optionName, option: option.name, price: option.price }] : []
+        };
+      }
+      
+      if (checked) {
+        return {
+          ...prev,
+          [optionName]: [...current, { name: optionName, option: option.name, price: option.price }]
+        };
+      } else {
+        return {
+          ...prev,
+          [optionName]: current.filter(o => o.option !== option.name)
+        };
+      }
+    });
+  };
+
+  const calculateCustomizationTotal = () => {
+    let total = 0;
+    Object.values(customizations).forEach((opts: any) => {
+      opts.forEach((o: any) => total += o.price);
+    });
+    return total;
+  };
+
+  const canAddToCart = () => {
+    if (!selectedItem?.customizationOptions) return true;
+    return selectedItem.customizationOptions.every(opt => {
+      if (!opt.required) return true;
+      const selected = customizations[opt.name] || [];
+      return selected.length >= opt.min;
+    });
   };
 
   const handleSubmitReview = async (e: React.FormEvent) => {
@@ -381,6 +466,81 @@ export default function RestaurantDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Customization Modal */}
+      {showCustomization && selectedItem && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[80vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold">{selectedItem.name}</h3>
+                <button onClick={() => setShowCustomization(false)} className="text-gray-500 hover:text-gray-700">
+                  ✕
+                </button>
+              </div>
+              
+              <div className="space-y-4 mb-6">
+                {selectedItem.customizationOptions?.map(option => (
+                  <div key={option.name} className="border rounded-lg p-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <h4 className="font-semibold">{option.name}</h4>
+                      {option.required && (
+                        <span className="text-xs text-red-500">Required</span>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      {option.options.map(opt => {
+                        const isSelected = (customizations[option.name] || []).some(o => o.option === opt.name);
+                        return (
+                          <label key={opt.name} className="flex items-center gap-3 cursor-pointer">
+                            <input
+                              type={option.type === 'single' ? 'radio' : 'checkbox'}
+                              name={option.name}
+                              checked={isSelected}
+                              onChange={(e) => handleCustomizationChange(option.name, opt, e.target.checked)}
+                              className="text-orange-600"
+                            />
+                            <span className="flex-1">{opt.name}</span>
+                            {opt.price > 0 && (
+                              <span className="text-sm text-gray-500">+₹{opt.price}</span>
+                            )}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {selectedItem.allowSpecialInstructions && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium mb-2">Special Instructions</label>
+                  <textarea
+                    value={specialInstructions}
+                    onChange={(e) => setSpecialInstructions(e.target.value)}
+                    placeholder="Any special requests? (allergies, preferences, etc.)"
+                    className="input-field min-h-[80px]"
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center justify-between border-t pt-4">
+                <div>
+                  <span className="text-gray-500 text-sm">Total: </span>
+                  <span className="text-xl font-bold">₹{(selectedItem.price + calculateCustomizationTotal()).toFixed(2)}</span>
+                </div>
+                <button
+                  onClick={() => addItemToCart(selectedItem, customizations, specialInstructions)}
+                  disabled={!canAddToCart() || addingItem === selectedItem._id}
+                  className="btn-primary py-2 px-6 disabled:opacity-50"
+                >
+                  Add to Cart
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

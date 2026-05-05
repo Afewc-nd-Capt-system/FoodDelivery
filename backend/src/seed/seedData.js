@@ -1,6 +1,7 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
 const Restaurant = require('../models/Restaurant');
+const Vendor = require('../models/Vendor');
 
 const restaurants = [
   {
@@ -237,6 +238,84 @@ const restaurants = [
   },
 ];
 
+const vendors = [
+  {
+    businessName: "Mama's Kitchen",
+    ownerName: "Priya Sharma",
+    email: "priya@mamaskitchen.com",
+    phone: "+1234567890",
+    description: "Home-cooked Indian meals made with love. Specializing in traditional family recipes from Gujarat. Pre-orders for Saturday cooking.",
+    image: "https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=800",
+    cuisine: ["Indian", "Gujarati", "Vegetarian"],
+    rating: 4.8,
+    reviewCount: 45,
+    address: "42 Garden Lane, Suburbia",
+    location: { city: "Metro City", area: "Suburbia" },
+    isOpen: true,
+    cookingDays: ["saturday"],
+    orderDeadline: 48,
+    deliveryTime: "12pm - 2pm",
+    minOrderForDelivery: 0,
+    menu: [
+      { name: "Thali Combo", description: "Complete meal with 4 sabzis, dal, rice, roti, papad, pickle and sweets", price: 12.99, category: "Meals", isVeg: true, maxOrders: 30, ordersPlaced: 0 },
+      { name: "Poha & Jalebi", description: "Traditional breakfast combo - poha with nuts and fresh jalebi", price: 6.99, category: "Breakfast", isVeg: true, maxOrders: 20, ordersPlaced: 0 },
+      { name: "Khandvi Box (6 pcs)", description: "Steamed and tempered besan rolls - a Gujarati delicacy", price: 5.99, category: "Snacks", isVeg: true, maxOrders: 25, ordersPlaced: 0 },
+      { name: "Dal Dhokli", description: "Wheat flour pieces cooked in sweet and tangy dal", price: 8.99, category: "Meals", isVeg: true, maxOrders: 20, ordersPlaced: 0 },
+      { name: "Thepla & Methi Thepla", description: "Gujarati flatbreads - plain and fenugreek variant", price: 4.99, category: "Breads", isVeg: true, maxOrders: 30, ordersPlaced: 0 },
+    ],
+  },
+  {
+    businessName: "Baker's Delight",
+    ownerName: "Sarah Johnson",
+    email: "sarah@bakersdelight.com",
+    phone: "+1234567891",
+    description: "Artisanal baked goods fresh from my kitchen. Cakes, breads, pastries and more. Order by Friday for weekend delivery.",
+    image: "https://images.unsplash.com/photo-1486427944544-d2c6128c6224?w=800",
+    cuisine: ["Bakery", "Desserts", "Continental"],
+    rating: 4.9,
+    reviewCount: 78,
+    address: "15 Baker Street",
+    location: { city: "Metro City", area: "West End" },
+    isOpen: true,
+    cookingDays: ["friday", "saturday"],
+    orderDeadline: 24,
+    deliveryTime: "10am - 1pm",
+    minOrderForDelivery: 500,
+    menu: [
+      { name: "Sourdough Loaf", description: "Traditional rustic sourdough bread", price: 7.99, category: "Breads", isVeg: true, maxOrders: 15, ordersPlaced: 0 },
+      { name: "Chocolate Croissant", description: "Flaky pastry filled with dark chocolate", price: 4.99, category: "Pastries", isVeg: true, maxOrders: 20, ordersPlaced: 0 },
+      { name: "Red Velvet Cake (1kg", description: "Classic red velvet with cream cheese frosting", price: 24.99, category: "Cakes", isVeg: true, maxOrders: 5, ordersPlaced: 0 },
+      { name: "Assorted Muffins (4 pcs)", description: "Chocolate, blueberry, banana and vanilla", price: 8.99, category: "Bakery", isVeg: true, maxOrders: 15, ordersPlaced: 0 },
+      { name: "Cinnamon Rolls (4 pcs)", description: "Soft rolls with cream cheese glaze", price: 6.99, category: "Bakery", isVeg: true, maxOrders: 12, ordersPlaced: 0 },
+    ],
+  },
+  {
+    businessName: "Taco Trail",
+    ownerName: "Carlos Mendez",
+    email: "carlos@tacotrail.com",
+    phone: "+1234567892",
+    description: "Authentic Mexican street food. Fresh tortillas, handmade salsas, and bold flavors. Pre-order for the weekend!",
+    image: "https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=800",
+    cuisine: ["Mexican", "Tacos", "Burritos"],
+    rating: 4.7,
+    reviewCount: 62,
+    address: "88 Fiesta Avenue",
+    location: { city: "Metro City", area: "Eastside" },
+    isOpen: true,
+    cookingDays: ["saturday"],
+    orderDeadline: 36,
+    deliveryTime: "1pm - 4pm",
+    minOrderForDelivery: 0,
+    menu: [
+      { name: "Taco Platter (6 pcs)", description: "Assorted tacos - carnitas, chicken, bean with all toppings", price: 14.99, category: "Mains", isVeg: false, maxOrders: 25, ordersPlaced: 0 },
+      { name: "Burrito Bowl", description: "Rice, beans, protein, cheese, salsa, guac - no tortilla", price: 11.99, category: "Mains", isVeg: false, maxOrders: 20, ordersPlaced: 0 },
+      { name: "Quesadilla (2 pcs)", description: "Grilled tortilla with cheese and filling of choice", price: 9.99, category: "Mains", isVeg: false, maxOrders: 18, ordersPlaced: 0 },
+      { name: "Guacamole & Chips", description: "Fresh guacamole with house-made tortilla chips", price: 6.99, category: "Sides", isVeg: true, maxOrders: 20, ordersPlaced: 0 },
+      { name: "Churros (4 pcs)", description: "Cinnamon sugar churros with chocolate dip", price: 5.99, category: "Desserts", isVeg: true, maxOrders: 15, ordersPlaced: 0 },
+    ],
+  },
+];
+
 async function seedDatabase() {
   try {
     await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/food-delivery');
@@ -247,6 +326,12 @@ async function seedDatabase() {
 
     const createdRestaurants = await Restaurant.insertMany(restaurants);
     console.log(`Seeded ${createdRestaurants.length} restaurants`);
+
+    await Vendor.deleteMany({});
+    console.log('Cleared existing vendors');
+
+    const createdVendors = await Vendor.insertMany(vendors);
+    console.log(`Seeded ${createdVendors.length} vendors`);
 
     console.log('Seed completed successfully!');
     process.exit(0);
