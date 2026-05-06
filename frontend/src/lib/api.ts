@@ -133,4 +133,161 @@ export const api = {
     getById: (id: string) => request('/vendors/' + id),
     getNextCookingDay: (id: string) => request('/vendors/' + id + '/next-cooking-day'),
   },
+  loyalty: {
+    getConfig: () => request('/v2/loyalty/config'),
+    getBalance: () => request('/v2/loyalty/balance'),
+    getHistory: (page: number = 1, limit: number = 20) =>
+      request(`/v2/loyalty/history?page=${page}&limit=${limit}`),
+    redeem: (points: number) =>
+      request('/v2/loyalty/redeem', { method: 'POST', body: { points } }),
+    calculateRedeemable: (orderAmount: number) =>
+      request('/v2/loyalty/calculate-redeemable', { method: 'POST', body: { orderAmount } }),
+    awardPoints: (orderId: string) =>
+      request('/v2/loyalty/award-points', { method: 'POST', body: { orderId } }),
+  },
+  wallet: {
+    get: () => request('/v2/wallet'),
+    getTransactions: (page: number = 1, limit: number = 20, type?: string) => {
+      const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
+      if (type) params.append('type', type);
+      return request(`/v2/wallet/transactions?${params.toString()}`);
+    },
+    topup: (amount: number, email?: string) =>
+      request('/v2/wallet/topup', { method: 'POST', body: { amount, email } }),
+    topupVerify: (reference: string) =>
+      request('/v2/wallet/topup/verify', { method: 'POST', body: { reference } }),
+    deduct: (amount: number, description: string, orderId?: string) =>
+      request('/v2/wallet/deduct', { method: 'POST', body: { amount, description, orderId } }),
+    credit: (amount: number, description: string, orderId?: string, reference?: string) =>
+      request('/v2/wallet/credit', { method: 'POST', body: { amount, description, orderId, reference } }),
+    checkBalance: (amount: number) =>
+      request(`/v2/wallet/balance-check?amount=${amount}`),
+  },
+  subscription: {
+    getPlans: () => request('/v2/subscription/plans'),
+    getMySubscription: () => request('/v2/subscription/my-subscription'),
+    subscribe: (planType: string, email?: string) =>
+      request('/v2/subscription/subscribe', { method: 'POST', body: { planType, email } }),
+    verifySubscription: (reference: string, subscriptionId: string) =>
+      request('/v2/subscription/verify-subscription', { method: 'POST', body: { reference, subscriptionId } }),
+    cancel: () =>
+      request('/v2/subscription/cancel', { method: 'POST' }),
+    checkFreeDelivery: () =>
+      request('/v2/subscription/check-free-delivery'),
+    useFreeDelivery: () =>
+      request('/v2/subscription/use-free-delivery', { method: 'POST' }),
+  },
+  referral: {
+    getMyCode: () => request('/v2/referral/my-code'),
+    validateCode: (code: string) =>
+      request('/v2/referral/validate-code', { method: 'POST', body: { code } }),
+    applyOnRegister: (referralCode: string, email: string) =>
+      request('/v2/referral/apply-on-register', { method: 'POST', body: { referralCode, email } }),
+    trackSignup: (referralCode: string, userId: string) =>
+      request('/v2/referral/track-signup', { method: 'POST', body: { referralCode, userId } }),
+    completeFirstOrder: (orderId: string) =>
+      request('/v2/referral/complete-first-order', { method: 'POST', body: { orderId } }),
+    getMyReferrals: (page: number = 1, limit: number = 20) =>
+      request(`/v2/referral/my-referrals?page=${page}&limit=${limit}`),
+    getMyRewards: () => request('/v2/referral/my-rewards'),
+  },
+  recommendations: {
+    getAll: (limit: number = 10) => request(`/v2/recommendations?limit=${limit}`),
+    getDishes: (limit: number = 10) => request(`/v2/recommendations/dishes?limit=${limit}`),
+    getTrending: (limit: number = 10) => request(`/v2/recommendations/trending?limit=${limit}`),
+    trackOrder: (orderId: string, restaurantId: string, totalAmount: number) =>
+      request('/v2/recommendations/track-order', { method: 'POST', body: { orderId, restaurantId, totalAmount } }),
+  },
+  search: {
+    query: (params: Record<string, string>) => {
+      const query = '?' + new URLSearchParams(params).toString();
+      return request('/v2/search' + query);
+    },
+    getSuggestions: (q: string) => request(`/v2/search/suggestions?q=${encodeURIComponent(q)}`),
+  },
+  delivery: {
+    calculateFee: (restaurantId: string, lat?: number, lng?: number, orderValue?: number) => {
+      const params = new URLSearchParams({ restaurantId });
+      if (lat) params.append('lat', lat.toString());
+      if (lng) params.append('lng', lng.toString());
+      if (orderValue) params.append('orderValue', orderValue.toString());
+      return request(`/v2/delivery/calculate?${params.toString()}`);
+    },
+    calculateVendorFee: (vendorId: string, lat?: number, lng?: number) => {
+      const params = new URLSearchParams({ vendorId });
+      if (lat) params.append('lat', lat.toString());
+      if (lng) params.append('lng', lng.toString());
+      return request(`/v2/delivery/vendor-calculate?${params.toString()}`);
+    },
+    getConfig: () => request('/v2/delivery/config'),
+  },
+  analytics: {
+    getDashboard: (restaurantId: string, period?: string) =>
+      request(`/v2/analytics/dashboard?restaurantId=${restaurantId}${period ? `&period=${period}` : ''}`),
+    getMenuPerformance: (restaurantId: string) =>
+      request(`/v2/analytics/menu-performance?restaurantId=${restaurantId}`),
+    getSummary: (restaurantId: string) =>
+      request(`/v2/analytics/summary?restaurantId=${restaurantId}`),
+  },
+  restaurantPromotions: {
+    getAll: (restaurantId: string, status?: string) => {
+      const params = new URLSearchParams({ restaurantId });
+      if (status) params.append('status', status);
+      return request(`/v2/restaurant-promotions?${params.toString()}`);
+    },
+    create: (data: any) => request('/v2/restaurant-promotions', { method: 'POST', body: data }),
+    update: (id: string, data: any) => request(`/v2/restaurant-promotions/${id}`, { method: 'PUT', body: data }),
+    delete: (id: string) => request(`/v2/restaurant-promotions/${id}`, { method: 'DELETE' }),
+  },
+  vendorForecast: {
+    getDemandForecast: (vendorId: string) => request(`/v2/vendor-forecast/demand-forecast?vendorId=${vendorId}`),
+  },
+  adminPromotions: {
+    getAll: (status?: string, page?: number) => {
+      const params = new URLSearchParams();
+      if (status) params.append('status', status);
+      if (page) params.append('page', page.toString());
+      return request(`/v2/admin/promotions?${params.toString()}`);
+    },
+    approve: (id: string) => request(`/v2/admin/promotions/${id}/approve`, { method: 'PUT' }),
+    reject: (id: string, reason?: string) => request(`/v2/admin/promotions/${id}/reject`, { method: 'PUT', body: { reason } }),
+  },
+  scheduledOrders: {
+    create: (data: any) => request('/v2/scheduled-orders', { method: 'POST', body: data }),
+    getAll: (page?: number) => request(`/v2/scheduled-orders?page=${page || 1}`),
+    getById: (id: string) => request(`/v2/scheduled-orders/${id}`),
+    cancel: (id: string) => request(`/v2/scheduled-orders/${id}/cancel`, { method: 'PUT' }),
+  },
+  groupOrders: {
+    create: (data: any) => request('/v2/group-orders', { method: 'POST', body: data }),
+    getByCode: (code: string) => request(`/v2/group-orders/${code}`),
+    addItem: (code: string, items: any[]) => request(`/v2/group-orders/${code}/items`, { method: 'POST', body: { items } }),
+    close: (code: string) => request(`/v2/group-orders/${code}/close`, { method: 'PUT' }),
+    checkout: (code: string, data: any) => request(`/v2/group-orders/${code}/checkout`, { method: 'POST', body: data }),
+  },
+  reorder: {
+    reorder: (orderId: string) => request(`/v2/reorder/${orderId}`, { method: 'POST' }),
+  },
+  reservations: {
+    create: (data: any) => request('/v2/reservations', { method: 'POST', body: data }),
+    getAll: (page?: number) => request(`/v2/reservations?page=${page || 1}`),
+    getRestaurantSettings: (restaurantId: string) => request(`/v2/reservations/restaurant/${restaurantId}`),
+  },
+  catering: {
+    create: (data: any) => request('/v2/catering', { method: 'POST', body: data }),
+    getAll: () => request('/v2/catering'),
+  },
+  disputes: {
+    create: (data: any) => request('/v2/disputes', { method: 'POST', body: data }),
+    getAll: () => request('/v2/disputes'),
+  },
+  adminDisputes: {
+    getAll: (status?: string, page?: number) => {
+      const params = new URLSearchParams();
+      if (status) params.append('status', status);
+      if (page) params.append('page', (page || 1).toString());
+      return request(`/v2/admin/disputes?${params.toString()}`);
+    },
+    resolve: (id: string, data: any) => request(`/v2/admin/disputes/${id}/resolve`, { method: 'PUT', body: data }),
+  },
 };

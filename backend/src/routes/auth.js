@@ -117,7 +117,19 @@ router.get('/profile', authMiddleware, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    res.json(user);
+    res.json({
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      phone: user.phone,
+      address: user.address,
+      loyaltyPoints: user.loyaltyPoints || 0,
+      referralCode: user.referralCode,
+      isVibePassMember: user.isVibePassMember || false,
+      dietaryPreferences: user.dietaryPreferences || [],
+      createdAt: user.createdAt,
+    });
   } catch (error) {
     res.status(401).json({ message: 'Invalid token' });
   }
@@ -127,20 +139,24 @@ router.put('/profile', authMiddleware, [
   body('name').optional().trim().notEmpty(),
   body('phone').optional().trim(),
   body('address').optional(),
+  body('dietaryPreferences').optional().isArray(),
 ], xssProtection, async (req, res) => {
   try {
-    const { name, phone, address } = req.body;
+    const { name, phone, address, dietaryPreferences } = req.body;
     const user = await User.findById(req.user.id);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-    
+
     if (name) user.name = name;
     if (phone !== undefined) user.phone = phone;
     if (address) {
       user.address = { ...user.address, ...address };
     }
-    
+    if (dietaryPreferences !== undefined) {
+      user.dietaryPreferences = dietaryPreferences;
+    }
+
     await user.save();
     res.json({
       id: user._id,
@@ -149,6 +165,10 @@ router.put('/profile', authMiddleware, [
       role: user.role,
       phone: user.phone,
       address: user.address,
+      loyaltyPoints: user.loyaltyPoints || 0,
+      referralCode: user.referralCode,
+      isVibePassMember: user.isVibePassMember || false,
+      dietaryPreferences: user.dietaryPreferences || [],
     });
   } catch (error) {
     res.status(400).json({ message: error.message || 'Update failed' });

@@ -1,4 +1,7 @@
 require('dotenv').config();
+const { validateEnvironment } = require('./middleware/security');
+validateEnvironment();
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -6,6 +9,7 @@ const helmet = require('helmet');
 const http = require('http');
 const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
+const mongoSanitize = require('express-mongo-sanitize');
 const { Server } = require('socket.io');
 const authMiddleware = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
@@ -14,18 +18,41 @@ const orderRoutes = require('./routes/orders');
 const cartRoutes = require('./routes/cart');
 const adminRoutes = require('./routes/admin');
 const paymentRoutes = require('./routes/payments');
-const { authLimiter, apiLimiter } = require('./middleware/security');
+const { authLimiter, apiLimiter } = require('./middleware/rateLimiter');
 const { blacklistMiddleware } = require('./utils/tokenBlacklist');
 const { xssProtection } = require('./middleware/sanitize');
+const { connectRedis } = require('./middleware/redis');
+
+connectRedis().then(() => console.log('Redis initialization complete'));
 
 const app = express();
 const server = http.createServer(app);
+const jwt = require('jsonwebtoken');
 const io = new Server(server, {
   cors: {
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
     methods: ['GET', 'POST'],
     credentials: true,
   },
+});
+
+io.use((socket, next) => {
+  const token = socket.handshake.auth.token || socket.handshake.query.token;
+  if (!token) {
+    return next(new Error('Authentication required'));
+  }
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    socket.user = decoded;
+    next();
+  } catch (err) {
+    next(new Error('Invalid token'));
+  }
+});
+
+io.on('connection', (socket) => {
+  console.log(`User ${socket.user?.id} connected via Socket.io`);
+  socket.join(`user-${socket.user.id}`);
 });
 
 app.set('io', io);
@@ -85,6 +112,7 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(cookieParser());
+app.use(mongoSanitize());
 app.use(xssProtection);
 app.use('/api/', apiLimiter);
 app.use(blacklistMiddleware);
@@ -105,6 +133,26 @@ app.use('/api/promo-codes', require('./routes/promoCodes'));
 app.use('/api/delivery', require('./routes/delivery'));
 app.use('/api/vendors', require('./routes/vendors'));
 app.use('/api/uploads', authMiddleware, require('./routes/uploads'));
+
+app.use('/api/v2/loyalty', require('./routes/v2/loyalty'));
+app.use('/api/v2/wallet', require('./routes/v2/wallet'));
+app.use('/api/v2/subscription', require('./routes/v2/subscription'));
+app.use('/api/v2/referral', require('./routes/v2/referral'));
+app.use('/api/v2/admin/loyalty', authMiddleware, require('./routes/v2/admin-loyalty'));
+app.use('/api/v2/recommendations', require('./routes/v2/recommendations'));
+app.use('/api/v2/search', require('./routes/v2/search'));
+app.use('/api/v2/delivery', require('./routes/v2/delivery'));
+app.use('/api/v2/analytics', require('./routes/v2/restaurantAnalytics'));
+app.use('/api/v2/restaurant-promotions', require('./routes/v2/restaurantPromotions'));
+app.use('/api/v2/vendor-forecast', require('./routes/v2/vendorForecast'));
+app.use('/api/v2/admin/promotions', authMiddleware, require('./routes/v2/admin-promotions'));
+app.use('/api/v2/scheduled-orders', require('./routes/v2/scheduledOrders'));
+app.use('/api/v2/group-orders', require('./routes/v2/groupOrders'));
+app.use('/api/v2/reorder', authMiddleware, require('./routes/v2/reorder'));
+app.use('/api/v2/reservations', require('./routes/v2/reservations'));
+app.use('/api/v2/catering', authMiddleware, require('./routes/v2/catering'));
+app.use('/api/v2/disputes', authMiddleware, require('./routes/v2/disputes'));
+app.use('/api/v2/admin/disputes', authMiddleware, require('./routes/v2/admin-disputes'));
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Food Delivery API is running' });

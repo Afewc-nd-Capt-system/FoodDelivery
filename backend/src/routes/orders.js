@@ -4,6 +4,7 @@ const User = require('../models/User');
 const Restaurant = require('../models/Restaurant');
 const authMiddleware = require('../middleware/auth');
 const { sendOrderConfirmation, sendOrderStatusUpdate } = require('../utils/email');
+const recommendationService = require('../services/recommendationService');
 
 const router = express.Router();
 

@@ -60,7 +60,6 @@ const promoCodeSchema = new mongoose.Schema({
   },
 });
 
-promoCodeSchema.index({ code: 1 });
 promoCodeSchema.index({ validUntil: 1 });
 
 module.exports = mongoose.model('PromoCode', promoCodeSchema);

@@ -57,7 +57,7 @@ const orderSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['cash', 'card', 'upi'],
+    enum: ['cash', 'card', 'wallet', 'wallet_card'],
     default: 'cash',
   },
   deliveryFee: {
@@ -91,6 +91,37 @@ const orderSchema = new mongoose.Schema({
   },
   promoCode: String,
   deliveredAt: Date,
+  walletAmountUsed: {
+    type: Number,
+    default: 0,
+    comment: 'Amount paid using wallet'
+  },
+  loyaltyDiscount: {
+    type: Number,
+    default: 0,
+    comment: 'Discount from loyalty points redemption'
+  },
+  loyaltyPointsRedeemed: {
+    type: Number,
+    default: 0,
+    comment: 'Points used for discount'
+  },
+  loyaltyPointsEarned: {
+    type: Number,
+    default: 0,
+    comment: 'Points earned from this order'
+  },
+  referralDiscountApplied: {
+    type: Number,
+    default: 0,
+    comment: 'Discount from referral (first order)'
+  },
+  isVibePassFreeDelivery: {
+    type: Boolean,
+    default: false,
+    comment: 'Whether free delivery from VibePass was applied'
+  },
+  deletedAt: { type: Date, default: null }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Order', orderSchema);

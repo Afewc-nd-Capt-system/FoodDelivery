@@ -1,33 +1,47 @@
 {
   "name": "food-delivery-backend",
-  "version": "1.0.0",
-  "description": "Food delivery API backend",
+  "version": "2.0.0",
+  "description": "VibeChops Food Delivery API - Security Hardened",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "seed": "node src/seed/seedData.js",
-    "test": "jest --testPathPattern=tests"
+    "seed:subscription": "node src/seed/subscriptionPlans.js",
+    "seed:delivery": "node src/seed/deliveryConfig.js",
+    "seed:admin": "node src/seed/createAdmin.js",
+    "seed:demo": "node src/seed/demoData.js",
+    "test": "jest --testPathPattern=tests",
+    "security-audit": "npm audit --audit-level=high"
   },
   "dependencies": {
     "axios": "^1.16.0",
-    "bcryptjs": "^2.4.3",
-    "cookie-parser": "^1.4.7",
-    "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "express-rate-limit": "^8.4.1",
-    "express-validator": "^7.0.1",
-    "helmet": "^8.1.0",
-    "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.0.0",
-    "morgan": "^1.10.1",
-    "multer": "^2.1.1",
+    "bcryptjs": "2.4.3",
+    "cookie-parser": "1.4.7",
+    "cors": "2.8.5",
+    "dotenv": "16.3.1",
+    "express": "^4.22.1",
+    "express-mongo-sanitize": "2.2.0",
+    "express-rate-limit": "7.1.5",
+    "express-validator": "7.0.1",
+    "helmet": "7.1.0",
+    "jsonwebtoken": "9.0.2",
+    "mongoose": "^8.23.1",
+    "morgan": "1.10.1",
+    "multer": "1.4.5-lts.1",
     "nodemailer": "^8.0.7",
-    "redis": "^5.12.1",
-    "socket.io": "^4.8.3"
+    "otplib": "12.0.1",
+    "qrcode": "1.5.3",
+    "redis": "4.6.10",
+    "socket.io": "4.8.3",
+    "uuid": "9.0.1",
+    "winston": "3.11.0",
+    "zod": "3.22.4"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "nodemon": "3.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

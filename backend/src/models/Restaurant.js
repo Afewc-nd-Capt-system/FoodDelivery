@@ -172,6 +172,18 @@ const restaurantSchema = new mongoose.Schema({
     lat: Number,
     lng: Number,
   },
+  dietaryOptions: [{
+    type: String,
+    enum: ['vegan', 'vegetarian', 'halal', 'kosher', 'gluten-free', 'nut-free', 'dairy-free']
+  }],
+  cuisineTags: [String],
+  deletedAt: { type: Date, default: null }
 }, { timestamps: true });
+
+restaurantSchema.index({ deletedAt: 1 });
+restaurantSchema.index({ cuisine: 1 });
+restaurantSchema.index({ 'location.city': 1 });
+restaurantSchema.index({ 'location.area': 1 });
+restaurantSchema.index({ rating: -1 });
 
 module.exports = mongoose.model('Restaurant', restaurantSchema);

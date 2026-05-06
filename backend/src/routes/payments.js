@@ -108,8 +108,14 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       const reference = event.data.reference;
       const orderId = event.data.metadata.orderId;
 
+      const existingOrder = await Order.findOne({ paystackReference: reference });
+      if (existingOrder) {
+        console.log(`Webhook: Duplicate event for reference ${reference}, already processed`);
+        return res.json({ message: 'Webhook already processed' });
+      }
+
       const order = await Order.findById(orderId);
-      if (order) {
+      if (order && !order.isPaid) {
         order.paymentStatus = 'paid';
         order.isPaid = true;
         order.paystackReference = reference;

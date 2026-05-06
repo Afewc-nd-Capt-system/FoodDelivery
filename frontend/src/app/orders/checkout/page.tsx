@@ -3,20 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { api } from '@/lib/api';
-
-interface PaystackWindow extends Window {
-  PaystackPop: any;
-}
-
-declare global {
-  interface Window {
-    PaystackPop?: any;
-  }
-}
+import { Wallet, Star } from 'lucide-react';
 
 export default function CheckoutPage() {
   const { user } = useAuth();
@@ -29,6 +19,18 @@ export default function CheckoutPage() {
   const [payOnDeliveryEligible, setPayOnDeliveryEligible] = useState(true);
   const [eligibilityReason, setEligibilityReason] = useState('');
   const [checkingEligibility, setCheckingEligibility] = useState(true);
+
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [useWallet, setUseWallet] = useState(false);
+  const [walletLoading, setWalletLoading] = useState(false);
+
+  const [loyaltyPoints, setLoyaltyPoints] = useState(0);
+  const [useLoyalty, setUseLoyalty] = useState(false);
+  const [loyaltyLoading, setLoyaltyLoading] = useState(false);
+  const [loyaltyDiscount, setLoyaltyDiscount] = useState(0);
+
+  const [isVibePassMember, setIsVibePassMember] = useState(false);
+  const [freeDeliveryAvailable, setFreeDeliveryAvailable] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -62,17 +64,53 @@ export default function CheckoutPage() {
   }, [cart.restaurantId]);
 
   useEffect(() => {
-    if (paymentMethod === 'card' && !(window as any).PaystackPop) {
-      const script = document.createElement('script');
-      script.src = 'https://js.paystack.co/v1/inline.js';
-      script.async = true;
-      document.body.appendChild(script);
-    }
-  }, [paymentMethod]);
+    const loadPaymentData = async () => {
+      if (!user) return;
+
+      try {
+        const [walletData, loyaltyData, subscriptionData, freeDeliveryData] = await Promise.all([
+          api.wallet.get().catch(() => ({ data: { balance: 0 } })),
+          api.loyalty.getBalance().catch(() => ({ data: { points: 0 } })),
+          api.subscription.getMySubscription().catch(() => ({ data: null })),
+          api.subscription.checkFreeDelivery().catch(() => ({ data: { eligible: false } })),
+        ]);
+
+        setWalletBalance(walletData.data?.balance || 0);
+        setLoyaltyPoints(loyaltyData.data?.points || 0);
+        setIsVibePassMember(subscriptionData.data?.status === 'active');
+        setFreeDeliveryAvailable(freeDeliveryData.data?.eligible || false);
+      } catch (err) {
+        console.error('Failed to load payment data:', err);
+      }
+    };
+
+    loadPaymentData();
+  }, [user]);
+
+  useEffect(() => {
+    const calculateLoyaltyDiscount = async () => {
+      if (!useLoyalty || loyaltyPoints === 0) {
+        setLoyaltyDiscount(0);
+        return;
+      }
+
+      const subtotal = cart.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      try {
+        const data = await api.loyalty.calculateRedeemable(subtotal);
+        setLoyaltyDiscount(data.data.discountValue || 0);
+      } catch (err) {
+        console.error('Failed to calculate loyalty discount:', err);
+      }
+    };
+
+    calculateLoyaltyDiscount();
+  }, [useLoyalty, loyaltyPoints, cart.items]);
 
   const subtotal = cart.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const deliveryFee = 40;
-  const total = subtotal + deliveryFee;
+  const deliveryFee = isVibePassMember && freeDeliveryAvailable ? 0 : 40;
+  const totalAfterLoyalty = subtotal - loyaltyDiscount;
+  const walletDeduction = useWallet ? Math.min(walletBalance, totalAfterLoyalty) : 0;
+  const finalTotal = Math.max(0, totalAfterLoyalty - walletDeduction);
 
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,11 +124,26 @@ export default function CheckoutPage() {
       return;
     }
 
+    if (useWallet && walletBalance < (subtotal - loyaltyDiscount)) {
+      if (paymentMethod === 'cash') {
+        setError('Insufficient wallet balance. Please add funds or choose another payment method.');
+        return;
+      }
+    }
+
     setLoading(true);
     setError('');
 
     try {
-      const response = await api.orders.create({
+      let finalTotalAmount = finalTotal;
+
+      if (useWallet && walletDeduction > 0) {
+        setWalletLoading(true);
+        await api.wallet.deduct(walletDeduction, 'Order payment', undefined);
+        setWalletLoading(false);
+      }
+
+      const orderData: any = {
         restaurant: cart.restaurantId,
         restaurantName: cart.restaurantName,
         items: cart.items.map(item => ({
@@ -99,19 +152,29 @@ export default function CheckoutPage() {
           price: item.price,
           quantity: item.quantity,
         })),
-        totalAmount: total,
+        totalAmount: finalTotalAmount,
         deliveryAddress: address,
-        paymentMethod,
+        paymentMethod: finalTotalAmount === 0 ? 'wallet' : paymentMethod,
         deliveryFee,
-      });
+        walletAmountUsed: walletDeduction,
+        loyaltyDiscount: loyaltyDiscount,
+        loyaltyPointsRedeemed: useLoyalty ? Math.floor(loyaltyDiscount * 100) : 0,
+        isVibePassFreeDelivery: isVibePassMember && freeDeliveryAvailable,
+      };
+
+      if (isVibePassMember && freeDeliveryAvailable) {
+        await api.subscription.useFreeDelivery();
+      }
+
+      const response = await api.orders.create(orderData);
 
       const orderId = response.order?._id || response._id;
 
-      if (paymentMethod === 'card') {
+      if (paymentMethod === 'card' && finalTotalAmount > 0) {
         const paystackResponse = await api.payments.initialize({
           orderId,
           email: user?.email || '',
-          amount: total,
+          amount: finalTotalAmount,
         });
 
         if (paystackResponse.authorizationUrl) {
@@ -120,10 +183,22 @@ export default function CheckoutPage() {
         }
       }
 
+      if (useLoyalty) {
+        try {
+          await api.loyalty.awardPoints(orderId);
+        } catch (err) {
+          console.error('Failed to award loyalty points:', err);
+        }
+      }
+
       await clearCart();
       router.push(`/orders/success/${orderId}`);
     } catch (err: any) {
-      setError(err.message || 'Failed to place order');
+      if (walletLoading) {
+        setError('Payment failed. Please try again or use a different payment method.');
+      } else {
+        setError(err.message || 'Failed to place order');
+      }
     } finally {
       setLoading(false);
     }
@@ -144,10 +219,62 @@ export default function CheckoutPage() {
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="Enter your full delivery address"
-                className="input-field min-h-[100px]"
+                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 min-h-[100px]"
                 required
               />
             </div>
+
+            {loyaltyPoints > 0 && (
+              <div className="card p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Star className="w-5 h-5 text-orange-500" />
+                    <h2 className="text-xl font-bold">Loyalty Points</h2>
+                  </div>
+                  <span className="text-orange-500 font-medium">{loyaltyPoints} points available</span>
+                </div>
+                <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="checkbox"
+                    checked={useLoyalty}
+                    onChange={(e) => setUseLoyalty(e.target.checked)}
+                    className="text-orange-500"
+                  />
+                  <div>
+                    <span className="font-medium">Use points for discount</span>
+                    {loyaltyDiscount > 0 && (
+                      <span className="ml-2 text-green-600">(-₦{loyaltyDiscount.toFixed(2)})</span>
+                    )}
+                  </div>
+                </label>
+              </div>
+            )}
+
+            {walletBalance > 0 && (
+              <div className="card p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Wallet className="w-5 h-5 text-green-500" />
+                    <h2 className="text-xl font-bold">Wallet</h2>
+                  </div>
+                  <span className="text-green-600 font-medium">₦{walletBalance.toFixed(2)} available</span>
+                </div>
+                <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="checkbox"
+                    checked={useWallet}
+                    onChange={(e) => setUseWallet(e.target.checked)}
+                    className="text-green-500"
+                  />
+                  <div>
+                    <span className="font-medium">Pay with wallet</span>
+                    {useWallet && finalTotal > 0 && (
+                      <span className="ml-2 text-gray-500">(-₦{walletDeduction.toFixed(2)})</span>
+                    )}
+                  </div>
+                </label>
+              </div>
+            )}
 
             <div className="card p-6">
               <h2 className="text-xl font-bold mb-4">Payment Method</h2>
@@ -163,17 +290,13 @@ export default function CheckoutPage() {
                         value="cash"
                         checked={paymentMethod === 'cash'}
                         onChange={(e) => setPaymentMethod(e.target.value)}
-                        className="text-primary-500"
+                        disabled={finalTotal === 0}
+                        className="text-orange-500"
                       />
                       <span className="font-medium">Cash on Delivery</span>
                     </label>
                   )}
-                  {!payOnDeliveryEligible && (
-                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800 text-sm">
-                      {eligibilityReason || 'Pay on delivery is not available for this order.'}
-                    </div>
-                  )}
-                  {['card', 'upi'].map(method => (
+                  {['card'].map(method => (
                     <label key={method} className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
                       <input
                         type="radio"
@@ -181,9 +304,10 @@ export default function CheckoutPage() {
                         value={method}
                         checked={paymentMethod === method}
                         onChange={(e) => setPaymentMethod(e.target.value)}
-                        className="text-primary-500"
+                        disabled={finalTotal === 0}
+                        className="text-orange-500"
                       />
-                      <span className="font-medium capitalize">{method === 'card' ? 'Pay with Card (Paystack)' : 'UPI Payment'}</span>
+                      <span className="font-medium">Pay with Card (Paystack)</span>
                     </label>
                   ))}
                 </div>
@@ -198,10 +322,10 @@ export default function CheckoutPage() {
 
             <button
               type="submit"
-              disabled={loading}
-              className="btn-primary w-full py-3 disabled:opacity-50"
+              disabled={loading || walletLoading}
+              className="w-full py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 font-medium"
             >
-              {loading ? 'Placing Order...' : `Place Order - $${total.toFixed(2)}`}
+              {loading || walletLoading ? 'Processing...' : `Place Order - ₦${finalTotal.toFixed(2)}`}
             </button>
           </form>
         </div>
@@ -214,22 +338,39 @@ export default function CheckoutPage() {
               {cart.items.map(item => (
                 <div key={item.itemId} className="flex justify-between text-sm">
                   <span>{item.quantity}x {item.name}</span>
-                  <span>${(item.price * item.quantity).toFixed(2)}</span>
+                  <span>₦{(item.price * item.quantity).toFixed(2)}</span>
                 </div>
               ))}
             </div>
             <div className="space-y-2 pt-4 border-t">
               <div className="flex justify-between">
                 <span className="text-gray-600">Subtotal</span>
-                <span>${subtotal.toFixed(2)}</span>
+                <span>₦{subtotal.toFixed(2)}</span>
               </div>
+              {loyaltyDiscount > 0 && (
+                <div className="flex justify-between text-green-600">
+                  <span>Loyalty Discount</span>
+                  <span>-₦{loyaltyDiscount.toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-gray-600">Delivery Fee</span>
-                <span>${deliveryFee.toFixed(2)}</span>
+                <span className={isVibePassMember && freeDeliveryAvailable ? 'text-green-600' : ''}>
+                  {isVibePassMember && freeDeliveryAvailable ? 'Free' : `₦${deliveryFee.toFixed(2)}`}
+                </span>
               </div>
+              {walletDeduction > 0 && (
+                <div className="flex justify-between text-green-600">
+                  <span>Wallet</span>
+                  <span>-₦{walletDeduction.toFixed(2)}</span>
+                </div>
+              )}
+              {isVibePassMember && freeDeliveryAvailable && (
+                <div className="text-xs text-yellow-600">VibePass free delivery applied!</div>
+              )}
               <div className="flex justify-between font-bold text-lg pt-2 border-t">
                 <span>Total</span>
-                <span>${total.toFixed(2)}</span>
+                <span>₦{finalTotal.toFixed(2)}</span>
               </div>
             </div>
           </div>
