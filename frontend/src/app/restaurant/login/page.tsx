@@ -1,15 +1,24 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { Clock } from 'lucide-react';
 
-export default function RestaurantLoginPage() {
+function RestaurantLoginPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPendingMessage, setShowPendingMessage] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get('status') === 'pending_verification') {
+      setShowPendingMessage(true);
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,6 +40,11 @@ export default function RestaurantLoginPage() {
         throw new Error(data.message || 'Login failed');
       }
 
+      if (data.verificationStatus !== 'approved') {
+        setError('Your restaurant is pending CAC verification. You will be notified by email once approved (24-48 hours).');
+        return;
+      }
+
       router.push('/restaurant/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
@@ -47,6 +61,20 @@ export default function RestaurantLoginPage() {
             <h1 className="text-2xl font-bold mb-2" style={{ color: '#1C1C1E' }}>Restaurant Login</h1>
             <p className="text-sm" style={{ color: '#636366' }}>Sign in to manage your restaurant</p>
           </div>
+
+          {showPendingMessage && (
+            <div className="mb-6 p-4 rounded-xl flex items-start gap-3" style={{ backgroundColor: '#FFF1E8', border: '1px solid #E8621A' }}>
+              <Clock className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#E8621A' }} />
+              <div>
+                <p className="text-sm font-semibold mb-1" style={{ color: '#1C1C1E' }}>
+                  Registration Submitted
+                </p>
+                <p className="text-xs" style={{ color: '#636366' }}>
+                  Your restaurant registration is pending CAC verification. You will be notified by email once approved (24-48 hours).
+                </p>
+              </div>
+            </div>
+          )}
 
           {error && (
             <div className="mb-6 p-4 rounded-xl text-sm font-semibold bg-red-50 text-red-600">
@@ -106,5 +134,13 @@ export default function RestaurantLoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function RestaurantLoginPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <RestaurantLoginPageContent />
+    </Suspense>
   );
 }

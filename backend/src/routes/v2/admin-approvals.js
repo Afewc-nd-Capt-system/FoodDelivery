@@ -7,6 +7,7 @@ const RestaurantPromotion = require('../../models/RestaurantPromotion');
 const Dispute = require('../../models/Dispute');
 const Wallet = require('../../models/Wallet');
 const WalletTransaction = require('../../models/WalletTransaction');
+const AdPlacement = require('../../models/AdPlacement');
 const authMiddleware = require('../../middleware/auth');
 const router = express.Router();
 
@@ -29,14 +30,82 @@ router.patch('/restaurants/:id/approve', authMiddleware, adminMiddleware, async 
   try {
     const restaurant = await Restaurant.findByIdAndUpdate(
       req.params.id,
-      { isApproved: true, approvedAt: new Date() },
+      {
+        isApproved: true,
+        approvedAt: new Date(),
+        verificationStatus: 'approved',
+        verifiedAt: new Date(),
+        verifiedBy: req.user.id,
+      },
       { new: true }
     );
     if (!restaurant) {
       return res.status(404).json({ message: 'Restaurant not found' });
     }
+    // TODO: Send approval email to restaurant
     await logAdminAction(req.user.id, 'approve_restaurant', { restaurantId: req.params.id });
     res.json({ restaurant });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// PATCH /api/v2/admin/restaurants/:id/request-info
+router.patch('/restaurants/:id/request-info', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { notes } = req.body;
+    const restaurant = await Restaurant.findByIdAndUpdate(
+      req.params.id,
+      {
+        verificationStatus: 'under_review',
+        verificationNotes: notes,
+      },
+      { new: true }
+    );
+    if (!restaurant) {
+      return res.status(404).json({ message: 'Restaurant not found' });
+    }
+    // TODO: Send email to restaurant with notes
+    await logAdminAction(req.user.id, 'request_info_restaurant', { restaurantId: req.params.id, notes });
+    res.json({ restaurant });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// PATCH /api/v2/admin/restaurants/:id/reject
+router.patch('/restaurants/:id/reject', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { reason } = req.body;
+    const restaurant = await Restaurant.findByIdAndUpdate(
+      req.params.id,
+      {
+        isApproved: false,
+        verificationStatus: 'rejected',
+        verificationNotes: reason,
+      },
+      { new: true }
+    );
+    if (!restaurant) {
+      return res.status(404).json({ message: 'Restaurant not found' });
+    }
+    // TODO: Send rejection email to restaurant with reason
+    await logAdminAction(req.user.id, 'reject_restaurant', { restaurantId: req.params.id, reason });
+    res.json({ restaurant });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// GET /api/v2/admin/restaurants/pending-verification
+router.get('/restaurants/pending-verification', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const restaurants = await Restaurant.find({
+      verificationStatus: { $in: ['pending_verification', 'under_review'] },
+    })
+      .populate('owner', 'name email')
+      .sort({ createdAt: -1 });
+    res.json({ restaurants });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -253,6 +322,43 @@ router.patch('/delivery-companies/:id/suspend', authMiddleware, adminMiddleware,
     }
     await logAdminAction(req.user.id, 'suspend_delivery_company', { companyId: req.params.id, reason });
     res.json({ company });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// PATCH /api/v2/admin/ads/:id/approve
+router.patch('/ads/:id/approve', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const ad = await AdPlacement.findByIdAndUpdate(
+      req.params.id,
+      { isApproved: true, status: 'active' },
+      { new: true }
+    );
+    if (!ad) {
+      return res.status(404).json({ message: 'Ad not found' });
+    }
+    await logAdminAction(req.user.id, 'approve_ad', { adId: req.params.id });
+    res.json({ ad });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// PATCH /api/v2/admin/ads/:id/reject
+router.patch('/ads/:id/reject', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { reason } = req.body;
+    const ad = await AdPlacement.findByIdAndUpdate(
+      req.params.id,
+      { isApproved: false, status: 'rejected' },
+      { new: true }
+    );
+    if (!ad) {
+      return res.status(404).json({ message: 'Ad not found' });
+    }
+    await logAdminAction(req.user.id, 'reject_ad', { adId: req.params.id, reason });
+    res.json({ ad });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }

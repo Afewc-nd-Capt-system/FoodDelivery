@@ -144,6 +144,10 @@ app.use('/api/v2/delivery/orders', authMiddleware, require('./routes/v2/delivery
 app.use('/api/v2/riders', authMiddleware, require('./routes/v2/riders'));
 app.use('/api/v2/earnings', authMiddleware, require('./routes/v2/earnings'));
 app.use('/api/v2/admin/approvals', authMiddleware, require('./routes/v2/admin-approvals'));
+app.use('/api/v2/admin/revenue', authMiddleware, require('./routes/v2/admin-revenue'));
+app.use('/api/v2/restaurants', authMiddleware, require('./routes/v2/restaurant-docs'));
+app.use('/api/v2/subscriptions', authMiddleware, require('./routes/v2/business-subscriptions'));
+app.use('/api/v2/ads', require('./routes/v2/ads'));
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Food Delivery API is running' });

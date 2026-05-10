@@ -197,7 +197,37 @@ const restaurantSchema = new mongoose.Schema({
     enum: ['vegan', 'vegetarian', 'halal', 'kosher', 'gluten-free', 'nut-free', 'dairy-free']
   }],
   cuisineTags: [String],
-  deletedAt: { type: Date, default: null }
+  deletedAt: { type: Date, default: null },
+  // CAC Verification fields
+  cacCertificate: {
+    url: String,
+    uploadedAt: Date,
+  },
+  governmentApproval: {
+    url: String,
+    uploadedAt: Date,
+  },
+  tinNumber: {
+    type: String,
+  },
+  rcNumber: {
+    type: String,
+  },
+  verificationStatus: {
+    type: String,
+    enum: ['pending_verification', 'under_review', 'approved', 'rejected'],
+    default: 'pending_verification',
+  },
+  verificationNotes: {
+    type: String,
+  },
+  verifiedAt: {
+    type: Date,
+  },
+  verifiedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+  },
 }, { timestamps: true });
 
 restaurantSchema.index({ deletedAt: 1 });
