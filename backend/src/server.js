@@ -23,6 +23,7 @@ const { blacklistMiddleware } = require('./utils/tokenBlacklist');
 const { xssProtection } = require('./middleware/sanitize');
 const { connectRedis } = require('./middleware/redis');
 const setupSocketIO = require('./socket');
+const { emailQueue } = require('./jobs/financialEmailJobs');
 
 connectRedis().then(() => console.log('Redis initialization complete'));
 
