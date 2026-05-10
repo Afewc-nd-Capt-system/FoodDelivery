@@ -7,10 +7,12 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Users, Store, Package, TrendingUp, DollarSign, AlertTriangle,
-  Settings, BarChart3, ShoppingCart, Bike, Utensils, ChefHat
+  Settings, BarChart3, ShoppingCart, Bike, Utensils, ChefHat, Shield
 } from 'lucide-react';
 
 export default function AdminDashboardPage() {
+  const [activeTab, setActiveTab] = useState('overview');
+
   const [adminStats, setAdminStats] = useState({
     totalUsers: 15420,
     totalRestaurants: 342,
@@ -35,6 +37,15 @@ export default function AdminDashboardPage() {
     { id: 'VEND-001', type: 'vendor', name: 'Chef Nkechi', submittedAt: '2024-05-09' },
     { id: 'DEL-001', type: 'delivery_company', name: 'Lagos Express Logistics', submittedAt: '2024-05-09' },
   ]);
+
+  const tabs = [
+    { id: 'overview', label: 'Overview', icon: BarChart3 },
+    { id: 'users', label: 'Users', icon: Users },
+    { id: 'restaurants', label: 'Restaurants', icon: Store },
+    { id: 'vendors', label: 'Vendors', icon: ChefHat },
+    { id: 'delivery', label: 'Delivery', icon: Bike },
+    { id: 'approvals', label: 'Approvals', icon: Shield },
+  ];
 
   return (
     <div style={{ backgroundColor: '#FFF8F0', minHeight: '100vh' }}>
@@ -62,9 +73,41 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
+      {/* Tab Navigation */}
+      <div className="bg-white border-b" style={{ borderColor: '#E8E8E8' }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex gap-1 overflow-x-auto py-4">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
+                    activeTab === tab.id
+                      ? 'text-white'
+                      : 'hover:bg-gray-100'
+                  }`}
+                  style={
+                    activeTab === tab.id
+                      ? { background: 'linear-gradient(135deg, #E8621A, #C4501A)' }
+                      : { color: '#636366' }
+                  }
+                >
+                  <Icon size={16} />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {activeTab === 'overview' && (
+          <>
+            {/* Stats Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card className="p-6 bg-white">
             <div className="flex items-center justify-between mb-2">
               <Users className="w-5 h-5 text-[#E8621A]" />
@@ -294,6 +337,58 @@ export default function AdminDashboardPage() {
             </Card>
           </Link>
         </div>
+          </>
+        )}
+
+        {activeTab === 'users' && (
+          <Card className="p-6">
+            <h3 className="font-bold mb-4">Users Management</h3>
+            <div className="text-center py-12" style={{ color: '#636366' }}>
+              <Users className="w-16 h-16 mx-auto mb-4" style={{ color: '#E8E8E8' }} />
+              <p>Users management coming soon</p>
+            </div>
+          </Card>
+        )}
+
+        {activeTab === 'restaurants' && (
+          <Card className="p-6">
+            <h3 className="font-bold mb-4">Restaurants Management</h3>
+            <div className="text-center py-12" style={{ color: '#636366' }}>
+              <Store className="w-16 h-16 mx-auto mb-4" style={{ color: '#E8E8E8' }} />
+              <p>Restaurants management coming soon</p>
+            </div>
+          </Card>
+        )}
+
+        {activeTab === 'vendors' && (
+          <Card className="p-6">
+            <h3 className="font-bold mb-4">Vendors Management</h3>
+            <div className="text-center py-12" style={{ color: '#636366' }}>
+              <ChefHat className="w-16 h-16 mx-auto mb-4" style={{ color: '#E8E8E8' }} />
+              <p>Vendors management coming soon</p>
+            </div>
+          </Card>
+        )}
+
+        {activeTab === 'delivery' && (
+          <Card className="p-6">
+            <h3 className="font-bold mb-4">Delivery Management</h3>
+            <div className="text-center py-12" style={{ color: '#636366' }}>
+              <Bike className="w-16 h-16 mx-auto mb-4" style={{ color: '#E8E8E8' }} />
+              <p>Delivery management coming soon</p>
+            </div>
+          </Card>
+        )}
+
+        {activeTab === 'approvals' && (
+          <Card className="p-6">
+            <h3 className="font-bold mb-4">Pending Approvals</h3>
+            <div className="text-center py-12" style={{ color: '#636366' }}>
+              <Shield className="w-16 h-16 mx-auto mb-4" style={{ color: '#E8E8E8' }} />
+              <p>Approvals management coming soon</p>
+            </div>
+          </Card>
+        )}
       </div>
     </div>
   );

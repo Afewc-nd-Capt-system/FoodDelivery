@@ -31,6 +31,19 @@ export interface MenuItem {
   customizations?: { name: string; options: { label: string; price: number }[] }[];
 }
 
+export interface VendorMenuItem {
+  id: string;
+  vendorId: string;
+  name: string;
+  description: string;
+  price: number;
+  image: string;
+  category: string;
+  popular?: boolean;
+  calories?: string;
+  cookingDay?: string;
+}
+
 export interface Vendor {
   id: string;
   name: string;
@@ -446,6 +459,101 @@ export const chartData = [
   { name: 'Fri', orders: 234, revenue: 1053 },
   { name: 'Sat', orders: 312, revenue: 1404 },
   { name: 'Sun', orders: 278, revenue: 1251 },
+];
+
+export const vendorMenuItems: VendorMenuItem[] = [
+  {
+    id: 'vm1',
+    vendorId: 'v1',
+    name: 'Egusi Soup + Swallow',
+    description: 'Rich egusi soup with assorted meat and fish',
+    price: 3500,
+    image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400',
+    category: 'Soups',
+    popular: true,
+    calories: '580 cal',
+    cookingDay: 'Mon',
+  },
+  {
+    id: 'vm2',
+    vendorId: 'v1',
+    name: 'Jollof Rice & Chicken',
+    description: 'Smoky party jollof rice with grilled chicken',
+    price: 4000,
+    image: 'https://images.unsplash.com/photo-1555939594-58d6cb864120?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400',
+    category: 'Rice',
+    popular: true,
+    calories: '650 cal',
+    cookingDay: 'Tue',
+  },
+  {
+    id: 'vm3',
+    vendorId: 'v1',
+    name: 'Efo Riro + Pounded Yam',
+    description: 'Fresh spinach soup with beef and pounded yam',
+    price: 4500,
+    image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400',
+    category: 'Swallow',
+    calories: '620 cal',
+    cookingDay: 'Wed',
+  },
+  {
+    id: 'vm4',
+    vendorId: 'v1',
+    name: 'Pepper Soup',
+    description: 'Spicy goat meat pepper soup with special herbs',
+    price: 3000,
+    image: 'https://images.unsplash.com/photo-1555939594-58d6cb864120?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400',
+    category: 'Soups',
+    calories: '420 cal',
+    cookingDay: 'Thu',
+  },
+  {
+    id: 'vm5',
+    vendorId: 'v1',
+    name: 'Fried Rice & Turkey',
+    description: 'Nigerian fried rice with grilled turkey',
+    price: 3800,
+    image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400',
+    category: 'Rice',
+    calories: '580 cal',
+    cookingDay: 'Fri',
+  },
+  {
+    id: 'vm6',
+    vendorId: 'v2',
+    name: 'Chocolate Cake',
+    description: 'Rich chocolate cake with chocolate ganache',
+    price: 4500,
+    image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400',
+    category: 'Cakes',
+    popular: true,
+    calories: '480 cal',
+    cookingDay: 'Mon',
+  },
+  {
+    id: 'vm7',
+    vendorId: 'v2',
+    name: 'Meat Pies (6 pcs)',
+    description: 'Freshly baked Nigerian meat pies',
+    price: 3000,
+    image: 'https://images.unsplash.com/photo-1555939594-58d6cb864120?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400',
+    category: 'Pastries',
+    popular: true,
+    calories: '360 cal',
+    cookingDay: 'Tue',
+  },
+  {
+    id: 'vm8',
+    vendorId: 'v2',
+    name: 'Red Velvet Cake',
+    description: 'Classic red velvet with cream cheese frosting',
+    price: 5500,
+    image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400',
+    category: 'Cakes',
+    calories: '520 cal',
+    cookingDay: 'Wed',
+  },
 ];
 
 export const vendors: Vendor[] = [

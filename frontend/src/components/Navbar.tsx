@@ -227,11 +227,21 @@ export function Navbar() {
 
               {/* Sign in — desktop */}
               <button
+                onClick={() => router.push('/login')}
                 className="hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-semibold transition-colors hover:bg-gray-50"
                 style={{ borderColor: '#E8E8E8', color: '#1C1C1E' }}
               >
                 <User size={15} />
                 Sign In
+              </button>
+
+              {/* Sign up — desktop */}
+              <button
+                onClick={() => router.push('/register')}
+                className="hidden md:flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-bold transition-all duration-200 hover:scale-105 active:scale-95"
+                style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}
+              >
+                Sign Up
               </button>
 
               {/* Hamburger */}
@@ -293,6 +303,26 @@ export function Navbar() {
                 {link.label}
               </Link>
             ))}
+
+            {!user && (
+              <>
+                <div className="border-t my-2" style={{ borderColor: '#F0EAE0' }} />
+                <Link
+                  href="/login"
+                  className="flex items-center px-3 py-3 rounded-xl text-sm font-semibold transition-colors"
+                  style={{ color: '#636366' }}
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/register"
+                  className="flex items-center justify-center px-3 py-3 rounded-xl text-sm font-bold text-white transition-all duration-200"
+                  style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}
+                >
+                  Sign Up
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </nav>

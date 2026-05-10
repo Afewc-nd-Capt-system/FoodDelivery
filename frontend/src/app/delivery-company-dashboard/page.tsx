@@ -7,10 +7,12 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Users, Package, DollarSign, TrendingUp, Star,
-  Bike, Settings, Wallet, Plus, Clock
+  Bike, Settings, Wallet, Plus, Clock, User, History
 } from 'lucide-react';
 
 export default function DeliveryCompanyDashboardPage() {
+  const [activeTab, setActiveTab] = useState('overview');
+
   const [companyStats, setCompanyStats] = useState({
     totalRiders: 24,
     activeRiders: 18,
@@ -28,6 +30,15 @@ export default function DeliveryCompanyDashboardPage() {
     { id: '2', name: 'Chinedu Eze', phone: '08023456789', vehicleType: 'scooter', isOnline: true, totalDeliveries: 38, rating: 4.6 },
     { id: '3', name: 'Adebayo Johnson', phone: '08034567890', vehicleType: 'bike', isOnline: false, totalDeliveries: 52, rating: 4.9 },
   ]);
+
+  const tabs = [
+    { id: 'overview', label: 'Overview', icon: TrendingUp },
+    { id: 'riders', label: 'Riders', icon: Bike },
+    { id: 'earnings', label: 'Earnings', icon: DollarSign },
+    { id: 'wallet', label: 'Wallet', icon: Wallet },
+    { id: 'history', label: 'History', icon: History },
+    { id: 'profile', label: 'Profile', icon: User },
+  ];
 
   return (
     <div style={{ backgroundColor: '#FFF8F0', minHeight: '100vh' }}>
@@ -53,9 +64,41 @@ export default function DeliveryCompanyDashboardPage() {
         </div>
       </div>
 
+      {/* Tab Navigation */}
+      <div className="bg-white border-b" style={{ borderColor: '#E8E8E8' }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex gap-1 overflow-x-auto py-4">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
+                    activeTab === tab.id
+                      ? 'text-white'
+                      : 'hover:bg-gray-100'
+                  }`}
+                  style={
+                    activeTab === tab.id
+                      ? { background: 'linear-gradient(135deg, #E8621A, #C4501A)' }
+                      : { color: '#636366' }
+                  }
+                >
+                  <Icon size={16} />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+        {activeTab === 'overview' && (
+          <>
+            {/* Stats Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
           {[
             { icon: Users, label: 'Total Riders', value: companyStats.totalRiders, color: '#2563EB' },
             { icon: Bike, label: 'Active Riders', value: companyStats.activeRiders, color: '#16A34A' },
@@ -169,6 +212,58 @@ export default function DeliveryCompanyDashboardPage() {
             </div>
           </Card>
         </div>
+          </>
+        )}
+
+        {activeTab === 'riders' && (
+          <Card className="p-6">
+            <h3 className="font-bold mb-4">Riders Management</h3>
+            <div className="text-center py-12" style={{ color: '#636366' }}>
+              <Bike className="w-16 h-16 mx-auto mb-4" style={{ color: '#E8E8E8' }} />
+              <p>Riders management coming soon</p>
+            </div>
+          </Card>
+        )}
+
+        {activeTab === 'earnings' && (
+          <Card className="p-6">
+            <h3 className="font-bold mb-4">Earnings</h3>
+            <div className="text-center py-12" style={{ color: '#636366' }}>
+              <DollarSign className="w-16 h-16 mx-auto mb-4" style={{ color: '#E8E8E8' }} />
+              <p>Earnings dashboard coming soon</p>
+            </div>
+          </Card>
+        )}
+
+        {activeTab === 'wallet' && (
+          <Card className="p-6">
+            <h3 className="font-bold mb-4">Wallet</h3>
+            <div className="text-center py-12" style={{ color: '#636366' }}>
+              <Wallet className="w-16 h-16 mx-auto mb-4" style={{ color: '#E8E8E8' }} />
+              <p>Wallet management coming soon</p>
+            </div>
+          </Card>
+        )}
+
+        {activeTab === 'history' && (
+          <Card className="p-6">
+            <h3 className="font-bold mb-4">Delivery History</h3>
+            <div className="text-center py-12" style={{ color: '#636366' }}>
+              <History className="w-16 h-16 mx-auto mb-4" style={{ color: '#E8E8E8' }} />
+              <p>Delivery history coming soon</p>
+            </div>
+          </Card>
+        )}
+
+        {activeTab === 'profile' && (
+          <Card className="p-6">
+            <h3 className="font-bold mb-4">Profile Settings</h3>
+            <div className="text-center py-12" style={{ color: '#636366' }}>
+              <User className="w-16 h-16 mx-auto mb-4" style={{ color: '#E8E8E8' }} />
+              <p>Profile management coming soon</p>
+            </div>
+          </Card>
+        )}
       </div>
     </div>
   );

@@ -22,12 +22,12 @@ const { authLimiter, apiLimiter } = require('./middleware/rateLimiter');
 const { blacklistMiddleware } = require('./utils/tokenBlacklist');
 const { xssProtection } = require('./middleware/sanitize');
 const { connectRedis } = require('./middleware/redis');
+const setupSocketIO = require('./socket');
 
 connectRedis().then(() => console.log('Redis initialization complete'));
 
 const app = express();
 const server = http.createServer(app);
-const jwt = require('jsonwebtoken');
 const io = new Server(server, {
   cors: {
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
@@ -36,24 +36,7 @@ const io = new Server(server, {
   },
 });
 
-io.use((socket, next) => {
-  const token = socket.handshake.auth.token || socket.handshake.query.token;
-  if (!token) {
-    return next(new Error('Authentication required'));
-  }
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    socket.user = decoded;
-    next();
-  } catch (err) {
-    next(new Error('Invalid token'));
-  }
-});
-
-io.on('connection', (socket) => {
-  console.log(`User ${socket.user?.id} connected via Socket.io`);
-  socket.join(`user-${socket.user.id}`);
-});
+setupSocketIO(io);
 
 app.set('io', io);
 
@@ -156,6 +139,11 @@ app.use('/api/v2/reservations', require('./routes/v2/reservations'));
 app.use('/api/v2/catering', authMiddleware, require('./routes/v2/catering'));
 app.use('/api/v2/disputes', authMiddleware, require('./routes/v2/disputes'));
 app.use('/api/v2/admin/disputes', authMiddleware, require('./routes/v2/admin-disputes'));
+app.use('/api/v2/orders', authMiddleware, require('./routes/v2/orders'));
+app.use('/api/v2/delivery/orders', authMiddleware, require('./routes/v2/delivery-orders'));
+app.use('/api/v2/riders', authMiddleware, require('./routes/v2/riders'));
+app.use('/api/v2/earnings', authMiddleware, require('./routes/v2/earnings'));
+app.use('/api/v2/admin/approvals', authMiddleware, require('./routes/v2/admin-approvals'));
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Food Delivery API is running' });

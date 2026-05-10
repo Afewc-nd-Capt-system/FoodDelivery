@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
-import { DollarSign, ShoppingCart, TrendingUp, Users, Star, Clock, Plus, Edit, Trash2, Calendar, Percent } from 'lucide-react';
+import { DollarSign, ShoppingCart, TrendingUp, Users, Star, Clock, Plus, Edit, Trash2, Calendar, Percent, User } from 'lucide-react';
 
 const chartData = [
   { date: 'Mon', revenue: 45000, orders: 45 },
@@ -101,11 +101,12 @@ function RestaurantDashboardPageContent() {
           <div className="flex items-center justify-between mb-6">
             <TabsList>
               <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="menu">Menu</TabsTrigger>
               <TabsTrigger value="orders">Orders</TabsTrigger>
+              <TabsTrigger value="menu">Menu</TabsTrigger>
               <TabsTrigger value="promotions">Promotions</TabsTrigger>
               <TabsTrigger value="analytics">Analytics</TabsTrigger>
-              <TabsTrigger value="reservations">Reservations</TabsTrigger>
+              <TabsTrigger value="earnings">Earnings</TabsTrigger>
+              <TabsTrigger value="profile">Profile</TabsTrigger>
             </TabsList>
 
             <div className="flex gap-2">
@@ -368,15 +369,36 @@ function RestaurantDashboardPageContent() {
             </div>
           </TabsContent>
 
-          <TabsContent value="reservations">
+          <TabsContent value="earnings">
             <Card className="p-5">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="font-bold">Table Reservations</h3>
-                <Button className="bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white">
-                  <Plus className="w-4 h-4 mr-2" /> Add Reservation
-                </Button>
+              <h3 className="font-bold mb-4">Earnings</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div className="p-4 rounded-xl" style={{ backgroundColor: '#FFF1E8' }}>
+                  <p className="text-sm" style={{ color: '#636366' }}>Total Revenue</p>
+                  <p className="text-2xl font-bold" style={{ color: '#1C1C1E' }}>₦520,000</p>
+                </div>
+                <div className="p-4 rounded-xl" style={{ backgroundColor: '#F0FDF4' }}>
+                  <p className="text-sm" style={{ color: '#636366' }}>Commission (10%)</p>
+                  <p className="text-2xl font-bold" style={{ color: '#16A34A' }}>₦52,000</p>
+                </div>
+                <div className="p-4 rounded-xl" style={{ backgroundColor: '#EFF6FF' }}>
+                  <p className="text-sm" style={{ color: '#636366' }}>Net Earnings</p>
+                  <p className="text-2xl font-bold" style={{ color: '#2563EB' }}>₦468,000</p>
+                </div>
               </div>
-              <p className="text-[#636366]">Reservation management coming soon...</p>
+              <div className="text-center py-8 text-[#636366]">
+                <p>Detailed earnings report coming soon</p>
+              </div>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="profile">
+            <Card className="p-5">
+              <h3 className="font-bold mb-4">Profile Settings</h3>
+              <div className="text-center py-12 text-[#636366]">
+                <User className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                <p>Profile management coming soon</p>
+              </div>
             </Card>
           </TabsContent>
         </Tabs>

@@ -148,10 +148,9 @@ function RestaurantCard({ restaurant, onClick }: { restaurant: typeof restaurant
 
   return (
     <div
-      onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className="rounded-3xl overflow-hidden bg-white cursor-pointer shrink-0 w-72 select-none"
+      className="rounded-3xl overflow-hidden bg-white shrink-0 w-72 select-none"
       style={{
         boxShadow: hovered
           ? '0 24px 48px rgba(232,98,26,0.18), 0 8px 16px rgba(0,0,0,0.06)'
@@ -242,6 +241,13 @@ function RestaurantCard({ restaurant, onClick }: { restaurant: typeof restaurant
             </span>
           ))}
         </div>
+        <button
+          onClick={onClick}
+          className="w-full mt-3 py-2.5 rounded-xl text-white text-sm font-bold transition-all duration-200 hover:scale-105 active:scale-95"
+          style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}
+        >
+          View Menu
+        </button>
       </div>
     </div>
   );

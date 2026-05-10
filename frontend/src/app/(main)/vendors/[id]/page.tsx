@@ -4,16 +4,43 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Star, Clock, MapPin, ArrowLeft, Heart, Share2 } from 'lucide-react';
-import { vendors } from '@/data/mockData';
+import { Star, Clock, MapPin, ArrowLeft, Heart, Share2, Plus, Minus } from 'lucide-react';
+import { vendors, vendorMenuItems } from '@/data/mockData';
+import { useCart } from '@/context/CartContext';
 
 export default function VendorDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { addItem } = useCart();
   const vendorId = params.id as string;
-  
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
+
   const vendor = vendors.find(v => v.id === vendorId);
-  
+  const menuItems = vendorMenuItems.filter(item => item.vendorId === vendorId);
+
+  const handleQuantityChange = (itemId: string, delta: number) => {
+    setQuantities(prev => ({
+      ...prev,
+      [itemId]: Math.max(0, (prev[itemId] || 0) + delta)
+    }));
+  };
+
+  const handlePreOrder = (item: typeof vendorMenuItems[0]) => {
+    const quantity = quantities[item.id] || 1;
+    for (let i = 0; i < quantity; i++) {
+      addItem({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        image: item.image,
+        restaurantId: vendorId,
+        category: item.category,
+        description: item.description,
+      });
+    }
+    setQuantities(prev => ({ ...prev, [item.id]: 0 }));
+  };
+
   if (!vendor) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -48,7 +75,7 @@ export default function VendorDetailPage() {
             className="object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-          
+
           {/* Vendor Actions */}
           <div className="absolute top-4 right-4 flex gap-2">
             <button className="p-2 bg-white rounded-full shadow-md hover:shadow-lg transition-shadow">
@@ -58,7 +85,7 @@ export default function VendorDetailPage() {
               <Share2 className="w-5 h-5 text-gray-600" />
             </button>
           </div>
-          
+
           {/* Vendor Info Overlay */}
           <div className="absolute bottom-4 left-4 right-4">
             <div className="flex items-end gap-4">
@@ -103,8 +130,8 @@ export default function VendorDetailPage() {
             {/* Status */}
             <div>
               <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${
-                vendor.isOpen 
-                  ? 'bg-green-100 text-green-800' 
+                vendor.isOpen
+                  ? 'bg-green-100 text-green-800'
                   : 'bg-red-100 text-red-800'
               }`}>
                 <span className={`w-2 h-2 rounded-full ${
@@ -120,8 +147,8 @@ export default function VendorDetailPage() {
             <div>
               <h3 className="font-semibold text-lg mb-2">About</h3>
               <p className="text-gray-600">
-                Delicious homemade {vendor.cuisine.toLowerCase()} prepared with love and care. 
-                Specializing in {vendor.categories.join(', ').toLowerCase()} dishes that will 
+                Delicious homemade {vendor.cuisine.toLowerCase()} prepared with love and care.
+                Specializing in {vendor.categories.join(', ').toLowerCase()} dishes that will
                 transport you to the heart of Nigerian cuisine.
               </p>
             </div>
@@ -180,18 +207,70 @@ export default function VendorDetailPage() {
         </div>
       </div>
 
-      {/* Call to Action */}
-      <div className="text-center">
-        <button
-          disabled={!vendor.isOpen}
-          className={`px-8 py-3 rounded-lg font-semibold transition-colors ${
-            vendor.isOpen
-              ? 'bg-orange-500 text-white hover:bg-orange-600'
-              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-          }`}
-        >
-          {vendor.isOpen ? 'View Menu' : 'Currently Closed'}
-        </button>
+      {/* Menu Items */}
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold mb-6">Menu</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {menuItems.map(item => (
+            <div key={item.id} className="bg-white rounded-lg shadow-md overflow-hidden">
+              <div className="relative h-48">
+                <Image
+                  src={item.image}
+                  alt={item.name}
+                  fill
+                  className="object-cover"
+                />
+                {item.popular && (
+                  <div className="absolute top-2 left-2 bg-orange-500 text-white px-2 py-1 rounded text-xs font-semibold">
+                    Popular
+                  </div>
+                )}
+              </div>
+              <div className="p-4">
+                <h3 className="font-semibold text-lg mb-1">{item.name}</h3>
+                <p className="text-gray-600 text-sm mb-2">{item.description}</p>
+                <div className="flex items-center gap-2 mb-3 text-sm text-gray-500">
+                  {item.calories && <span>{item.calories}</span>}
+                  {item.cookingDay && <span>• Cooks on {item.cookingDay}</span>}
+                </div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="font-bold text-lg">₦{item.price.toLocaleString()}</span>
+                </div>
+
+                {/* Quantity Selector */}
+                <div className="flex items-center gap-3 mb-3">
+                  <button
+                    onClick={() => handleQuantityChange(item.id, -1)}
+                    className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100"
+                  >
+                    <Minus size={16} />
+                  </button>
+                  <span className="font-semibold w-8 text-center">{quantities[item.id] || 1}</span>
+                  <button
+                    onClick={() => handleQuantityChange(item.id, 1)}
+                    className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+
+                {/* Pre-order Button */}
+                <button
+                  onClick={() => handlePreOrder(item)}
+                  disabled={!vendor.isOpen}
+                  className={`w-full py-2.5 rounded-xl text-sm font-bold transition-all ${
+                    vendor.isOpen
+                      ? 'text-white hover:scale-105 active:scale-95'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                  style={vendor.isOpen ? { background: 'linear-gradient(135deg, #E8621A, #C4501A)' } : {}}
+                >
+                  Pre-order
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
