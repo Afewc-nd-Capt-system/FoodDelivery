@@ -71,6 +71,20 @@ const deliveryPartnerSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  company: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'DeliveryCompany',
+    required: true
+  },
+  companyId: {
+    type: String,
+    required: true
+  },
+  companyRole: {
+    type: String,
+    enum: ['rider', 'dispatcher', 'manager'],
+    default: 'rider'
+  }
 }, { timestamps: true });
 
 deliveryPartnerSchema.pre('save', async function (next) {

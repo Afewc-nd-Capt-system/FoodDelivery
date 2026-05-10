@@ -116,6 +116,21 @@ const orderSchema = new mongoose.Schema({
     default: 0,
     comment: 'Discount from referral (first order)'
   },
+  deliveryConfirmation: {
+    riderConfirmed: { type: Boolean, default: false },
+    riderConfirmedAt: { type: Date },
+    customerNotified: { type: Boolean, default: false },
+    customerNotifiedAt: { type: Date },
+    customerConfirmed: { type: Boolean, default: false },
+    customerConfirmedAt: { type: Date },
+    customerVerificationCode: { type: String },
+    paymentCollected: { type: Boolean, default: false },
+    paymentCollectedAt: { type: Date }
+  },
+  deliveryCompany: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'DeliveryCompany'
+  },
   isVibePassFreeDelivery: {
     type: Boolean,
     default: false,

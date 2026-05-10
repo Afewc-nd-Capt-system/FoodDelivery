@@ -1,102 +1,306 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useAuth } from '@/context/AuthContext';
+import { usePathname, useRouter } from 'next/navigation';
+import { ShoppingCart, Menu, X, MapPin, ChevronDown, User, Bell, Search } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
-import { ShoppingCart, User, Menu, X, Heart, MapPin } from 'lucide-react';
-import { useState } from 'react';
+import { useAuth } from '@/context/AuthContext';
 
-export default function Navbar() {
-  const { user, logout } = useAuth();
-  const { cart } = useCart();
-  const [menuOpen, setMenuOpen] = useState(false);
+const locations = ['Ikeja, Lagos', 'Victoria Island, Lagos', 'Lekki Phase 1', 'Surulere, Lagos', 'Yaba, Lagos', 'Ajah, Lagos'];
+
+export function Navbar() {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [locationOpen, setLocationOpen] = useState(false);
+  const [location, setLocation] = useState('Ikeja, Lagos');
+  const [scrolled, setScrolled] = useState(false);
+  const { totalItems } = useCart();
+  const { user } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // Close dropdowns on route change
+  useEffect(() => {
+    setMobileOpen(false);
+    setLocationOpen(false);
+  }, [pathname]);
+
+  // Role-based navigation links
+  const getNavLinks = () => {
+    if (!user) {
+      return [
+        { label: 'Home', to: '/' },
+        { label: 'Restaurants', to: '/restaurants' },
+        { label: 'Vendors', to: '/vendors' },
+      ];
+    }
+
+    switch (user.role) {
+      case 'customer':
+        return [
+          { label: 'Home', to: '/' },
+          { label: 'Restaurants', to: '/restaurants' },
+          { label: 'Vendors', to: '/vendors' },
+          { label: 'Dashboard', to: '/dashboard' },
+          { label: 'Orders', to: '/orders' },
+        ];
+      case 'restaurant':
+        return [
+          { label: 'Dashboard', to: '/(restaurant)/dashboard' },
+          { label: 'Menu', to: '/(restaurant)/menu' },
+          { label: 'Orders', to: '/(restaurant)/orders' },
+          { label: 'POD Config', to: '/(restaurant)/pod-config' },
+        ];
+      case 'vendor':
+        return [
+          { label: 'Dashboard', to: '/(vendor)/dashboard' },
+          { label: 'Menu', to: '/(vendor)/menu' },
+          { label: 'Orders', to: '/(vendor)/orders' },
+          { label: 'POD Config', to: '/(vendor)/pod-config' },
+        ];
+      case 'delivery_company':
+        return [
+          { label: 'Dashboard', to: '/(delivery-company)/dashboard' },
+          { label: 'Riders', to: '/(delivery-company)/riders' },
+          { label: 'Earnings', to: '/(delivery-company)/earnings' },
+        ];
+      case 'delivery_rider':
+        return [
+          { label: 'Dashboard', to: '/(delivery)/dashboard' },
+          { label: 'History', to: '/(delivery)/history' },
+          { label: 'Earnings', to: '/(delivery)/earnings' },
+        ];
+      case 'admin':
+        return [
+          { label: 'Dashboard', to: '/admin' },
+          { label: 'Users', to: '/admin/users' },
+          { label: 'Restaurants', to: '/admin/restaurants' },
+          { label: 'Companies', to: '/admin/companies' },
+        ];
+      default:
+        return [
+          { label: 'Home', to: '/' },
+          { label: 'Restaurants', to: '/restaurants' },
+          { label: 'Vendors', to: '/vendors' },
+        ];
+    }
+  };
+
+  const navLinks = getNavLinks();
 
   return (
-    <nav className="bg-white shadow-sm sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-2xl font-bold text-primary-500">VibeChops</span>
-          </Link>
+    <>
+      <nav
+        className="sticky top-0 z-50 transition-all duration-300"
+        style={{
+          backgroundColor: scrolled ? 'rgba(255,255,255,0.97)' : 'white',
+          backdropFilter: scrolled ? 'blur(16px)' : 'none',
+          boxShadow: scrolled ? '0 2px 24px rgba(0,0,0,0.08)' : '0 1px 0 #F0EAE0',
+        }}
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
 
-          <div className="hidden md:flex items-center gap-8">
-            <Link href="/restaurants" className="text-gray-600 hover:text-primary-500 transition-colors">
-              Restaurants
+            {/* Logo */}
+            <Link href="/" className="flex items-center gap-2.5 shrink-0 group">
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-lg transition-transform group-hover:scale-110"
+                style={{ background: 'linear-gradient(135deg, #E8621A 0%, #BE3A2A 100%)' }}
+              >
+                V
+              </div>
+              <span className="text-xl font-black tracking-tight" style={{ color: '#1C1C1E' }}>
+                Vibe<span style={{ color: '#E8621A' }}>Chops</span>
+              </span>
             </Link>
-            <Link href="/cart" className="relative text-gray-600 hover:text-primary-500 transition-colors">
-              <ShoppingCart className="w-6 h-6" />
-              {cart.items.length > 0 && (
-                <span className="absolute -top-2 -right-2 bg-accent-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                  {cart.items.reduce((sum, item) => sum + item.quantity, 0)}
-                </span>
+
+            {/* Location selector — desktop */}
+            <div className="hidden md:flex relative">
+              <button
+                onClick={() => setLocationOpen(!locationOpen)}
+                className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl transition-colors hover:bg-orange-50"
+                style={{ color: '#1C1C1E' }}
+              >
+                <MapPin size={15} style={{ color: '#E8621A' }} />
+                <span className="max-w-[140px] truncate">{location}</span>
+                <ChevronDown
+                  size={13}
+                  style={{
+                    color: '#A0A0A0',
+                    transform: locationOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s',
+                  }}
+                />
+              </button>
+
+              {locationOpen && (
+                <div
+                  className="absolute top-full left-0 mt-2 w-56 bg-white rounded-2xl py-2 z-50"
+                  style={{ boxShadow: '0 12px 40px rgba(0,0,0,0.12)', border: '1px solid #F0EAE0' }}
+                >
+                  <div className="px-3 pb-2 pt-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: '#A0A0A0' }}>
+                      Deliver to
+                    </p>
+                  </div>
+                  {locations.map(loc => (
+                    <button
+                      key={loc}
+                      onClick={() => { setLocation(loc); setLocationOpen(false); }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors hover:bg-orange-50"
+                      style={{ color: location === loc ? '#E8621A' : '#1C1C1E', fontWeight: location === loc ? '600' : '400' }}
+                    >
+                      <MapPin size={13} style={{ color: location === loc ? '#E8621A' : '#A0A0A0' }} />
+                      {loc}
+                      {location === loc && (
+                        <div className="ml-auto w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#E8621A' }} />
+                      )}
+                    </button>
+                  ))}
+                </div>
               )}
-            </Link>
-          {user ? (
-            <div className="flex items-center gap-4">
-              <Link href="/favorites" className="text-gray-600 hover:text-primary-500 transition-colors">
-                <Heart className="w-5 h-5" />
-              </Link>
-              <Link href="/profile" className="text-sm text-gray-600 hover:text-primary-500">
-                Hi, {user.name.split(' ')[0]}
-              </Link>
-              <button onClick={logout} className="text-sm text-red-500 hover:text-red-600">
-                Logout
+            </div>
+
+            {/* Nav links — desktop */}
+            <div className="hidden md:flex items-center gap-1">
+              {navLinks.map(link => (
+                <Link
+                  key={link.to}
+                  href={link.to}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200"
+                  style={
+                    pathname === link.to
+                      ? { backgroundColor: '#E8621A', color: 'white' }
+                      : { color: '#636366' }
+                  }
+                  onMouseEnter={e => { if (pathname !== link.to) (e.currentTarget as HTMLElement).style.backgroundColor = '#FFF1E8'; }}
+                  onMouseLeave={e => { if (pathname !== link.to) (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+
+            {/* Right actions */}
+            <div className="flex items-center gap-2">
+              {/* Search shortcut — desktop */}
+              <button
+                onClick={() => router.push('/restaurants')}
+                className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-colors hover:bg-gray-100"
+                style={{ color: '#A0A0A0' }}
+              >
+                <Search size={16} />
+              </button>
+
+              {/* Notification bell */}
+              <button className="hidden md:flex relative p-2 rounded-xl transition-colors hover:bg-orange-50">
+                <Bell size={19} style={{ color: '#636366' }} />
+                <span
+                  className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full"
+                  style={{ backgroundColor: '#E8621A', border: '1.5px solid white' }}
+                />
+              </button>
+
+              {/* Cart button */}
+              <button
+                onClick={() => router.push('/cart')}
+                className="relative flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-bold transition-all duration-200 hover:scale-105 active:scale-95"
+                style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}
+              >
+                <ShoppingCart size={17} />
+                <span className="hidden sm:inline">Cart</span>
+                {totalItems > 0 && (
+                  <span
+                    className="absolute -top-2 -right-2 min-w-[20px] h-5 px-1 rounded-full text-xs font-black flex items-center justify-center"
+                    style={{ backgroundColor: '#1C1C1E', color: 'white', border: '2px solid white' }}
+                  >
+                    {totalItems}
+                  </span>
+                )}
+              </button>
+
+              {/* Sign in — desktop */}
+              <button
+                className="hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-semibold transition-colors hover:bg-gray-50"
+                style={{ borderColor: '#E8E8E8', color: '#1C1C1E' }}
+              >
+                <User size={15} />
+                Sign In
+              </button>
+
+              {/* Hamburger */}
+              <button
+                onClick={() => setMobileOpen(!mobileOpen)}
+                className="md:hidden p-2 rounded-xl transition-colors hover:bg-orange-50"
+                style={{ color: '#1C1C1E' }}
+              >
+                {mobileOpen ? <X size={22} /> : <Menu size={22} />}
               </button>
             </div>
-          ) : (
-              <div className="flex items-center gap-4">
-                <Link href="/auth/login" className="text-gray-600 hover:text-primary-500">
-                  Login
-                </Link>
-                <Link href="/auth/register" className="btn-primary py-2 px-4 text-sm">
-                  Sign Up
-                </Link>
-              </div>
-            )}
-            <Link href="/delivery/login" className="text-sm text-gray-500 hover:text-primary-500 flex items-center gap-1">
-              <MapPin className="w-4 h-4" /> Become a Partner
-            </Link>
           </div>
-
-          <button className="md:hidden" onClick={() => setMenuOpen(!menuOpen)}>
-            {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
         </div>
 
-        {menuOpen && (
-          <div className="md:hidden py-4 border-t">
-            <div className="flex flex-col gap-4">
-              <Link href="/restaurants" className="text-gray-600" onClick={() => setMenuOpen(false)}>
-                Restaurants
-              </Link>
-              <Link href="/cart" className="text-gray-600" onClick={() => setMenuOpen(false)}>
-                Cart ({cart.items.reduce((sum, item) => sum + item.quantity, 0)})
-              </Link>
-              {user ? (
-                <>
-                  <Link href="/favorites" className="text-gray-600" onClick={() => setMenuOpen(false)}>
-                    Favorites
-                  </Link>
-                  <Link href="/profile" className="text-gray-600" onClick={() => setMenuOpen(false)}>
-                    Hi, {user.name.split(' ')[0]}
-                  </Link>
-                  <button onClick={() => { logout(); setMenuOpen(false); }} className="text-red-500 text-left">
-                    Logout
-                  </button>
-                </>
-              ) : (
-                <>
-                  <Link href="/auth/login" onClick={() => setMenuOpen(false)}>Login</Link>
-                  <Link href="/auth/register" onClick={() => setMenuOpen(false)}>Sign Up</Link>
-                </>
-              )}
-              <Link href="/delivery/login" className="text-gray-600" onClick={() => setMenuOpen(false)}>
-                Become a Partner
-              </Link>
+        {/* Mobile menu */}
+        <div
+          className="md:hidden overflow-hidden transition-all duration-300"
+          style={{ maxHeight: mobileOpen ? '500px' : '0', borderTop: mobileOpen ? '1px solid #F0EAE0' : 'none' }}
+        >
+          <div className="bg-white px-4 py-4 space-y-1">
+            {/* Mobile location chip */}
+            <div
+              className="flex items-center gap-2 px-3 py-2.5 rounded-xl mb-3"
+              style={{ backgroundColor: '#FFF1E8' }}
+            >
+              <MapPin size={15} style={{ color: '#E8621A' }} />
+              <span className="text-sm font-semibold" style={{ color: '#1C1C1E' }}>{location}</span>
+              <button
+                onClick={() => setLocationOpen(!locationOpen)}
+                className="ml-auto text-xs font-semibold"
+                style={{ color: '#E8621A' }}
+              >
+                Change
+              </button>
             </div>
+
+            {locationOpen && (
+              <div className="mb-3 rounded-xl overflow-hidden border" style={{ borderColor: '#F0EAE0' }}>
+                {locations.map(loc => (
+                  <button
+                    key={loc}
+                    onClick={() => { setLocation(loc); setLocationOpen(false); }}
+                    className="w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-orange-50 border-b last:border-0"
+                    style={{ color: location === loc ? '#E8621A' : '#636366', borderColor: '#F0EAE0', fontWeight: location === loc ? '600' : '400' }}
+                  >
+                    {loc}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {navLinks.map(link => (
+              <Link
+                key={link.to}
+                href={link.to}
+                className="flex items-center px-3 py-3 rounded-xl text-sm font-semibold transition-colors"
+                style={pathname === link.to ? { backgroundColor: '#E8621A', color: 'white' } : { color: '#636366' }}
+              >
+                {link.label}
+              </Link>
+            ))}
           </div>
-        )}
-      </div>
-    </nav>
+        </div>
+      </nav>
+
+      {/* Backdrop for location dropdown */}
+      {locationOpen && (
+        <div className="fixed inset-0 z-40 hidden md:block" onClick={() => setLocationOpen(false)} />
+      )}
+    </>
   );
 }

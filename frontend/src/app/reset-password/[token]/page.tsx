@@ -1,138 +1,123 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { api } from '@/lib/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Lock, Eye, EyeOff, CheckCircle } from 'lucide-react';
 
 export default function ResetPasswordPage() {
   const params = useParams();
   const router = useRouter();
-  const token = params.token as string;
-  
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-  const [validating, setValidating] = useState(true);
+  const [confirm, setConfirm] = useState('');
+  const [reset, setReset] = useState(false);
 
-  useEffect(() => {
-    if (!token) {
-      setError('Invalid reset token');
-      setValidating(false);
-    } else {
-      setValidating(false);
-    }
-  }, [token]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-    setMessage('');
-
-    try {
-      await api.auth.resetPassword(token, password);
-      setMessage('Password reset successful! Redirecting to login...');
-      setTimeout(() => router.push('/login'), 2000);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+  const passwordStrength = (pwd: string) => {
+    let score = 0;
+    if (pwd.length >= 8) score++;
+    if (/[A-Z]/.test(pwd)) score++;
+    if (/[0-9]/.test(pwd)) score++;
+    if (/[^A-Za-z0-9]/.test(pwd)) score++;
+    return score;
   };
 
-  if (validating) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
-      </div>
-    );
-  }
+  const strength = passwordStrength(password);
+  const strengthColors = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-green-500'];
+  const strengthLabels = ['Weak', 'Fair', 'Good', 'Strong'];
 
-  if (!token) {
+  const handleReset = () => {
+    setReset(true);
+    setTimeout(() => {
+      router.push('/login');
+    }, 2000);
+  };
+
+  if (reset) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-[#FFF8F0] flex items-center justify-center p-4">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-red-600">Invalid Link</h2>
-          <p className="mt-2 text-gray-600">This password reset link is invalid.</p>
+          <div className="w-20 h-20 rounded-full bg-gradient-to-r from-[#E8621A] to-[#BE3A2A] flex items-center justify-center mx-auto mb-6">
+            <CheckCircle className="w-10 h-10 text-white" />
+          </div>
+          <h2 className="text-2xl font-black mb-2">Password Reset!</h2>
+          <p className="text-[#636366]">Redirecting to sign in...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Reset Password
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Enter your new password
-          </p>
+    <div className="min-h-screen bg-[#FFF8F0] flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white rounded-3xl p-8 shadow-[0_4px_20px_rgba(0,0,0,0.07)] border border-[#F0EAE0]">
+        {/* Logo */}
+        <div className="flex items-center justify-center gap-2 mb-6">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-r from-[#E8621A] to-[#BE3A2A] flex items-center justify-center text-white font-black text-lg">
+            V
+          </div>
+          <span className="text-xl font-black">
+            <span className="text-[#1C1C1E]">Vibe</span><span className="text-[#E8621A]">Chops</span>
+          </span>
         </div>
-        
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-              {error}
-            </div>
-          )}
-          {message && (
-            <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
-              {message}
-            </div>
-          )}
-          
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="password" className="sr-only">New Password</label>
-              <input
-                id="password"
-                type="password"
-                required
-                className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
-                placeholder="New Password (8+ chars, uppercase, lowercase, number, special)"
+
+        <h2 className="text-2xl font-black text-center mb-1">Set New Password</h2>
+        <p className="text-sm text-[#636366] text-center mb-6">Create a strong password for your account</p>
+
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs text-[#A0A0A0] mb-1 block">New Password</label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A0A0]" />
+              <Input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                className="pl-10 pr-10"
               />
+              <button onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2">
+                {showPassword ? <EyeOff className="w-4 h-4 text-[#A0A0A0]" /> : <Eye className="w-4 h-4 text-[#A0A0A0]" />}
+              </button>
             </div>
-            <div>
-              <label htmlFor="confirmPassword" className="sr-only">Confirm Password</label>
-              <input
-                id="confirmPassword"
-                type="password"
-                required
-                className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
-                placeholder="Confirm New Password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-              />
-            </div>
+            {password && (
+              <div className="mt-2">
+                <div className="flex gap-1 mb-1">
+                  {[0, 1, 2, 3].map(i => (
+                    <div key={i} className={`flex-1 h-1 rounded-full ${i < strength ? strengthColors[strength - 1] : 'bg-[#E8E8E8]'}`} />
+                  ))}
+                </div>
+                <p className="text-xs text-[#636366]">{strengthLabels[strength - 1] || 'Weak'}</p>
+              </div>
+            )}
           </div>
 
           <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50"
-            >
-              {loading ? 'Resetting...' : 'Reset Password'}
-            </button>
+            <label className="text-xs text-[#A0A0A0] mb-1 block">Confirm Password</label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A0A0]" />
+              <Input
+                type={showConfirm ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                className="pl-10 pr-10"
+              />
+              <button onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2">
+                {showConfirm ? <EyeOff className="w-4 h-4 text-[#A0A0A0]" /> : <Eye className="w-4 h-4 text-[#A0A0A0]" />}
+              </button>
+            </div>
           </div>
-        </form>
+
+          <Button
+            onClick={handleReset}
+            className="w-full bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white py-4 rounded-2xl font-black hover:scale-105 active:scale-95 transition-all shadow-[0_6px_20px_rgba(232,98,26,0.35)]"
+          >
+            Reset Password
+          </Button>
+        </div>
       </div>
     </div>
   );

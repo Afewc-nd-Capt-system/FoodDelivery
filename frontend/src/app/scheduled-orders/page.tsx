@@ -1,77 +1,108 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { api } from '@/lib/api';
-import { useAuth } from '@/context/AuthContext';
-import { Calendar, Clock, X } from 'lucide-react';
+import { useState } from 'react';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Calendar, Plus, X, Edit } from 'lucide-react';
 
 export default function ScheduledOrdersPage() {
-  const { user } = useAuth();
-  const [orders, setOrders] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [showPast, setShowPast] = useState(false);
 
-  useEffect(() => {
-    if (user) loadOrders();
-  }, [user]);
+  const upcomingOrders = [
+    { id: 'SO-001', restaurant: 'Spice Garden', date: 'May 10, 2026', time: '7:00 PM', party: 4, status: 'confirmed' },
+    { id: 'SO-002', restaurant: 'Bella Italia', date: 'May 12, 2026', time: '1:00 PM', party: 2, status: 'confirmed' },
+  ];
 
-  const loadOrders = async () => {
-    try {
-      const result = await api.scheduledOrders.getAll();
-      setOrders(result.data);
-    } catch (error) {
-      console.error('Failed to load:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCancel = async (id: string) => {
-    if (!confirm('Cancel this scheduled order?')) return;
-    try {
-      await api.scheduledOrders.cancel(id);
-      loadOrders();
-    } catch (error) {
-      console.error('Failed to cancel:', error);
-    }
-  };
-
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div></div>;
+  const pastOrders = [
+    { id: 'SO-003', restaurant: 'Burger Barn', date: 'May 5, 2026', time: '8:00 PM', party: 3, status: 'completed' },
+  ];
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4">
-        <h1 className="text-3xl font-bold mb-8">Scheduled Orders</h1>
-        <div className="space-y-4">
-          {orders.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500">No scheduled orders</div>
-          ) : (
-            orders.map(order => (
-              <div key={order._id} className="bg-white rounded-lg shadow-md p-6">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-semibold text-lg">{order.restaurantName}</h3>
-                    <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
-                      <Calendar className="w-4 h-4" />
-                      {new Date(order.scheduledTime).toLocaleDateString()}
-                      <Clock className="w-4 h-4 ml-2" />
-                      {new Date(order.scheduledTime).toLocaleTimeString()}
-                    </div>
-                    <p className="text-sm mt-2">{order.items.length} items - ₦{order.totalAmount}</p>
-                  </div>
-                  <span className={`px-3 py-1 rounded-full text-sm ${order.status === 'scheduled' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100'}`}>
-                    {order.status}
-                  </span>
-                </div>
-                {order.status === 'scheduled' && (
-                  <button onClick={() => handleCancel(order._id)} className="mt-3 text-red-500 text-sm flex items-center gap-1">
-                    <X className="w-4 h-4" /> Cancel
-                  </button>
-                )}
-              </div>
-            ))
-          )}
-        </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-2xl font-black text-[#1C1C1E]">Scheduled Orders 📅</h1>
+        <Link href="/restaurants">
+          <Button className="bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white">
+            <Plus className="w-4 h-4 mr-2" /> Schedule New Order
+          </Button>
+        </Link>
       </div>
+
+      {/* Upcoming Orders */}
+      <h2 className="font-bold text-lg mb-4">Upcoming Orders</h2>
+      <div className="space-y-4 mb-8">
+        {upcomingOrders.map((order) => (
+          <Card key={order.id} className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-[#FFF1E8] flex items-center justify-center">
+                  <Calendar className="w-6 h-6 text-[#E8621A]" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-[#1C1C1E]">{order.restaurant}</h3>
+                  <p className="text-sm text-[#636366]">{order.date} at {order.time}</p>
+                  <p className="text-xs text-[#A0A0A0]">Party of {order.party}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge className="bg-[#F0FDF4] text-[#16A34A]">{order.status}</Badge>
+                <Button className="bg-[#FFF1E8] text-[#E8621A] px-3 py-1.5 text-xs">
+                  <Edit className="w-3 h-3 mr-1" /> Edit
+                </Button>
+                <Button className="border border-[#D32F2F] text-[#D32F2F] px-3 py-1.5 text-xs hover:bg-red-50">
+                  <X className="w-3 h-3 mr-1" /> Cancel
+                </Button>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Past Orders Accordion */}
+      <button
+        onClick={() => setShowPast(!showPast)}
+        className="flex items-center gap-2 font-bold text-lg mb-4 hover:text-[#E8621A]"
+      >
+        Past Orders
+        <span className="text-sm">{showPast ? '↑' : '↓'}</span>
+      </button>
+
+      {showPast && (
+        <div className="space-y-4">
+          {pastOrders.map((order) => (
+            <Card key={order.id} className="p-6 opacity-75">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-[#F5F5F5] flex items-center justify-center">
+                    <Calendar className="w-6 h-6 text-[#A0A0A0]" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-[#1C1C1E]">{order.restaurant}</h3>
+                    <p className="text-sm text-[#636366]">{order.date} at {order.time}</p>
+                  </div>
+                </div>
+                <Badge className="bg-[#F5F5F5] text-[#636366]">{order.status}</Badge>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Empty State */}
+      {upcomingOrders.length === 0 && (
+        <div className="text-center py-16">
+          <div className="text-6xl mb-4">📅</div>
+          <h3 className="font-black text-xl mb-2">No scheduled orders</h3>
+          <p className="text-[#636366] mb-6">Schedule your next meal in advance</p>
+          <Link href="/restaurants">
+            <Button className="bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white">
+              Browse Restaurants
+            </Button>
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

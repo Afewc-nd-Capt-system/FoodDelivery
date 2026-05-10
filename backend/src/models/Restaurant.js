@@ -72,6 +72,8 @@ const menuItemSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  allowPayOnDelivery: { type: Boolean, default: true },
+  podMinQuantity: { type: Number, default: 1 },
 });
 
 const reviewSchema = new mongoose.Schema({
@@ -159,6 +161,24 @@ const restaurantSchema = new mongoose.Schema({
   minOrderForPayOnDelivery: {
     type: Number,
     default: 0,
+  },
+  payOnDeliveryConfig: {
+    enabled: { type: Boolean, default: true },
+    minOrderAmount: { type: Number, default: 0 },
+    maxOrderAmount: { type: Number, default: null },
+    allowedTimeRanges: [{
+      day: {
+        type: String,
+        enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+      },
+      startTime: { type: String },
+      endTime: { type: String }
+    }],
+    productLevelControl: { type: Boolean, default: false },
+    trustedCustomerWhitelist: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    }]
   },
   photoGallery: [{
     url: String,

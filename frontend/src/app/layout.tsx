@@ -1,16 +1,20 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import { CartProvider } from '@/context/CartContext';
 import { SocketProvider } from '@/context/SocketContext';
-import Navbar from '@/components/Navbar';
-import Footer from '@/components/Footer';
+import { ThemeProvider } from 'next-themes';
 
-const inter = Inter({ subsets: ['latin'] });
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700', '800'],
+  style: ['italic', 'normal'],
+  variable: '--font-plus-jakarta',
+});
 
 export const metadata: Metadata = {
-  title: 'VibeChops - Discover, Explore and Eat what you love',
+  title: 'VibeChops - Order food you love, delivered fast',
   description: 'Discover, Explore and Eat what you love. Order from restaurants and local vendors.',
 };
 
@@ -20,17 +24,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
-        <AuthProvider>
-          <CartProvider>
-            <SocketProvider>
-              <Navbar />
-              <main className="min-h-screen">{children}</main>
-              <Footer />
-            </SocketProvider>
-          </CartProvider>
-        </AuthProvider>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${plusJakarta.className} bg-[#FFF8F0]`}>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+          <AuthProvider>
+            <CartProvider>
+              <SocketProvider>
+                {children}
+              </SocketProvider>
+            </CartProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

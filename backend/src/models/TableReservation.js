@@ -54,7 +54,6 @@ tableReservationSchema.pre('save', function(next) {
 });
 
 tableReservationSchema.index({ restaurant: 1, date: 1 });
-tableReservationSchema.index({ user: 1 });
 tableReservationSchema.index({ deletedAt: 1 });
 
 module.exports = mongoose.model('TableReservation', tableReservationSchema);

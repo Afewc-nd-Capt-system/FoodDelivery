@@ -3,7 +3,10 @@ const TokenBlacklist = require('../models/TokenBlacklist');
 
 const addToBlacklist = async (token) => {
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
+    if (!process.env.JWT_SECRET) {
+      throw new Error('JWT_SECRET must be set in environment variables');
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const expiresAt = new Date(decoded.exp * 1000);
     
     await TokenBlacklist.create({ token, expiresAt });

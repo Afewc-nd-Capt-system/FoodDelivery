@@ -24,8 +24,8 @@ interface MenuItemCardProps {
 }
 
 export default function MenuItemCard({ item, restaurantId, restaurantName }: MenuItemCardProps) {
-  const { cart, addToCart, updateQuantity } = useCart();
-  const cartItem = cart.items.find((i) => i.itemId === item._id);
+  const { items, addItem, updateQuantity } = useCart();
+  const cartItem = items.find((i) => i.id === item._id);
   const quantity = cartItem?.quantity || 0;
 
   return (
@@ -61,7 +61,7 @@ export default function MenuItemCard({ item, restaurantId, restaurantName }: Men
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2">
           {quantity === 0 ? (
             <button
-              onClick={() => addToCart({ itemId: item._id, name: item.name, price: item.price, quantity: 1, restaurantId, restaurantName })}
+              onClick={() => addItem({ id: item._id, name: item.name, description: item.description, image: item.image, category: item.category, price: item.price, restaurantId })}
               className="bg-white text-green-600 font-semibold px-6 py-1.5 rounded-md shadow-md hover:bg-green-50 transition-colors border border-green-600"
             >
               ADD
@@ -76,7 +76,7 @@ export default function MenuItemCard({ item, restaurantId, restaurantName }: Men
               </button>
               <span className="font-semibold w-6 text-center">{quantity}</span>
               <button
-                 onClick={() => addToCart({ itemId: item._id, name: item.name, price: item.price, quantity: 1, restaurantId, restaurantName })}
+                 onClick={() => addItem({ id: item._id, name: item.name, description: item.description, image: item.image, category: item.category, price: item.price, restaurantId })}
                 className="px-2 py-1.5 hover:bg-green-700 transition-colors rounded-r-md"
               >
                 <Plus className="w-4 h-4" />

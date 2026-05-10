@@ -44,7 +44,6 @@ const disputeSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 disputeSchema.index({ order: 1 });
-disputeSchema.index({ user: 1 });
 disputeSchema.index({ status: 1 });
 disputeSchema.index({ deletedAt: 1 });
 

@@ -1,64 +1,146 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { api } from '@/lib/api';
-import { useAuth } from '@/context/AuthContext';
-import { AlertTriangle } from 'lucide-react';
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { AlertTriangle, Send, CheckCircle, Clock, X } from 'lucide-react';
 
 export default function DisputesPage() {
-  const { user } = useAuth();
-  const [disputes, setDisputes] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
 
-  useEffect(() => {
-    if (user) loadDisputes();
-  }, [user]);
+  const disputes = [
+    { id: 'D001', orderId: 'ORD-7821', issueType: 'Missing Item', status: 'under_review', submittedDate: 'May 1, 2026', description: 'Missing fries from my order' },
+    { id: 'D002', orderId: 'ORD-7750', issueType: 'Wrong Item', status: 'resolved', submittedDate: 'Apr 28, 2026', description: 'Received chicken instead of fish' },
+  ];
 
-  const loadDisputes = async () => {
-    try {
-      const result = await api.disputes.getAll();
-      setDisputes(result.data);
-    } catch (error) {
-      console.error('Failed to load:', error);
-    } finally {
-      setLoading(false);
-    }
+  const statusColors = {
+    'submitted': 'bg-[#FFF1E8] text-[#E8621A]',
+    'under_review': 'bg-[#EFF6FF] text-[#2563EB]',
+    'resolved': 'bg-[#F0FDF4] text-[#16A34A]',
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div></div>;
-
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4">
-        <h1 className="text-3xl font-bold mb-8">My Disputes</h1>
-        <div className="space-y-4">
-          {disputes.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500">No disputes</div>
-          ) : (
-            disputes.map(dispute => (
-              <div key={dispute._id} className="bg-white rounded-lg shadow-md p-6">
-                <div className="flex items-start gap-4">
-                  <AlertTriangle className={`w-6 h-6 ${dispute.status === 'resolved' ? 'text-green-500' : 'text-yellow-500'}`} />
-                  <div className="flex-1">
-                    <div className="flex justify-between">
-                      <h3 className="font-semibold capitalize">{dispute.type.replace('_', ' ')}</h3>
-                      <span className={`px-3 py-1 rounded-full text-sm ${dispute.status === 'resolved' ? 'bg-green-100 text-green-800' : dispute.status === 'under_review' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100'}`}>
-                        {dispute.status}
-                      </span>
-                    </div>
-                    <p className="text-gray-600 mt-2">{dispute.description}</p>
-                    {dispute.resolution && (
-                      <div className="mt-3 p-3 bg-gray-50 rounded">
-                        <p className="text-sm"><span className="font-medium">Resolution:</span> {dispute.resolution.replace('_', ' ')}</p>
-                        {dispute.refundAmount > 0 && <p className="text-sm text-green-600">Refund: ₦{dispute.refundAmount}</p>}
-                      </div>
-                    )}
-                  </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-2xl font-black text-[#1C1C1E]">Disputes 📝</h1>
+        <Button
+          onClick={() => setShowForm(!showForm)}
+          className="bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white"
+        >
+          <AlertTriangle className="w-4 h-4 mr-2" /> Submit Dispute
+        </Button>
+      </div>
+
+      {/* Submit Dispute Form */}
+      {showForm && (
+        <Card className="p-6 mb-8">
+          <h2 className="font-bold text-lg mb-4">Submit a Dispute</h2>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-xs text-[#A0A0A0] mb-1 block">Order</Label>
+              <Select>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select order" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ORD-8021">ORD-8021 - Spice Garden</SelectItem>
+                  <SelectItem value="ORD-7980">ORD-7980 - Burger Barn</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="text-xs text-[#A0A0A0] mb-1 block">Issue Type</Label>
+              <Select>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select issue type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="wrong">Wrong Item</SelectItem>
+                  <SelectItem value="missing">Missing Item</SelectItem>
+                  <SelectItem value="quality">Quality Issue</SelectItem>
+                  <SelectItem value="late">Late Delivery</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="text-xs text-[#A0A0A0] mb-1 block">Description</Label>
+              <Textarea placeholder="Describe your issue..." />
+            </div>
+
+            <div>
+              <Label className="text-xs text-[#A0A0A0] mb-1 block">Photo Upload</Label>
+              <div className="border-2 border-dashed border-[#E8E8E8] rounded-xl p-8 text-center hover:border-[#E8621A] cursor-pointer">
+                <p className="text-sm text-[#A0A0A0]">Drag & drop or click to upload</p>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button className="bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white">
+                <Send className="w-4 h-4 mr-2" /> Submit
+              </Button>
+              <Button onClick={() => setShowForm(false)} className="bg-[#F5F5F5] text-[#636366]">
+                <X className="w-4 h-4 mr-2" /> Cancel
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* My Disputes */}
+      <h2 className="font-bold text-lg mb-4">My Disputes</h2>
+      <div className="space-y-4">
+        {disputes.map((dispute) => (
+          <Card key={dispute.id} className="p-6">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  dispute.status === 'resolved' ? 'bg-[#F0FDF4]' : 'bg-[#EFF6FF]'
+                }`}>
+                  {dispute.status === 'resolved' ? (
+                    <CheckCircle className="w-5 h-5 text-[#16A34A]" />
+                  ) : (
+                    <Clock className="w-5 h-5 text-[#2563EB]" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="font-bold text-[#1C1C1E]">{dispute.issueType}</h3>
+                  <p className="text-xs text-[#A0A0A0]">Order: {dispute.orderId}</p>
                 </div>
               </div>
-            ))
-          )}
-        </div>
+              <Badge className={statusColors[dispute.status as 'submitted' | 'under_review' | 'resolved'] || 'bg-[#F5F5F5] text-[#636366]'}>
+                {dispute.status.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+              </Badge>
+            </div>
+            <p className="text-sm text-[#636366] mb-2">{dispute.description}</p>
+            <p className="text-xs text-[#A0A0A0]">Submitted: {dispute.submittedDate}</p>
+
+            {/* Status Timeline */}
+            <div className="flex items-center gap-2 mt-4 pt-4 border-t border-[#F0EAE0]">
+              {['Submitted', 'Under Review', 'Resolved'].map((step, i) => {
+                const stepIndex = ['submitted', 'under_review', 'resolved'].indexOf(dispute.status);
+                return (
+                  <div key={step} className="flex items-center">
+                    <div className={`w-2 h-2 rounded-full ${
+                      i <= stepIndex ? 'bg-[#E8621A]' : 'bg-[#E8E8E8]'
+                    }`} />
+                    <span className={`text-xs ml-1 ${i <= stepIndex ? 'text-[#E8621A]' : 'text-[#A0A0A0]'}`}>
+                      {step}
+                    </span>
+                    {i < 2 && <div className={`w-8 h-0.5 ml-1 ${i < stepIndex ? 'bg-[#E8621A]' : 'bg-[#E8E8E8]'}`} />}
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        ))}
       </div>
     </div>
   );

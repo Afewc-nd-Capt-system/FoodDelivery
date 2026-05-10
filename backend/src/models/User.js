@@ -37,8 +37,8 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['user', 'admin'],
-    default: 'user',
+    enum: ['customer', 'restaurant', 'vendor', 'delivery_company', 'delivery_rider', 'admin'],
+    default: 'customer',
   },
   consecutiveCancellations: {
     type: Number,
@@ -77,11 +77,9 @@ const userSchema = new mongoose.Schema({
     default: 0,
     min: 0
   },
-  referralCode: {
-    type: String,
-    unique: true,
-    sparse: true
-  },
+   referralCode: {
+     type: String
+   },
   referredBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
@@ -118,6 +116,28 @@ const userSchema = new mongoose.Schema({
     lastActive: Date,
     createdAt: { type: Date, default: Date.now }
   }],
+  trustMetrics: {
+    successfulDeliveries: { type: Number, default: 0 },
+    failedDeliveries: { type: Number, default: 0 },
+    prepaidOrdersCompleted: { type: Number, default: 0 },
+    refundCount: { type: Number, default: 0 },
+    disputeCount: { type: Number, default: 0 },
+    reliabilityScore: { type: Number, default: 100, min: 0, max: 100 },
+    lastUpdated: { type: Date, default: Date.now }
+  },
+  penaltyHistory: [{
+    type: {
+      type: String,
+      enum: ['pod_disabled', 'account_suspended', 'rate_limited']
+    },
+    reason: String,
+    appliedAt: { type: Date, default: Date.now },
+    liftedAt: Date,
+    liftedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    }
+  }],
   deletedAt: { type: Date, default: null }
 }, { timestamps: true });
 
@@ -136,7 +156,7 @@ userSchema.pre('save', async function (next) {
 });
 
 userSchema.index({ deletedAt: 1 });
-userSchema.index({ referralCode: 1 }, { sparse: true });
+userSchema.index({ referralCode: 1 }, { unique: true, sparse: true });
 
 userSchema.methods.comparePassword = async function (candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);

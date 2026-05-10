@@ -1,13 +1,16 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const { getClient } = require('../middleware/redis');
 
 class JWTManager {
   constructor() {
-    this.accessTokenSecret = process.env.JWT_SECRET || 'fallback-secret-change-me';
-    this.refreshTokenSecret = process.env.JWT_REFRESH_SECRET || 'refresh-secret-change-me';
+    if (!process.env.JWT_SECRET || !process.env.JWT_REFRESH_SECRET) {
+      throw new Error('JWT_SECRET and JWT_REFRESH_SECRET must be set in environment variables');
+    }
+    this.accessTokenSecret = process.env.JWT_SECRET;
+    this.refreshTokenSecret = process.env.JWT_REFRESH_SECRET;
     this.accessTokenExpiry = '15m';
     this.refreshTokenExpiry = '7d';
-    this.blacklist = new Map();
   }
 
   generateAccessToken(user) {
@@ -20,7 +23,7 @@ class JWTManager {
         type: 'access'
       },
       this.accessTokenSecret,
-      { expiresIn: this.accessTokenExpiry, issuer: 'vibechops' }
+      { expiresIn: this.accessTokenExpiry, issuer: 'vibechops', algorithm: 'HS256' }
     );
   }
 
@@ -36,16 +39,18 @@ class JWTManager {
         type: 'refresh'
       },
       this.refreshTokenSecret,
-      { expiresIn: this.refreshTokenExpiry, issuer: 'vibechops' }
+      { expiresIn: this.refreshTokenExpiry, issuer: 'vibechops', algorithm: 'HS256' }
     );
 
     return { token, tokenId, familyId };
   }
 
-  verifyAccessToken(token) {
+  async verifyAccessToken(token) {
     try {
-      const decoded = jwt.verify(token, this.accessTokenSecret, { issuer: 'vibechops' });
-      if (this.blacklist.has(token)) {
+      const decoded = jwt.verify(token, this.accessTokenSecret, { issuer: 'vibechops', algorithms: ['HS256'] });
+      const redisClient = getClient();
+      const isBlacklisted = redisClient ? await redisClient.get(`blacklist:${token}`) : false;
+      if (isBlacklisted) {
         return null;
       }
       return decoded;
@@ -56,35 +61,53 @@ class JWTManager {
 
   verifyRefreshToken(token) {
     try {
-      return jwt.verify(token, this.refreshTokenSecret, { issuer: 'vibechops' });
+      return jwt.verify(token, this.refreshTokenSecret, { issuer: 'vibechops', algorithms: ['HS256'] });
     } catch (err) {
       return null;
     }
   }
 
-  blacklistToken(token) {
+  async blacklistToken(token) {
     try {
       const decoded = jwt.decode(token);
       if (decoded && decoded.exp) {
-        const ttl = decoded.exp * 1000 - Date.now();
+        const ttl = decoded.exp - Math.floor(Date.now() / 1000);
         if (ttl > 0) {
-          this.blacklist.set(token, true);
-          setTimeout(() => this.blacklist.delete(token), ttl);
+          const redisClient = getClient();
+          if (redisClient) {
+            await redisClient.setEx(`blacklist:${token}`, ttl, '1');
+          }
         }
       }
-    } catch {}
+    } catch (err) {
+      console.error('[SECURITY] Failed to blacklist token:', err);
+    }
   }
 
-  invalidateTokenFamily(familyId) {
-    console.log(`[SECURITY] Invalidating token family: ${familyId}`);
+  async invalidateTokenFamily(familyId) {
+    try {
+      const redisClient = getClient();
+      if (!redisClient) {
+        console.error('[SECURITY] Redis not available for token family invalidation');
+        return;
+      }
+      const pattern = `token_family:${familyId}:*`;
+      const keys = await redisClient.keys(pattern);
+      if (keys.length > 0) {
+        await redisClient.del(keys);
+      }
+      console.log(`[SECURITY] Invalidated ${keys.length} tokens in family: ${familyId}`);
+    } catch (err) {
+      console.error('[SECURITY] Failed to invalidate token family:', err);
+    }
   }
 
-  rotateRefreshToken(oldToken, user) {
+  async rotateRefreshToken(oldToken, user) {
     const decoded = this.verifyRefreshToken(oldToken);
     if (!decoded) return null;
 
     if (decoded.familyId) {
-      this.invalidateTokenFamily(decoded.familyId);
+      await this.invalidateTokenFamily(decoded.familyId);
     }
 
     return this.generateRefreshToken(user);

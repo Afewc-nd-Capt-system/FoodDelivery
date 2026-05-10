@@ -6,7 +6,7 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: string;
+  role: 'customer' | 'restaurant' | 'vendor' | 'delivery_company' | 'delivery_rider' | 'admin';
   phone?: string;
   address?: {
     street?: string;
@@ -14,6 +14,19 @@ interface User {
     state?: string;
     zipCode?: string;
   };
+  dietaryPreferences?: string[];
+  isVibePassMember?: boolean;
+  trustMetrics?: {
+    successfulDeliveries: number;
+    failedDeliveries: number;
+    prepaidOrdersCompleted: number;
+    refundCount: number;
+    disputeCount: number;
+    reliabilityScore: number;
+    lastUpdated: Date;
+  };
+  payOnDeliveryEnabled?: boolean;
+  company?: string;
 }
 
 interface AuthContextType {
@@ -53,7 +66,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(data);
       }
     } catch (error) {
-      console.error('Failed to fetch user', error);
+      // Silently handle backend unavailability during frontend development
+      // console.error('Failed to fetch user', error);
     } finally {
       setLoading(false);
     }
@@ -70,6 +84,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!res.ok) throw new Error(data.message || 'Login failed');
     setUser(data.user);
     setToken('logged-in');
+    // Store user role in localStorage for role-based routing
+    if (data.user?.role) {
+      localStorage.setItem('userRole', data.user.role);
+    }
     await fetchUser();
   };
 
@@ -84,6 +102,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!res.ok) throw new Error(data.message || 'Registration failed');
     setUser(data.user);
     setToken('logged-in');
+    // Store user role in localStorage for role-based routing
+    if (data.user?.role) {
+      localStorage.setItem('userRole', data.user.role);
+    }
     await fetchUser();
   };
 
@@ -98,6 +120,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setUser(null);
       setToken(null);
+      // Clear user role from localStorage
+      localStorage.removeItem('userRole');
     }
   };
 

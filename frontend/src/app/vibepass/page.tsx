@@ -1,228 +1,78 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { api } from '@/lib/api';
-import { useAuth } from '@/context/AuthContext';
-
-interface Plan {
-  planType: string;
-  name: string;
-  description: string;
-  monthlyPrice: number;
-  freeDeliveryLimit: number;
-  priorityProcessing: boolean;
-  exclusivePromos: boolean;
-  discountPercent: number;
-  features: string[];
-}
-
-interface Subscription {
-  plan: string;
-  status: string;
-  startDate: string;
-  endDate: string;
-  freeDeliveryLimit: number;
-  freeDeliveryUsed: number;
-  monthlyPrice: number;
-  planDetails?: Plan;
-}
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { CheckCircle } from 'lucide-react';
 
 export default function VibePassPage() {
-  const { user, loading: authLoading } = useAuth();
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [subscription, setSubscription] = useState<Subscription | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState(false);
-  const [message, setMessage] = useState({ type: '', text: '' });
-
-  useEffect(() => {
-    if (!authLoading && user) {
-      loadData();
-    } else if (!authLoading && !user) {
-      setLoading(false);
-    }
-  }, [user, authLoading]);
-
-  const loadData = async () => {
-    try {
-      const [plansData, subData] = await Promise.all([
-        api.subscription.getPlans(),
-        api.subscription.getMySubscription(),
-      ]);
-      setPlans(plansData.data);
-      setSubscription(subData.data);
-    } catch (err) {
-      console.error('Failed to load subscription data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSubscribe = async (planType: string) => {
-    setProcessing(true);
-    setMessage({ type: '', text: '' });
-
-    try {
-      const data = await api.subscription.subscribe(planType, user?.email);
-      if (data.data.authorizationUrl) {
-        window.location.href = data.data.authorizationUrl;
-      }
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Failed to initiate subscription' });
-      setProcessing(false);
-    }
-  };
-
-  const handleCancel = async () => {
-    if (!confirm('Are you sure you want to cancel your subscription?')) return;
-
-    setProcessing(true);
-    setMessage({ type: '', text: '' });
-
-    try {
-      const data = await api.subscription.cancel();
-      setMessage({ type: 'success', text: data.message });
-      loadData();
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Failed to cancel subscription' });
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  if (authLoading || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-orange-500"></div>
-      </div>
-    );
-  }
+  const [currentPlan] = useState('basic');
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4">
-        <h1 className="text-3xl font-bold mb-2">VibePass</h1>
-        <p className="text-gray-600 mb-8">Unlock exclusive benefits with our subscription plans</p>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <h1 className="text-2xl font-black text-[#1C1C1E] mb-2">VibePass 🔥</h1>
+      <p className="text-[#636366] mb-8">Unlock exclusive perks and savings</p>
 
-        {subscription && subscription.status === 'active' && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6 border-2 border-orange-500">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-xl font-bold text-orange-500">
-                  {subscription.planDetails?.name || 'VibePass'}
-                </h2>
-                <p className="text-gray-600">Active Subscription</p>
-              </div>
-              <span className="bg-green-100 text-green-800 px-4 py-1 rounded-full text-sm">
-                Active
-              </span>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-              <div className="text-center p-3 bg-gray-50 rounded-lg">
-                <p className="text-lg font-bold">{subscription.freeDeliveryLimit - subscription.freeDeliveryUsed}</p>
-                <p className="text-gray-600 text-sm">Free Deliveries Left</p>
-              </div>
-              <div className="text-center p-3 bg-gray-50 rounded-lg">
-                <p className="text-lg font-bold">{subscription.freeDeliveryUsed}</p>
-                <p className="text-gray-600 text-sm">Used This Month</p>
-              </div>
-              <div className="text-center p-3 bg-gray-50 rounded-lg">
-                <p className="text-lg font-bold">₦{subscription.monthlyPrice}</p>
-                <p className="text-gray-600 text-sm">Monthly Price</p>
-              </div>
-              <div className="text-center p-3 bg-gray-50 rounded-lg">
-                <p className="text-lg font-bold">{new Date(subscription.endDate).toLocaleDateString()}</p>
-                <p className="text-gray-600 text-sm">Expires</p>
-              </div>
-            </div>
-            <button
-              onClick={handleCancel}
-              disabled={processing}
-              className="text-red-500 hover:text-red-700 text-sm"
-            >
-              Cancel Subscription
-            </button>
-          </div>
-        )}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+        {/* Basic Plan */}
+        <Card className={`p-6 relative ${currentPlan === 'basic' ? 'border-2 border-[#E8621A]' : 'border border-[#E8E8E8]'}`}>
+          {currentPlan === 'basic' && (
+            <Badge className="absolute top-4 right-4 bg-[#FFF1E8] text-[#E8621A]">Current Plan</Badge>
+          )}
+          <h3 className="text-xl font-black text-[#1C1C1E] mb-2">Basic</h3>
+          <p className="text-3xl font-black text-[#1C1C1E] mb-4">Free</p>
+          <ul className="space-y-2 mb-6">
+            {['Standard delivery', 'Basic support', 'Earn loyalty points'].map((feature) => (
+              <li key={feature} className="flex items-center gap-2 text-sm text-[#636366]">
+                <CheckCircle className="w-4 h-4 text-[#16A34A]" />
+                {feature}
+              </li>
+            ))}
+          </ul>
+          <Button className="w-full bg-[#F5F5F5] text-[#636366] cursor-default">
+            Current Plan
+          </Button>
+        </Card>
 
-        {message.text && (
-          <div className={`p-4 rounded-lg mb-6 ${message.type === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-            {message.text}
-          </div>
-        )}
-
-        <div className="grid md:grid-cols-2 gap-6">
-          {plans.map((plan) => (
-            <div
-              key={plan.planType}
-              className={`bg-white rounded-lg shadow-md p-6 ${
-                plan.planType === 'vibepass-premium' ? 'border-2 border-orange-500' : ''
-              }`}
-            >
-              {plan.planType === 'vibepass-premium' && (
-                <span className="bg-orange-500 text-white px-3 py-1 rounded-full text-xs font-medium mb-4 inline-block">
-                  POPULAR
-                </span>
-              )}
-              <h3 className="text-xl font-bold mb-2">{plan.name}</h3>
-              <p className="text-gray-600 mb-4">{plan.description}</p>
-              <div className="mb-4">
-                <span className="text-3xl font-bold">₦{plan.monthlyPrice}</span>
-                <span className="text-gray-500">/month</span>
-              </div>
-              <ul className="space-y-2 mb-6">
-                <li className="flex items-center">
-                  <span className="text-green-500 mr-2">✓</span>
-                  {plan.freeDeliveryLimit} free deliveries per month
-                </li>
-                {plan.priorityProcessing && (
-                  <li className="flex items-center">
-                    <span className="text-green-500 mr-2">✓</span>
-                    Priority order processing
-                  </li>
-                )}
-                {plan.exclusivePromos && (
-                  <li className="flex items-center">
-                    <span className="text-green-500 mr-2">✓</span>
-                    Access to exclusive promos
-                  </li>
-                )}
-                {plan.discountPercent > 0 && (
-                  <li className="flex items-center">
-                    <span className="text-green-500 mr-2">✓</span>
-                    {plan.discountPercent}% extra discount on orders
-                  </li>
-                )}
-              </ul>
-              <button
-                onClick={() => handleSubscribe(plan.planType)}
-                disabled={processing || (subscription?.status === 'active')}
-                className="w-full py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 font-medium"
-              >
-                {subscription?.status === 'active' ? 'Current Plan' : processing ? 'Processing...' : 'Subscribe'}
-              </button>
-            </div>
-          ))}
-        </div>
-
-        <div className="bg-gray-100 rounded-lg p-6 mt-8">
-          <h3 className="font-semibold mb-4">Frequently Asked Questions</h3>
-          <div className="space-y-4">
-            <div>
-              <h4 className="font-medium">Can I cancel anytime?</h4>
-              <p className="text-gray-600 text-sm">Yes, you can cancel your subscription anytime. You'll retain benefits until your current billing period ends.</p>
-            </div>
-            <div>
-              <h4 className="font-medium">What happens to unused free deliveries?</h4>
-              <p className="text-gray-600 text-sm">Free deliveries reset at the beginning of each billing month. They don't roll over.</p>
-            </div>
-            <div>
-              <h4 className="font-medium">How do I use my free deliveries?</h4>
-              <p className="text-gray-600 text-sm">Free deliveries are automatically applied to your orders when you have available credits.</p>
-            </div>
-          </div>
-        </div>
+        {/* Premium Plan */}
+        <Card className="p-6 relative bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white">
+          <Badge className="absolute top-4 right-4 bg-white/20 text-white">POPULAR</Badge>
+          <h3 className="text-xl font-black mb-2">Premium</h3>
+          <p className="text-3xl font-black mb-1">₦2,500<span className="text-lg font-normal">/month</span></p>
+          <p className="text-white/80 text-sm mb-4">Billed monthly</p>
+          <ul className="space-y-2 mb-6">
+            {[
+              'Free delivery on all orders',
+              'Priority customer support',
+              '2x loyalty points',
+              'Exclusive restaurant deals',
+              'Early access to new features',
+            ].map((feature) => (
+              <li key={feature} className="flex items-center gap-2 text-sm">
+                <CheckCircle className="w-4 h-4 text-white" />
+                {feature}
+              </li>
+            ))}
+          </ul>
+          {currentPlan === 'premium' ? (
+            <Button className="w-full bg-white/20 text-white cursor-default">Current Plan</Button>
+          ) : (
+            <Button className="w-full bg-white text-[#E8621A] hover:bg-white/90 font-black">
+              Subscribe Now
+            </Button>
+          )}
+        </Card>
       </div>
+
+      {/* Cancel Section */}
+      {currentPlan === 'premium' && (
+        <div className="max-w-3xl mx-auto mt-8 text-center">
+          <button className="text-sm text-[#D32F2F] hover:underline">
+            Cancel Subscription
+          </button>
+        </div>
+      )}
     </div>
   );
 }

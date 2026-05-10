@@ -3,14 +3,19 @@ const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const DeliveryPartner = require('../models/DeliveryPartner');
 const Order = require('../models/Order');
+const DeliveryCompany = require('../models/DeliveryCompany');
 const authMiddleware = require('../middleware/auth');
+const DeliveryConfirmationService = require('../services/DeliveryConfirmationService');
 
 const router = express.Router();
 
 const generateToken = (partner) => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET must be set in environment variables');
+  }
   return jwt.sign(
-    { id: partner._id, role: 'delivery' },
-    process.env.JWT_SECRET || 'your-secret-key-change-in-production',
+    { id: partner._id, email: partner.email, role: 'delivery' },
+    process.env.JWT_SECRET,
     { expiresIn: '7d' }
   );
 };
@@ -242,6 +247,72 @@ router.post('/orders/:orderId/delivered', async (req, res) => {
     res.json({ message: 'Order delivered successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Failed to complete delivery' });
+  }
+});
+
+// Rider confirms arrival - triggers customer notification
+router.post('/orders/:orderId/confirm-arrival', async (req, res) => {
+  try {
+    const result = await DeliveryConfirmationService.riderConfirmArrival(
+      req.params.orderId,
+      req.user.id
+    );
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Customer confirms delivery with verification code
+router.post('/orders/:orderId/confirm-customer', async (req, res) => {
+  try {
+    const { verificationCode } = req.body;
+    const order = await Order.findById(req.params.orderId);
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    if (order.user.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized for this order' });
+    }
+
+    const result = await DeliveryConfirmationService.customerConfirmDelivery(
+      req.params.orderId,
+      verificationCode,
+      order.deliveryPartner
+    );
+
+    res.json({ order: result });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Resend verification code
+router.post('/orders/:orderId/resend-code', async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.orderId);
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    if (order.deliveryConfirmation.customerConfirmed) {
+      return res.status(400).json({ message: 'Delivery already confirmed' });
+    }
+
+    // Generate new code
+    const newCode = DeliveryConfirmationService.generateVerificationCode();
+    order.deliveryConfirmation.customerVerificationCode = newCode;
+    await order.save();
+
+    // Note: Email/SMS notification would be implemented here
+    // await DeliveryConfirmationService.notifyCustomer(order, newCode);
+
+    res.json({ message: 'Verification code resent', sentAt: new Date() });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
   }
 });
 

@@ -46,7 +46,6 @@ const restaurantAnalyticsSchema = new mongoose.Schema({
   deletedAt: { type: Date, default: null }
 }, { timestamps: true });
 
-restaurantAnalyticsSchema.index({ restaurant: 1 });
 restaurantAnalyticsSchema.index({ deletedAt: 1 });
 
 module.exports = mongoose.model('RestaurantAnalytics', restaurantAnalyticsSchema);

@@ -1,0 +1,339 @@
+'use client';
+
+import { useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import {
+  Bike, MapPin, Clock, CheckCircle, Package, DollarSign,
+  TrendingUp, Star, Bell, Navigation, Battery, Signal
+} from 'lucide-react';
+
+interface DeliveryOrder {
+  id: string;
+  customer: string;
+  address: string;
+  restaurant: string;
+  items: number;
+  amount: number;
+  status: 'assigned' | 'pickup' | 'delivering' | 'delivered';
+  distance: string;
+  estimatedTime: string;
+  riderConfirmed?: boolean;
+}
+
+const mockOrders: DeliveryOrder[] = [
+  {
+    id: 'DEL-4521',
+    customer: 'Funmi Adeyemi',
+    address: '12 Glover Road, Ikoyi, Lagos',
+    restaurant: 'Mama Cass Kitchen',
+    items: 3,
+    amount: 8500,
+    status: 'delivering',
+    distance: '3.2 km',
+    estimatedTime: '12 min',
+    riderConfirmed: false,
+  },
+  {
+    id: 'DEL-4522',
+    customer: 'Tunde Bello',
+    address: '5B Victoria Island, Lagos',
+    restaurant: 'Chop Chop Lagos',
+    items: 2,
+    amount: 5200,
+    status: 'pickup',
+    distance: '1.8 km',
+    estimatedTime: '8 min',
+  },
+];
+
+const todayStats = {
+  completedOrders: 12,
+  totalEarnings: 15400,
+  hoursOnline: 6.5,
+  averageRating: 4.8,
+  totalDistance: 45,
+  acceptanceRate: 92,
+};
+
+export default function DeliveryDashboardPage() {
+  const router = useRouter();
+  const [isOnline, setIsOnline] = useState(true);
+  const [currentLocation, setCurrentLocation] = useState('Ikoyi, Lagos');
+  const [orders, setOrders] = useState<DeliveryOrder[]>(mockOrders);
+  const [confirmingArrival, setConfirmingArrival] = useState<string | null>(null);
+
+  const handleConfirmArrival = async (orderId: string) => {
+    setConfirmingArrival(orderId);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/delivery/orders/${orderId}/confirm-arrival`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      if (response.ok) {
+        setOrders(prev => prev.map(order => 
+          order.id === orderId ? { ...order, riderConfirmed: true } : order
+        ));
+      } else {
+        const data = await response.json();
+        alert(data.message || 'Failed to confirm arrival');
+      }
+    } catch (error) {
+      console.error('Failed to confirm arrival:', error);
+      alert('Failed to confirm arrival. Please try again.');
+    } finally {
+      setConfirmingArrival(null);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'assigned': return 'bg-[#FFF1E8] text-[#E8621A]';
+      case 'pickup': return 'bg-[#EFF6FF] text-[#2563EB]';
+      case 'delivering': return 'bg-[#F0FDF4] text-[#16A34A]';
+      case 'delivered': return 'bg-[#F5F5F5] text-[#636366]';
+      default: return 'bg-[#F5F5F5] text-[#636366]';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'assigned': return 'New Order';
+      case 'pickup': return 'Pickup';
+      case 'delivering': return 'Delivering';
+      case 'delivered': return 'Delivered';
+      default: return status;
+    }
+  };
+
+  return (
+    <div style={{ backgroundColor: '#FFF8F0', minHeight: '100vh' }}>
+      {/* Header */}
+      <div style={{ background: 'linear-gradient(135deg, #1C1C1E 0%, #2C1810 100%)' }} className="py-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-black text-white mb-1">Delivery Partner</h1>
+              <p className="text-white/40 text-sm">Welcome back, Emmanuel</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button className="relative p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors">
+                <Bell size={20} className="text-white" />
+                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#E8621A] text-white text-xs flex items-center justify-center font-bold">
+                  {mockOrders.length}
+                </span>
+              </button>
+              <button
+                onClick={() => setIsOnline(!isOnline)}
+                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                  isOnline
+                    ? 'bg-[#16A34A] text-white'
+                    : 'bg-white/10 text-white/60'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-white animate-pulse' : 'bg-white/40'}`} />
+                  {isOnline ? 'Online' : 'Offline'}
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Location & Battery */}
+          <div className="flex items-center gap-4 mt-4">
+            <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-lg">
+              <MapPin size={14} className="text-white/60" />
+              <span className="text-white text-sm">{currentLocation}</span>
+            </div>
+            <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-lg">
+              <Battery size={14} className="text-white/60" />
+              <span className="text-white text-sm">85%</span>
+            </div>
+            <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-lg">
+              <Signal size={14} className="text-white/60" />
+              <span className="text-white text-sm">Strong</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Today's Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+          {[
+            { icon: CheckCircle, label: 'Completed', value: todayStats.completedOrders, color: '#16A34A' },
+            { icon: DollarSign, label: 'Earnings', value: `₦${todayStats.totalEarnings.toLocaleString()}`, color: '#E8621A' },
+            { icon: Clock, label: 'Hours Online', value: `${todayStats.hoursOnline}h`, color: '#2563EB' },
+            { icon: Star, label: 'Rating', value: todayStats.averageRating, color: '#F59E0B' },
+            { icon: Navigation, label: 'Distance', value: `${todayStats.totalDistance}km`, color: '#8B5CF6' },
+            { icon: TrendingUp, label: 'Acceptance', value: `${todayStats.acceptanceRate}%`, color: '#10B981' },
+          ].map((stat, i) => (
+            <Card key={i} className="p-4 hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${stat.color}15` }}>
+                  <stat.icon size={16} style={{ color: stat.color }} />
+                </div>
+              </div>
+              <p className="text-xl font-black text-[#1C1C1E]">{stat.value}</p>
+              <p className="text-xs text-[#A0A0A0]">{stat.label}</p>
+            </Card>
+          ))}
+        </div>
+
+        {/* Active Orders */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-black text-[#1C1C1E]">
+              Active Orders
+              <Badge className="ml-2 bg-[#FFF1E8] text-[#E8621A]">{mockOrders.length}</Badge>
+            </h2>
+            <Link href="/delivery/history">
+              <Button className="bg-[#F5F5F5] text-[#636366] hover:bg-[#E8E8E8] text-xs">
+                View All
+              </Button>
+            </Link>
+          </div>
+
+          <div className="space-y-4">
+            {mockOrders.map((order) => (
+              <Card key={order.id} className="p-6 hover:shadow-lg transition-all">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-[#FFF1E8] flex items-center justify-center">
+                      <Package className="w-6 h-6 text-[#E8621A]" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-[#1C1C1E]">{order.id}</h3>
+                      <p className="text-sm text-[#636366]">{order.restaurant}</p>
+                    </div>
+                  </div>
+                  <Badge className={getStatusColor(order.status)}>
+                    {getStatusLabel(order.status)}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 text-sm">
+                  <div className="flex items-center gap-2 text-[#636366]">
+                    <MapPin size={14} />
+                    <span className="truncate">{order.address}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[#636366]">
+                    <Package size={14} />
+                    <span>{order.items} items</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[#E8621A] font-bold">
+                    <DollarSign size={14} />
+                    <span>₦{order.amount.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="flex items-center gap-2 bg-[#F5F5F5] px-3 py-1.5 rounded-lg text-xs text-[#636366]">
+                    <Navigation size={12} />
+                    {order.distance}
+                  </div>
+                  <div className="flex items-center gap-2 bg-[#F5F5F5] px-3 py-1.5 rounded-lg text-xs text-[#636366]">
+                    <Clock size={12} />
+                    {order.estimatedTime}
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  {order.status === 'assigned' && (
+                    <Button className="flex-1 bg-gradient-to-r from-[#2563EB] to-[#1D4ED8] text-white text-sm">
+                      <Navigation className="w-4 h-4 mr-2" />
+                      Navigate to Restaurant
+                    </Button>
+                  )}
+                  {order.status === 'pickup' && (
+                    <Button className="flex-1 bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white text-sm">
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Confirm Pickup
+                    </Button>
+                  )}
+                  {order.status === 'delivering' && !order.riderConfirmed && (
+                    <Button 
+                      onClick={() => handleConfirmArrival(order.id)}
+                      disabled={confirmingArrival === order.id}
+                      className="flex-1 bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white text-sm"
+                    >
+                      {confirmingArrival === order.id ? 'Confirming...' : (
+                        <>
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Confirm Arrival
+                        </>
+                      )}
+                    </Button>
+                  )}
+                  {order.status === 'delivering' && order.riderConfirmed && (
+                    <div className="flex-1 bg-[#F0FDF4] text-[#16A34A] text-sm font-bold px-4 py-2 rounded-xl flex items-center justify-center">
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Arrival Confirmed
+                    </div>
+                  )}
+                  {order.status === 'delivering' && (
+                    <Button className="bg-[#F5F5F5] text-[#636366] hover:bg-[#E8E8E8] text-sm">
+                      Call Customer
+                    </Button>
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Link href="/delivery/earnings">
+            <Card className="p-6 hover:shadow-lg transition-all cursor-pointer group">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-[#FFF1E8] flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <DollarSign className="w-6 h-6 text-[#E8621A]" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-[#1C1C1E]">Earnings</h3>
+                  <p className="text-sm text-[#A0A0A0]">View your earnings</p>
+                </div>
+              </div>
+            </Card>
+          </Link>
+
+          <Link href="/delivery/history">
+            <Card className="p-6 hover:shadow-lg transition-all cursor-pointer group">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-[#EFF6FF] flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Clock className="w-6 h-6 text-[#2563EB]" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-[#1C1C1E]">Order History</h3>
+                  <p className="text-sm text-[#A0A0A0]">Past deliveries</p>
+                </div>
+              </div>
+            </Card>
+          </Link>
+
+          <Link href="/delivery/profile">
+            <Card className="p-6 hover:shadow-lg transition-all cursor-pointer group">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-[#F0FDF4] flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Star className="w-6 h-6 text-[#16A34A]" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-[#1C1C1E]">My Profile</h3>
+                  <p className="text-sm text-[#A0A0A0]">View & edit profile</p>
+                </div>
+              </div>
+            </Card>
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}

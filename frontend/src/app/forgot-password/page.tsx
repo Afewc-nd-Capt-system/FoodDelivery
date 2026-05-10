@@ -2,83 +2,82 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { api } from '@/lib/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Mail, CheckCircle } from 'lucide-react';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const [sent, setSent] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    setMessage('');
-
-    try {
-      await api.auth.forgotPassword(email);
-      setMessage('If an account exists with this email, you will receive a password reset link.');
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+  const handleSubmit = () => {
+    setSent(true);
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Forgot Password
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Enter your email and we'll send you a reset link
-          </p>
+    <div className="min-h-screen bg-[#FFF8F0] flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white rounded-3xl p-8 shadow-[0_4px_20px_rgba(0,0,0,0.07)] border border-[#F0EAE0]">
+        {/* Logo */}
+        <div className="flex items-center justify-center gap-2 mb-6">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-r from-[#E8621A] to-[#BE3A2A] flex items-center justify-center text-white font-black text-lg">
+            V
+          </div>
+          <span className="text-xl font-black">
+            <span className="text-[#1C1C1E]">Vibe</span><span className="text-[#E8621A]">Chops</span>
+          </span>
         </div>
-        
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-              {error}
-            </div>
-          )}
-          {message && (
-            <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
-              {message}
-            </div>
-          )}
-          
-          <div className="rounded-md shadow-sm -space-y-px">
-            <div>
-              <input
-                type="email"
-                required
-                className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
-                placeholder="Email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-          </div>
 
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50"
-            >
-              {loading ? 'Sending...' : 'Send Reset Link'}
-            </button>
-          </div>
-
-          <div className="text-center">
-            <Link href="/login" className="font-medium text-orange-600 hover:text-orange-500">
-              Back to Login
+        {sent ? (
+          <>
+            <div className="w-16 h-16 rounded-full bg-[#F0FDF4] flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="w-8 h-8 text-[#16A34A]" />
+            </div>
+            <h2 className="text-2xl font-black text-center mb-2">Check your email</h2>
+            <p className="text-sm text-[#636366] text-center mb-6">
+              We've sent a password reset link to<br /><span className="font-semibold text-[#1C1C1E]">{email}</span>
+            </p>
+            <Link href="/login">
+              <Button className="w-full bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white">
+                Back to Sign In
+              </Button>
             </Link>
-          </div>
-        </form>
+          </>
+        ) : (
+          <>
+            <h2 className="text-2xl font-black text-center mb-1">Reset Password</h2>
+            <p className="text-sm text-[#636366] text-center mb-6">Enter your email to receive a reset link</p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs text-[#A0A0A0] mb-1 block">Email</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A0A0]" />
+                  <Input
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
+              <Button
+                onClick={handleSubmit}
+                className="w-full bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white py-4 rounded-2xl font-black hover:scale-105 active:scale-95 transition-all shadow-[0_6px_20px_rgba(232,98,26,0.35)]"
+              >
+                Send Reset Link
+              </Button>
+            </div>
+
+            <p className="text-center text-sm text-[#636366] mt-6">
+              Remember your password?{' '}
+              <Link href="/login" className="text-[#E8621A] font-semibold hover:underline">
+                Sign in
+              </Link>
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

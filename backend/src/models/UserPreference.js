@@ -36,7 +36,6 @@ const userPreferenceSchema = new mongoose.Schema({
   deletedAt: { type: Date, default: null }
 }, { timestamps: true });
 
-userPreferenceSchema.index({ user: 1 });
 userPreferenceSchema.index({ deletedAt: 1 });
 
 module.exports = mongoose.model('UserPreference', userPreferenceSchema);

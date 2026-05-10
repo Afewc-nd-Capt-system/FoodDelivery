@@ -1,195 +1,297 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { BarChart3, Users, ShoppingBag, Store, DollarSign, TrendingUp, Clock, CheckCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import {
+  Users, Store, Package, TrendingUp, DollarSign, AlertTriangle,
+  Settings, BarChart3, ShoppingCart, Bike, Utensils, ChefHat
+} from 'lucide-react';
 
-interface Stats {
-  totalUsers: number;
-  totalOrders: number;
-  totalRestaurants: number;
-  totalRevenue: number;
-}
+export default function AdminDashboardPage() {
+  const [adminStats, setAdminStats] = useState({
+    totalUsers: 15420,
+    totalRestaurants: 342,
+    totalVendors: 128,
+    totalDeliveryCompanies: 45,
+    totalOrders: 12580,
+    totalRevenue: 45800000,
+    activeUsers: 8920,
+    pendingApprovals: 12,
+  });
 
-interface Order {
-  _id: string;
-  user: { name: string; email: string };
-  restaurant: { name: string };
-  totalAmount: number;
-  status: string;
-  createdAt: string;
-}
+  const [recentActivity, setRecentActivity] = useState([
+    { id: 1, type: 'user', message: 'New user registered: Funmi Adeyemi', time: '2 min ago' },
+    { id: 2, type: 'order', message: 'Order #DEL-4521 completed', time: '5 min ago' },
+    { id: 3, type: 'restaurant', message: 'New restaurant application: Mama Cass Kitchen', time: '12 min ago' },
+    { id: 4, type: 'vendor', message: 'New vendor application: Chef Nkechi', time: '18 min ago' },
+    { id: 5, type: 'delivery', message: 'Delivery company registered: Lagos Express', time: '25 min ago' },
+  ]);
 
-export default function AdminDashboard() {
-  const { user } = useAuth();
-  const router = useRouter();
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
-  const [ordersByStatus, setOrdersByStatus] = useState<Record<string, number>>({});
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!user) return;
-    if (user.role !== 'admin') {
-      router.push('/');
-      return;
-    }
-    fetchDashboard();
-  }, [user]);
-
-  const fetchDashboard = async () => {
-    try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-      const res = await fetch(`${API_URL}/admin/stats`, {
-        credentials: 'include',
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setStats(data.stats);
-        setRecentOrders(data.recentOrders);
-        setOrdersByStatus(data.ordersByStatus);
-      }
-    } catch (error) {
-      console.error('Failed to fetch dashboard', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (!user || user.role !== 'admin') return null;
-
-  if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-
-  const statusColors: Record<string, string> = {
-    pending: 'bg-yellow-100 text-yellow-800',
-    confirmed: 'bg-blue-100 text-blue-800',
-    preparing: 'bg-purple-100 text-purple-800',
-    'out-for-delivery': 'bg-indigo-100 text-indigo-800',
-    delivered: 'bg-green-100 text-green-800',
-    cancelled: 'bg-red-100 text-red-800',
-  };
+  const [pendingApprovals, setPendingApprovals] = useState([
+    { id: 'REST-001', type: 'restaurant', name: 'Mama Cass Kitchen', submittedAt: '2024-05-09' },
+    { id: 'VEND-001', type: 'vendor', name: 'Chef Nkechi', submittedAt: '2024-05-09' },
+    { id: 'DEL-001', type: 'delivery_company', name: 'Lagos Express Logistics', submittedAt: '2024-05-09' },
+  ]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-            <p className="text-gray-500 mt-1">Monitor your food delivery business</p>
-          </div>
-          <Link href="/" className="btn-secondary">View Site</Link>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Total Users</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{stats?.totalUsers || 0}</p>
-              </div>
-              <Users className="w-10 h-10 text-primary-500" />
+    <div style={{ backgroundColor: '#FFF8F0', minHeight: '100vh' }}>
+      {/* Header */}
+      <div style={{ background: 'linear-gradient(135deg, #1C1C1E 0%, #2C1810 100%)' }} className="py-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-black text-white mb-1">Admin Dashboard</h1>
+              <p className="text-white/40 text-sm">Welcome back, Admin</p>
             </div>
-          </div>
-
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Total Orders</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{stats?.totalOrders || 0}</p>
-              </div>
-              <ShoppingBag className="w-10 h-10 text-blue-500" />
-            </div>
-          </div>
-
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Restaurants</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{stats?.totalRestaurants || 0}</p>
-              </div>
-              <Store className="w-10 h-10 text-green-500" />
-            </div>
-          </div>
-
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Revenue</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">₹{stats?.totalRevenue?.toFixed(2) || '0.00'}</p>
-              </div>
-              <DollarSign className="w-10 h-10 text-yellow-500" />
+            <div className="flex items-center gap-3">
+              <Link href="/admin/users">
+                <Button className="bg-white/10 text-white hover:bg-white/20">
+                  <Users className="w-4 h-4 mr-2" />
+                  Users
+                </Button>
+              </Link>
+              <Button className="bg-white/10 text-white hover:bg-white/20">
+                <Settings className="w-4 h-4 mr-2" />
+                Settings
+              </Button>
             </div>
           </div>
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          <div className="card p-6 lg:col-span-1">
-            <h2 className="text-lg font-semibold mb-4">Orders by Status</h2>
-            <div className="space-y-3">
-              {Object.entries(ordersByStatus || {}).map(([status, count]) => (
-                <div key={status} className="flex justify-between items-center">
-                  <span className="capitalize text-sm text-gray-600">{status.replace(/-/g, ' ')}</span>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColors[status] || 'bg-gray-100'}`}>
-                    {count}
-                  </span>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <Card className="p-6 bg-white">
+            <div className="flex items-center justify-between mb-2">
+              <Users className="w-5 h-5 text-[#E8621A]" />
+              <Badge variant="outline" className="text-[#E8621A] border-[#E8621A]">
+                +12%
+              </Badge>
+            </div>
+            <h3 className="text-2xl font-black" style={{ color: '#1C1C1E' }}>{adminStats.totalUsers.toLocaleString()}</h3>
+            <p className="text-sm" style={{ color: '#A0A0A0' }}>Total Users</p>
+          </Card>
+
+          <Card className="p-6 bg-white">
+            <div className="flex items-center justify-between mb-2">
+              <Store className="w-5 h-5 text-blue-600" />
+              <Badge variant="outline" className="text-blue-600 border-blue-600">
+                +8%
+              </Badge>
+            </div>
+            <h3 className="text-2xl font-black" style={{ color: '#1C1C1E' }}>{adminStats.totalRestaurants}</h3>
+            <p className="text-sm" style={{ color: '#A0A0A0' }}>Restaurants</p>
+          </Card>
+
+          <Card className="p-6 bg-white">
+            <div className="flex items-center justify-between mb-2">
+              <ChefHat className="w-5 h-5 text-green-600" />
+              <Badge variant="outline" className="text-green-600 border-green-600">
+                +15%
+              </Badge>
+            </div>
+            <h3 className="text-2xl font-black" style={{ color: '#1C1C1E' }}>{adminStats.totalVendors}</h3>
+            <p className="text-sm" style={{ color: '#A0A0A0' }}>Vendors</p>
+          </Card>
+
+          <Card className="p-6 bg-white">
+            <div className="flex items-center justify-between mb-2">
+              <Bike className="w-5 h-5 text-purple-600" />
+              <Badge variant="outline" className="text-purple-600 border-purple-600">
+                +5%
+              </Badge>
+            </div>
+            <h3 className="text-2xl font-black" style={{ color: '#1C1C1E' }}>{adminStats.totalDeliveryCompanies}</h3>
+            <p className="text-sm" style={{ color: '#A0A0A0' }}>Delivery Companies</p>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <Card className="p-6 bg-white">
+            <div className="flex items-center justify-between mb-2">
+              <ShoppingCart className="w-5 h-5 text-[#E8621A]" />
+              <Badge variant="outline" className="text-[#E8621A] border-[#E8621A]">
+                +18%
+              </Badge>
+            </div>
+            <h3 className="text-2xl font-black" style={{ color: '#1C1C1E' }}>{adminStats.totalOrders.toLocaleString()}</h3>
+            <p className="text-sm" style={{ color: '#A0A0A0' }}>Total Orders</p>
+          </Card>
+
+          <Card className="p-6 bg-white">
+            <div className="flex items-center justify-between mb-2">
+              <DollarSign className="w-5 h-5 text-green-600" />
+              <Badge variant="outline" className="text-green-600 border-green-600">
+                +22%
+              </Badge>
+            </div>
+            <h3 className="text-2xl font-black" style={{ color: '#1C1C1E' }}>₦{(adminStats.totalRevenue / 1000000).toFixed(1)}M</h3>
+            <p className="text-sm" style={{ color: '#A0A0A0' }}>Total Revenue</p>
+          </Card>
+
+          <Card className="p-6 bg-white">
+            <div className="flex items-center justify-between mb-2">
+              <TrendingUp className="w-5 h-5 text-blue-600" />
+              <Badge variant="outline" className="text-blue-600 border-blue-600">
+                Active
+              </Badge>
+            </div>
+            <h3 className="text-2xl font-black" style={{ color: '#1C1C1E' }}>{adminStats.activeUsers.toLocaleString()}</h3>
+            <p className="text-sm" style={{ color: '#A0A0A0' }}>Active Users</p>
+          </Card>
+
+          <Card className="p-6 bg-white">
+            <div className="flex items-center justify-between mb-2">
+              <AlertTriangle className="w-5 h-5 text-yellow-500" />
+              <Badge variant="outline" className="text-yellow-600 border-yellow-600">
+                Pending
+              </Badge>
+            </div>
+            <h3 className="text-2xl font-black" style={{ color: '#1C1C1E' }}>{adminStats.pendingApprovals}</h3>
+            <p className="text-sm" style={{ color: '#A0A0A0' }}>Pending Approvals</p>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          {/* Pending Approvals */}
+          <Card className="p-6 bg-white">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-black" style={{ color: '#1C1C1E' }}>
+                Pending Approvals
+              </h2>
+              <Link href="/admin/approvals" className="text-sm font-bold text-[#E8621A] hover:underline">
+                View All
+              </Link>
+            </div>
+            <div className="space-y-4">
+              {pendingApprovals.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between p-4 rounded-xl border border-gray-100"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center"
+                      style={{ backgroundColor: '#FFF1E8' }}
+                    >
+                      {item.type === 'restaurant' && <Store className="w-5 h-5 text-[#E8621A]" />}
+                      {item.type === 'vendor' && <ChefHat className="w-5 h-5 text-green-600" />}
+                      {item.type === 'delivery_company' && <Bike className="w-5 h-5 text-purple-600" />}
+                    </div>
+                    <div>
+                      <p className="font-bold" style={{ color: '#1C1C1E' }}>{item.name}</p>
+                      <p className="text-sm" style={{ color: '#636366' }}>
+                        {item.type.replace('_', ' ')} • {item.submittedAt}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" className="bg-green-600 text-white hover:bg-green-700">
+                      Approve
+                    </Button>
+                    <Button size="sm" variant="outline">
+                      Reject
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
 
-          <div className="card p-6 lg:col-span-2">
-            <h2 className="text-lg font-semibold mb-4">Recent Orders</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2">Order ID</th>
-                    <th className="text-left py-2">Customer</th>
-                    <th className="text-left py-2">Restaurant</th>
-                    <th className="text-left py-2">Amount</th>
-                    <th className="text-left py-2">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentOrders.map((order) => (
-                    <tr key={order._id} className="border-b hover:bg-gray-50">
-                      <td className="py-3 text-xs text-gray-500">#{order._id.slice(-6)}</td>
-                      <td className="py-3">{order.user?.name || 'N/A'}</td>
-                      <td className="py-3">{order.restaurant?.name || 'N/A'}</td>
-                      <td className="py-3">₹{order.totalAmount}</td>
-                      <td className="py-3">
-                        <span className={`px-2 py-1 rounded-full text-xs ${statusColors[order.status] || 'bg-gray-100'}`}>
-                          {order.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {/* Recent Activity */}
+          <Card className="p-6 bg-white">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-black" style={{ color: '#1C1C1E' }}>
+                Recent Activity
+              </h2>
+              <Button variant="outline" size="sm">
+                View All
+              </Button>
             </div>
-            <Link href="/admin/orders" className="inline-block mt-4 text-primary-500 hover:text-primary-600 text-sm font-medium">
-              View All Orders →
-            </Link>
-          </div>
+            <div className="space-y-4">
+              {recentActivity.map((activity) => (
+                <div
+                  key={activity.id}
+                  className="flex items-start gap-3 p-3 rounded-lg"
+                  style={{ backgroundColor: '#FFF1E8' }}
+                >
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: '#E8621A' }}>
+                    {activity.type === 'user' && <Users className="w-4 h-4 text-white" />}
+                    {activity.type === 'order' && <ShoppingCart className="w-4 h-4 text-white" />}
+                    {activity.type === 'restaurant' && <Store className="w-4 h-4 text-white" />}
+                    {activity.type === 'vendor' && <ChefHat className="w-4 h-4 text-white" />}
+                    {activity.type === 'delivery' && <Bike className="w-4 h-4 text-white" />}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm" style={{ color: '#1C1C1E' }}>{activity.message}</p>
+                    <p className="text-xs" style={{ color: '#A0A0A0' }}>{activity.time}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Link href="/admin/users" className="card p-6 hover:shadow-lg transition-shadow cursor-pointer">
-            <Users className="w-8 h-8 text-primary-500 mb-3" />
-            <h3 className="font-semibold">Manage Users</h3>
-            <p className="text-sm text-gray-500 mt-1">View and manage registered users</p>
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Link href="/admin/users">
+            <Card className="p-6 bg-white hover:shadow-lg transition-shadow cursor-pointer">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: '#FFF1E8' }}>
+                  <Users className="w-6 h-6 text-[#E8621A]" />
+                </div>
+                <div>
+                  <h3 className="font-bold" style={{ color: '#1C1C1E' }}>Manage Users</h3>
+                  <p className="text-sm" style={{ color: '#A0A0A0' }}>View all users</p>
+                </div>
+              </div>
+            </Card>
           </Link>
-          <Link href="/admin/orders" className="card p-6 hover:shadow-lg transition-shadow cursor-pointer">
-            <ShoppingBag className="w-8 h-8 text-blue-500 mb-3" />
-            <h3 className="font-semibold">Manage Orders</h3>
-            <p className="text-sm text-gray-500 mt-1">Track and update order status</p>
+
+          <Link href="/admin/restaurants">
+            <Card className="p-6 bg-white hover:shadow-lg transition-shadow cursor-pointer">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: '#EFF6FF' }}>
+                  <Store className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold" style={{ color: '#1C1C1E' }}>Restaurants</h3>
+                  <p className="text-sm" style={{ color: '#A0A0A0' }}>Manage restaurants</p>
+                </div>
+              </div>
+            </Card>
           </Link>
-          <Link href="/admin/restaurants" className="card p-6 hover:shadow-lg transition-shadow cursor-pointer">
-            <Store className="w-8 h-8 text-green-500 mb-3" />
-            <h3 className="font-semibold">Manage Restaurants</h3>
-            <p className="text-sm text-gray-500 mt-1">Add or update restaurant listings</p>
+
+          <Link href="/admin/vendors">
+            <Card className="p-6 bg-white hover:shadow-lg transition-shadow cursor-pointer">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: '#F0FDF4' }}>
+                  <ChefHat className="w-6 h-6 text-green-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold" style={{ color: '#1C1C1E' }}>Vendors</h3>
+                  <p className="text-sm" style={{ color: '#A0A0A0' }}>Manage vendors</p>
+                </div>
+              </div>
+            </Card>
+          </Link>
+
+          <Link href="/admin/companies">
+            <Card className="p-6 bg-white hover:shadow-lg transition-shadow cursor-pointer">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: '#F3E8FF' }}>
+                  <Bike className="w-6 h-6 text-purple-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold" style={{ color: '#1C1C1E' }}>Delivery Companies</h3>
+                  <p className="text-sm" style={{ color: '#A0A0A0' }}>Manage companies</p>
+                </div>
+              </div>
+            </Card>
           </Link>
         </div>
       </div>

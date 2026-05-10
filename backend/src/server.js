@@ -133,6 +133,9 @@ app.use('/api/promo-codes', require('./routes/promoCodes'));
 app.use('/api/delivery', require('./routes/delivery'));
 app.use('/api/vendors', require('./routes/vendors'));
 app.use('/api/uploads', authMiddleware, require('./routes/uploads'));
+app.use('/api/delivery-company', require('./routes/delivery-company'));
+app.use('/api/permissions', require('./routes/permissions'));
+app.use('/api/users', require('./routes/users'));
 
 app.use('/api/v2/loyalty', require('./routes/v2/loyalty'));
 app.use('/api/v2/wallet', require('./routes/v2/wallet'));

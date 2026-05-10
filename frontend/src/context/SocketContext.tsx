@@ -30,17 +30,22 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     });
 
     newSocket.on('connect', () => {
-      console.log('Socket connected:', newSocket.id);
+      // console.log('Socket connected:', newSocket.id);
       setIsConnected(true);
     });
 
     newSocket.on('disconnect', () => {
-      console.log('Socket disconnected');
+      // console.log('Socket disconnected');
+      setIsConnected(false);
+    });
+
+    newSocket.on('connect_error', () => {
+      // Silently handle connection errors during frontend development
       setIsConnected(false);
     });
 
     newSocket.on('order-status-update', (data) => {
-      console.log('Order status update:', data);
+      // console.log('Order status update:', data);
       setOrderUpdates(prev => [...prev, data]);
     });
 

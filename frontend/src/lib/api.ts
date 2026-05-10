@@ -102,7 +102,7 @@ export const api = {
     delete: (id: string) =>
       request('/promo-codes/' + id, { method: 'DELETE' }),
   },
-  delivery: {
+  deliveryAuth: {
     register: (data: any) =>
       request('/delivery/register', { method: 'POST', body: data }),
     login: (data: any) =>

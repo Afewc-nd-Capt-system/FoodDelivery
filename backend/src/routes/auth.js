@@ -11,9 +11,12 @@ const { sendEmail } = require('../utils/email');
 const router = express.Router();
 
 const generateToken = (user) => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET must be set in environment variables');
+  }
   return jwt.sign(
     { id: user._id, email: user.email, role: user.role },
-    process.env.JWT_SECRET || 'your-secret-key-change-in-production',
+    process.env.JWT_SECRET,
     { expiresIn: '7d' }
   );
 };

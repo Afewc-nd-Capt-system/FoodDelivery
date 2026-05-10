@@ -52,7 +52,6 @@ const cateringRequestSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 cateringRequestSchema.index({ restaurant: 1, status: 1 });
-cateringRequestSchema.index({ user: 1 });
 cateringRequestSchema.index({ deletedAt: 1 });
 
 module.exports = mongoose.model('CateringRequest', cateringRequestSchema);

@@ -2,11 +2,48 @@ const express = require('express');
 const Order = require('../models/Order');
 const User = require('../models/User');
 const Restaurant = require('../models/Restaurant');
+const Vendor = require('../models/Vendor');
 const authMiddleware = require('../middleware/auth');
 const { sendOrderConfirmation, sendOrderStatusUpdate } = require('../utils/email');
 const recommendationService = require('../services/recommendationService');
+const PayOnDeliveryService = require('../services/PayOnDeliveryService');
+const CustomerTrustService = require('../services/CustomerTrustService');
 
 const router = express.Router();
+
+// Check POD eligibility endpoint
+router.post('/check-pod-eligibility', authMiddleware, async (req, res) => {
+  try {
+    const { restaurantId, vendorId, totalAmount, items } = req.body;
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    let restaurantOrVendor = null;
+
+    if (restaurantId) {
+      restaurantOrVendor = await Restaurant.findById(restaurantId);
+    } else if (vendorId) {
+      restaurantOrVendor = await Vendor.findById(vendorId);
+    }
+
+    if (!restaurantOrVendor) {
+      return res.status(404).json({ message: 'Restaurant or vendor not found' });
+    }
+
+    const result = await PayOnDeliveryService.checkPODEligibility(
+      { totalAmount, items },
+      user,
+      restaurantOrVendor
+    );
+
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
 
 router.post('/', authMiddleware, async (req, res) => {
   try {
@@ -16,28 +53,21 @@ router.post('/', authMiddleware, async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    if (paymentMethod === 'cash') {
+    if (paymentMethod === 'cash' || paymentMethod === 'pay_on_delivery') {
       const user = await User.findById(req.user.id);
       const restaurantDoc = await Restaurant.findById(restaurant);
 
-      if (!user.payOnDeliveryEnabled) {
-        return res.status(403).json({
-          message: 'Pay on delivery is disabled for your account due to cancellation history. Please use online payment.',
-          code: 'PAY_ON_DELIVERY_DISABLED'
-        });
-      }
+      const podCheck = await PayOnDeliveryService.checkPODEligibility(
+        { totalAmount, items },
+        user,
+        restaurantDoc
+      );
 
-      if (!restaurantDoc.payOnDeliveryEnabled) {
+      if (!podCheck.allowed) {
         return res.status(403).json({
-          message: 'This restaurant does not offer pay on delivery. Please use online payment.',
-          code: 'RESTAURANT_NO_PAY_ON_DELIVERY'
-        });
-      }
-
-      if (totalAmount < restaurantDoc.minOrderForPayOnDelivery) {
-        return res.status(403).json({
-          message: `Minimum order amount for pay on delivery is $${restaurantDoc.minOrderForPayOnDelivery}. Please use online payment or add more items.`,
-          code: 'AMOUNT_BELOW_MINIMUM'
+          message: `Pay on delivery not allowed: ${podCheck.reason}`,
+          code: podCheck.reason,
+          checks: podCheck.checks
         });
       }
     }
@@ -125,35 +155,19 @@ router.put('/:id/status', authMiddleware, async (req, res) => {
     const isAdmin = req.user.role === 'admin';
 
     if (status === 'cancelled' && isOrderOwner && !isAdmin) {
-      const user = await User.findById(req.user.id);
-      
-      user.consecutiveCancellations += 1;
-      user.totalCancellations += 1;
-
-      if (user.consecutiveCancellations >= 2 || user.totalCancellations >= 5) {
-        user.payOnDeliveryEnabled = false;
-        user.penaltyApplied = true;
-        user.ordersSincePenalty = 0;
-      }
-
-      await user.save();
+      await CustomerTrustService.updateTrustMetrics(
+        req.user.id,
+        'cancellation',
+        { orderId: order._id, paymentMethod: order.paymentMethod }
+      );
     }
 
     if (status === 'delivered' && isOrderOwner) {
-      const user = await User.findById(req.user.id);
-      
-      user.consecutiveCancellations = 0;
-
-      if (user.penaltyApplied) {
-        user.ordersSincePenalty += 1;
-        if (user.ordersSincePenalty >= 5) {
-          user.payOnDeliveryEnabled = true;
-          user.penaltyApplied = false;
-          user.ordersSincePenalty = 0;
-        }
-      }
-
-      await user.save();
+      await CustomerTrustService.updateTrustMetrics(
+        req.user.id,
+        'successful_delivery',
+        { orderId: order._id, paymentMethod: order.paymentMethod }
+      );
     }
 
     const oldStatus = order.status;

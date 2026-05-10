@@ -1,6 +1,7 @@
 const express = require('express');
 const Restaurant = require('../models/Restaurant');
 const authMiddleware = require('../middleware/auth');
+const { restaurantGuard, adminGuard } = require('../middleware/routeGuards');
 
 const router = express.Router();
 
@@ -148,6 +149,77 @@ router.post('/:id/reviews', async (req, res) => {
 
     await restaurant.save();
     res.json(restaurant);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Update POD configuration
+router.put('/:id/pod-config', authMiddleware, restaurantGuard, async (req, res) => {
+  try {
+    const restaurant = await Restaurant.findById(req.params.id);
+    
+    if (!restaurant) {
+      return res.status(404).json({ message: 'Restaurant not found' });
+    }
+
+    restaurant.payOnDeliveryConfig = {
+      ...restaurant.payOnDeliveryConfig,
+      ...req.body
+    };
+
+    await restaurant.save();
+    res.json({ payOnDeliveryConfig: restaurant.payOnDeliveryConfig });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Add/Remove trusted customer
+router.post('/:id/trusted-customers', authMiddleware, restaurantGuard, async (req, res) => {
+  try {
+    const { userId, action } = req.body;
+    const restaurant = await Restaurant.findById(req.params.id);
+
+    if (!restaurant) {
+      return res.status(404).json({ message: 'Restaurant not found' });
+    }
+
+    if (action === 'add') {
+      if (!restaurant.payOnDeliveryConfig.trustedCustomerWhitelist.includes(userId)) {
+        restaurant.payOnDeliveryConfig.trustedCustomerWhitelist.push(userId);
+      }
+    } else if (action === 'remove') {
+      restaurant.payOnDeliveryConfig.trustedCustomerWhitelist = 
+        restaurant.payOnDeliveryConfig.trustedCustomerWhitelist.filter(id => id !== userId);
+    }
+
+    await restaurant.save();
+    res.json({ trustedCustomerWhitelist: restaurant.payOnDeliveryConfig.trustedCustomerWhitelist });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Update menu item POD settings
+router.put('/:id/menu/:menuItemId/pod-settings', authMiddleware, restaurantGuard, async (req, res) => {
+  try {
+    const restaurant = await Restaurant.findById(req.params.id);
+    if (!restaurant) {
+      return res.status(404).json({ message: 'Restaurant not found' });
+    }
+
+    const menuItem = restaurant.menu.id(req.params.menuItemId);
+
+    if (!menuItem) {
+      return res.status(404).json({ message: 'Menu item not found' });
+    }
+
+    menuItem.allowPayOnDelivery = req.body.allowPayOnDelivery;
+    menuItem.podMinQuantity = req.body.podMinQuantity;
+
+    await restaurant.save();
+    res.json({ menuItem });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }

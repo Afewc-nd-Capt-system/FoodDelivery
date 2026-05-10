@@ -34,7 +34,7 @@ const createAdmin = async () => {
     await admin.save();
     console.log('Admin user created successfully');
     console.log('Email: admin@fooddelivery.com');
-    console.log('Password: admin123!');
+    console.log('Password: [CHECK .env or documentation]');
   } catch (error) {
     console.error('Error creating admin:', error);
   } finally {
