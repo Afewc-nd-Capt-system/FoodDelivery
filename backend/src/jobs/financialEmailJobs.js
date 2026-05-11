@@ -91,14 +91,14 @@ async function processJobDirectly(name, data) {
       break;
     
     case 'subscription-renewal-reminder':
-      const { userEmail: subEmail, planName, renewalDate, amount } = data;
+      const { userEmail: subEmail, planName: renewalPlanName, renewalDate, amount: renewalAmount } = data;
       const renewalHtml = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #E8621A;">Subscription Renewal Reminder</h2>
-          <p>Your VibeChops <strong>${planName}</strong> subscription renews in 7 days.</p>
+          <p>Your VibeChops <strong>${renewalPlanName}</strong> subscription renews in 7 days.</p>
           <ul>
             <li>Renewal date: ${new Date(renewalDate).toLocaleDateString()}</li>
-            <li>Amount: ₦${amount.toLocaleString()}</li>
+            <li>Amount: ₦${renewalAmount.toLocaleString()}</li>
           </ul>
           <p>
             <a href="${process.env.FRONTEND_URL}/subscription" style="background: #E8621A; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
@@ -107,20 +107,20 @@ async function processJobDirectly(name, data) {
           </p>
         </div>
       `;
-      await sendEmail(subEmail, `Your VibeChops ${planName} subscription renews in 7 days`, renewalHtml);
+      await sendEmail(subEmail, `Your VibeChops ${renewalPlanName} subscription renews in 7 days`, renewalHtml);
       break;
     
     case 'payout-processed':
-      const { userEmail: payoutEmail, amount, bankDetails } = data;
+      const { userEmail: payoutEmail, amount: payoutAmount, bankDetails } = data;
       const payoutHtml = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #16A34A;">Payout Processed Successfully</h2>
-          <p>Your payout of <strong>₦${amount.toLocaleString()}</strong> has been processed.</p>
+          <p>Your payout of <strong>₦${payoutAmount.toLocaleString()}</strong> has been processed.</p>
           <p>Bank details: ${bankDetails}</p>
           <p>Expected arrival: Within 24-48 hours</p>
         </div>
       `;
-      await sendEmail(payoutEmail, `Your payout of ₦${amount.toLocaleString()} has been processed`, payoutHtml);
+      await sendEmail(payoutEmail, `Your payout of ₦${payoutAmount.toLocaleString()} has been processed`, payoutHtml);
       break;
     
     case 'ad-campaign-live':
@@ -162,11 +162,11 @@ async function processJobDirectly(name, data) {
       break;
     
     case 'subscription-usage-alert':
-      const { userEmail: usageEmail, planName } = data;
+      const { userEmail: usageEmail, planName: usagePlanName } = data;
       const usageHtml = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #E8621A;">You're Not Using Your ${planName} Benefits!</h2>
-          <p>We noticed you're not using all the features included in your ${planName} plan.</p>
+          <h2 style="color: #E8621A;">You're Not Using Your ${usagePlanName} Benefits!</h2>
+          <p>We noticed you're not using all the features included in your ${usagePlanName} plan.</p>
           <p>Make sure to take advantage of your promotions, analytics, and priority listing features to maximize your visibility.</p>
           <p>
             <a href="${process.env.FRONTEND_URL}/dashboard" style="background: #E8621A; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
@@ -175,7 +175,7 @@ async function processJobDirectly(name, data) {
           </p>
         </div>
       `;
-      await sendEmail(usageEmail, `You're not using your ${planName} benefits!`, usageHtml);
+      await sendEmail(usageEmail, `You're not using your ${usagePlanName} benefits!`, usageHtml);
       break;
     
     default:

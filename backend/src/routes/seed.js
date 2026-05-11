@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const Restaurant = require('../models/Restaurant');
 const Vendor = require('../models/Vendor');
 const User = require('../models/User');
-const { restaurants, vendors } = require('../../frontend/src/data/mockData');
+const { restaurants, vendors } = require('../../../frontend/src/data/mockData');
 
 // Seed restaurants with location data
 router.post('/restaurants', async (req, res) => {
