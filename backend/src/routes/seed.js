@@ -4,7 +4,28 @@ const bcrypt = require('bcryptjs');
 const Restaurant = require('../models/Restaurant');
 const Vendor = require('../models/Vendor');
 const User = require('../models/User');
-const { restaurants, vendors } = require('../../../frontend/src/data/mockData');
+// Seed data constants
+const restaurants = [
+  { id: '1', name: 'Mama Cass Kitchen', rating: 4.8, reviewCount: 1243, address: '14 Allen Avenue, Ikeja, Lagos' },
+  { id: '2', name: 'Abuja Palace Restaurant', rating: 4.6, reviewCount: 892, address: '5 Murtala Muhammed Way, Central Area, Abuja' },
+  { id: '3', name: 'Kano Suya Express', rating: 4.7, reviewCount: 654, address: '22 Ibrahim Taiwo Road, Kano' },
+  { id: '4', name: 'Port Harcourt Seafood Grill', rating: 4.5, reviewCount: 445, address: '3 Aba Road, Port Harcourt' },
+  { id: '5', name: 'Ibadan Amala Hub', rating: 4.4, reviewCount: 567, address: '7 Dugbe Market, Ibadan' },
+  { id: '6', name: 'Enugu Coal City Kitchen', rating: 4.6, reviewCount: 789, address: '15 Independence Layout, Enugu' },
+  { id: '7', name: 'Benin Edo Kitchen', rating: 4.3, reviewCount: 321, address: '9 Airport Road, Benin City' },
+  { id: '8', name: 'Maiduguri Borno Delights', rating: 4.5, reviewCount: 234, address: '3 Shehu Laminu Way, Maiduguri' },
+  { id: '9', name: 'Jos Plateau Grill', rating: 4.7, reviewCount: 456, address: '18 Bukuru Road, Jos' },
+  { id: '10', name: 'Calabar Efik Kitchen', rating: 4.8, reviewCount: 678, address: '12 Marian Road, Calabar' },
+];
+
+const vendors = [
+  { id: 'v1', name: "Auntie Joke's Kitchen", rating: 4.7, reviewCount: 234, address: 'Ikoyi, Lagos' },
+  { id: 'v2', name: "Mama Nkechi's Delights", rating: 4.9, reviewCount: 189, address: 'Asokoro, Abuja' },
+  { id: 'v3', name: "Chef Segun's Special", rating: 4.6, reviewCount: 156, address: 'Sabon Gari, Kano' },
+  { id: 'v4', name: 'Sisi Bisi Catering', rating: 4.8, reviewCount: 298, address: 'GRA, Port Harcourt' },
+  { id: 'v5', name: "Mama Funke's Kitchen", rating: 4.5, reviewCount: 167, address: 'Bodija, Ibadan' },
+  { id: 'v6', name: "Aunty Ada's Delicacies", rating: 4.7, reviewCount: 234, address: 'Independence Layout, Enugu' },
+];
 
 // Seed restaurants with location data
 router.post('/restaurants', async (req, res) => {

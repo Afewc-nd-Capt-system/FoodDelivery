@@ -4,64 +4,63 @@ const nodemailer = require('nodemailer');
 // Create email queue with error handling
 let emailQueue;
 
-try {
-  // Only create queue if Redis is configured
-  if (process.env.REDIS_HOST || process.env.REDIS_URL) {
-    emailQueue = new Queue('financial-emails', {
-      redis: {
-        host: process.env.REDIS_HOST || 'localhost',
-        port: process.env.REDIS_PORT || 6379,
-        password: process.env.REDIS_PASSWORD || undefined,
-        db: process.env.REDIS_DB || 0,
-        retryDelayOnFailover: 100,
-        maxRetriesPerRequest: 3,
-        connectTimeout: 10000,
-        lazyConnect: true, // Don't connect immediately
-      },
-      defaultJobOptions: {
-        removeOnComplete: 10,
-        removeOnFail: 5,
-        attempts: 3,
-        backoff: {
-          type: 'exponential',
-          delay: 2000,
+(async () => {
+  try {
+    if (process.env.REDIS_HOST || process.env.REDIS_URL) {
+      emailQueue = new Queue('financial-emails', {
+        redis: {
+          host: process.env.REDIS_HOST || 'localhost',
+          port: process.env.REDIS_PORT || 6379,
+          password: process.env.REDIS_PASSWORD || undefined,
+          db: process.env.REDIS_DB || 0,
+          retryDelayOnFailover: 100,
+          maxRetriesPerRequest: 3,
+          connectTimeout: 10000,
+          lazyConnect: true,
         },
-      },
-    });
+        defaultJobOptions: {
+          removeOnComplete: 10,
+          removeOnFail: 5,
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 2000,
+          },
+        },
+      });
 
-    // Handle queue errors gracefully
-    emailQueue.on('error', (err) => {
-      console.error('Bull queue error (continuing without queue):', err.message);
-    });
+      emailQueue.on('error', (err) => {
+        console.error('Bull queue error (continuing without queue):', err.message);
+      });
 
-    // Try to connect but don't fail if it doesn't work
-    emailQueue.waitUntilReady().catch(err => {
-      console.warn('Redis not available, email queue disabled:', err.message);
-    });
-  } else {
-    throw new Error('Redis not configured');
-  }
-} catch (error) {
-  console.warn('Email queue not available, emails will be sent directly:', error.message);
-  
-  // Create a fallback queue that processes jobs immediately
-  emailQueue = {
-    add: async (name, data, options = {}) => {
-      console.log(`Processing email job directly: ${name}`);
-      try {
-        await processJobDirectly(name, data);
-        return { id: Date.now(), data: { name, data } };
-      } catch (err) {
-        console.error(`Failed to process job ${name}:`, err);
-        throw err;
+      if (typeof emailQueue.waitUntilReady === 'function') {
+        await emailQueue.waitUntilReady();
       }
-    },
-    process: () => {},
-    close: async () => {},
-    on: () => {},
-    waitUntilReady: () => Promise.resolve(),
-  };
-}
+      console.log('Email queue ready');
+    } else {
+      throw new Error('Redis not configured');
+    }
+  } catch (error) {
+    console.warn('Email queue not available, continuing without it:', error.message);
+
+    emailQueue = {
+      add: async (name, data, options = {}) => {
+        console.log(`Processing email job directly: ${name}`);
+        try {
+          await processJobDirectly(name, data);
+          return { id: Date.now(), data: { name, data } };
+        } catch (err) {
+          console.error(`Failed to process job ${name}:`, err);
+          throw err;
+        }
+      },
+      process: () => {},
+      close: async () => {},
+      on: () => {},
+      waitUntilReady: () => Promise.resolve(),
+    };
+  }
+})();
 
 // Process jobs directly when queue is not available
 async function processJobDirectly(name, data) {
