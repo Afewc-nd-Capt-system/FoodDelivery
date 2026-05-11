@@ -7,10 +7,55 @@ const router = express.Router();
 
 router.get('/', async (req, res) => {
   try {
-    const { cuisine, search, sortBy, priceRange, page = 1, limit = 12 } = req.query;
+    const { 
+      cuisine, 
+      search, 
+      sortBy, 
+      priceRange, 
+      lat, 
+      lng, 
+      radius = 10, 
+      city, 
+      state, 
+      page = 1, 
+      limit = 12 
+    } = req.query;
     
-    let query = {};
+    let query = {
+      isActive: true,
+      verificationStatus: 'approved'
+    };
     
+    // Location filtering
+    if (lat && lng) {
+      // Use geospatial query with coordinates
+      query.location = {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [parseFloat(lng), parseFloat(lat)]
+          },
+          $maxDistance: parseFloat(radius) * 1000 // convert km to meters
+        }
+      };
+    } else if (city) {
+      // Fallback to city-based filtering
+      query['address.city'] = { $regex: city, $options: 'i' };
+    } else if (state) {
+      // Fallback to state-based filtering
+      query['address.state'] = { $regex: state, $options: 'i' };
+    } else {
+      // No location provided - return empty array with message
+      return res.json({
+        restaurants: [],
+        total: 0,
+        page: parseInt(page),
+        totalPages: 0,
+        message: 'Please enable location or select a city to see restaurants'
+      });
+    }
+    
+    // Apply other filters
     if (cuisine) {
       query.cuisine = cuisine;
     }

@@ -85,12 +85,24 @@ const vendorSchema = new mongoose.Schema({
     default: 0,
   },
   address: {
-    type: String,
-    required: true,
+    street: String,
+    area: String,
+    city: String,
+    state: String,
+    country: { type: String, default: 'Nigeria' },
+    formattedAddress: String,
   },
   location: {
-    city: String,
-    area: String,
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point'
+    },
+    coordinates: {
+      type: [Number],
+      required: true,
+      default: [0, 0]
+    }
   },
   menu: [menuItemSchema],
   isOpen: {
@@ -139,6 +151,15 @@ const vendorSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  verificationStatus: {
+    type: String,
+    enum: ['pending_verification', 'under_review', 'approved', 'rejected'],
+    default: 'pending_verification',
+  },
 }, { timestamps: true });
+
+vendorSchema.index({ 'address.city': 1 });
+vendorSchema.index({ 'address.state': 1 });
+vendorSchema.index({ location: '2dsphere' });
 
 module.exports = mongoose.model('Vendor', vendorSchema);

@@ -1,0 +1,29 @@
+# Production Environment Variables for Vercel Deployment
+# Copy this content to .env.production and update with your actual values
+
+# Backend API URL - Replace with your actual Render backend URL
+NEXT_PUBLIC_API_URL=https://vibe-chops-api.onrender.com
+
+# Alternative: Use your custom Render domain if you have one
+# NEXT_PUBLIC_API_URL=https://your-app-name.onrender.com
+
+# Payment and external services
+NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_live_your_paystack_public_key_here
+NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
+
+# Application settings
+NEXT_PUBLIC_APP_NAME=VibeChops
+NEXT_PUBLIC_APP_VERSION=1.0.0
+
+# Feature flags
+NEXT_PUBLIC_ENABLE_LOCATION_SERVICES=true
+NEXT_PUBLIC_ENABLE_ANALYTICS=false
+
+# Map services (for future geocoding enhancements)
+NEXT_PUBLIC_MAPBOX_TOKEN=your_mapbox_token_here
+
+# Sentry for error tracking (optional)
+NEXT_PUBLIC_SENTRY_DSN=your_sentry_dsn_here
+
+# Google Analytics (optional)
+NEXT_PUBLIC_GA_ID=your_google_analytics_id_here

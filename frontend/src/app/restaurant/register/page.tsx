@@ -5,6 +5,14 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Shield, Upload, FileText } from 'lucide-react';
 
+const nigerianStates = [
+  'Abia', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa',
+  'Benue', 'Borno', 'Cross River', 'Delta', 'Ebonyi', 'Edo', 'Ekiti',
+  'Enugu', 'FCT', 'Gombe', 'Imo', 'Jigawa', 'Kaduna', 'Kano', 'Katsina',
+  'Kebbi', 'Kogi', 'Kwara', 'Lagos', 'Nasarawa', 'Niger', 'Ogun', 'Ondo',
+  'Osun', 'Oyo', 'Plateau', 'Rivers', 'Sokoto', 'Taraba', 'Yobe', 'Zamfara'
+];
+
 export default function RestaurantRegisterPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({
@@ -12,7 +20,14 @@ export default function RestaurantRegisterPage() {
     email: '',
     password: '',
     phone: '',
-    address: '',
+    address: {
+      street: '',
+      area: '',
+      city: '',
+      state: '',
+      country: 'Nigeria',
+      formattedAddress: '',
+    },
     cuisine: '',
     tinNumber: '',
     rcNumber: '',
@@ -23,6 +38,26 @@ export default function RestaurantRegisterPage() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
 
+  const geocodeAddress = async (street: string, city: string) => {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?` +
+        `q=${encodeURIComponent(street + ', ' + city + ', Nigeria')}` +
+        `&format=json&limit=1`
+      );
+      const data = await response.json();
+      if (data && data.length > 0) {
+        return {
+          lat: parseFloat(data[0].lat),
+          lng: parseFloat(data[0].lon)
+        };
+      }
+    } catch (error) {
+      console.error('Geocoding error:', error);
+    }
+    return null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -32,8 +67,8 @@ export default function RestaurantRegisterPage() {
       return;
     }
 
-    if (!formData.tinNumber || !formData.rcNumber) {
-      setError('TIN Number and RC Number are required');
+    if (!formData.address.street || !formData.address.city || !formData.address.state) {
+      setError('Street address, city, and state are required');
       return;
     }
 
@@ -41,6 +76,18 @@ export default function RestaurantRegisterPage() {
     setUploading(true);
 
     try {
+      // Geocode the address to get coordinates
+      const coords = await geocodeAddress(formData.address.street, formData.address.city);
+      
+      if (!coords) {
+        setError('Could not find coordinates for the address. Please check the address and try again.');
+        setLoading(false);
+        setUploading(false);
+        return;
+      }
+
+      // Create formatted address
+      const formattedAddress = `${formData.address.street}, ${formData.address.area}, ${formData.address.city}, ${formData.address.state}, Nigeria`;
       // Upload documents first
       const formDataUpload = new FormData();
       formDataUpload.append('cacCertificate', cacCertificate);
@@ -69,6 +116,14 @@ export default function RestaurantRegisterPage() {
         },
         body: JSON.stringify({
           ...formData,
+          address: {
+            ...formData.address,
+            formattedAddress
+          },
+          location: {
+            type: 'Point',
+            coordinates: [coords.lng, coords.lat]
+          },
           ...uploadData,
           verificationStatus: 'pending_verification',
         }),
@@ -89,11 +144,24 @@ export default function RestaurantRegisterPage() {
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData(prev => ({
-      ...prev,
-      [e.target.name]: e.target.value
-    }));
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    
+    if (name.startsWith('address.')) {
+      const addressField = name.split('.')[1];
+      setFormData(prev => ({
+        ...prev,
+        address: {
+          ...prev.address,
+          [addressField]: value
+        }
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   return (
@@ -176,20 +244,72 @@ export default function RestaurantRegisterPage() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold mb-2" style={{ color: '#1C1C1E' }}>
-                Address
-              </label>
-              <textarea
-                name="address"
-                value={formData.address}
-                onChange={handleChange}
-                required
-                rows={3}
-                className="w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2"
-                style={{ borderColor: '#E8E8E8', color: '#1C1C1E' }}
-                placeholder="Your full address"
-              />
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold mb-2" style={{ color: '#1C1C1E' }}>
+                  Street Address
+                </label>
+                <input
+                  type="text"
+                  name="address.street"
+                  value={formData.address.street}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2"
+                  style={{ borderColor: '#E8E8E8', color: '#1C1C1E' }}
+                  placeholder="e.g., 14 Shehu Laminu Way"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2" style={{ color: '#1C1C1E' }}>
+                  Area/District
+                </label>
+                <input
+                  type="text"
+                  name="address.area"
+                  value={formData.address.area}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2"
+                  style={{ borderColor: '#E8E8E8', color: '#1C1C1E' }}
+                  placeholder="e.g., Gwange, Bulumkutu"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2" style={{ color: '#1C1C1E' }}>
+                  City
+                </label>
+                <input
+                  type="text"
+                  name="address.city"
+                  value={formData.address.city}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2"
+                  style={{ borderColor: '#E8E8E8', color: '#1C1C1E' }}
+                  placeholder="e.g., Maiduguri"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2" style={{ color: '#1C1C1E' }}>
+                  State
+                </label>
+                <select
+                  name="address.state"
+                  value={formData.address.state}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2"
+                  style={{ borderColor: '#E8E8E8', color: '#1C1C1E' }}
+                >
+                  <option value="">Select a state</option>
+                  {nigerianStates.map(state => (
+                    <option key={state} value={state}>{state}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div>

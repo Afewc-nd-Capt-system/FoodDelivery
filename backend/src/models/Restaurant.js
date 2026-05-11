@@ -138,12 +138,24 @@ const restaurantSchema = new mongoose.Schema({
     default: '$$',
   },
   address: {
-    type: String,
-    required: true,
+    street: String,
+    area: String,
+    city: String,
+    state: String,
+    country: { type: String, default: 'Nigeria' },
+    formattedAddress: String,
   },
   location: {
-    city: String,
-    area: String,
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point'
+    },
+    coordinates: {
+      type: [Number],
+      required: true,
+      default: [0, 0]
+    }
   },
   menu: [menuItemSchema],
   reviews: [reviewSchema],
@@ -232,8 +244,9 @@ const restaurantSchema = new mongoose.Schema({
 
 restaurantSchema.index({ deletedAt: 1 });
 restaurantSchema.index({ cuisine: 1 });
-restaurantSchema.index({ 'location.city': 1 });
-restaurantSchema.index({ 'location.area': 1 });
+restaurantSchema.index({ 'address.city': 1 });
+restaurantSchema.index({ 'address.state': 1 });
 restaurantSchema.index({ rating: -1 });
+restaurantSchema.index({ location: '2dsphere' });
 
 module.exports = mongoose.model('Restaurant', restaurantSchema);

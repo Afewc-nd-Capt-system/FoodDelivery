@@ -4,14 +4,30 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
+const nigerianStates = [
+  'Abia', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa',
+  'Benue', 'Borno', 'Cross River', 'Delta', 'Ebonyi', 'Edo', 'Ekiti',
+  'Enugu', 'FCT', 'Gombe', 'Imo', 'Jigawa', 'Kaduna', 'Kano', 'Katsina',
+  'Kebbi', 'Kogi', 'Kwara', 'Lagos', 'Nasarawa', 'Niger', 'Ogun', 'Ondo',
+  'Osun', 'Oyo', 'Plateau', 'Rivers', 'Sokoto', 'Taraba', 'Yobe', 'Zamfara'
+];
+
 export default function VendorRegisterPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({
-    name: '',
+    businessName: '',
+    ownerName: '',
     email: '',
     password: '',
     phone: '',
-    address: '',
+    address: {
+      street: '',
+      area: '',
+      city: '',
+      state: '',
+      country: 'Nigeria',
+      formattedAddress: '',
+    },
     cuisine: '',
     cookingDays: [] as string[],
   });
@@ -19,6 +35,26 @@ export default function VendorRegisterPage() {
   const [loading, setLoading] = useState(false);
 
   const cookingDaysOptions = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  const geocodeAddress = async (street: string, city: string) => {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?` +
+        `q=${encodeURIComponent(street + ', ' + city + ', Nigeria')}` +
+        `&format=json&limit=1`
+      );
+      const data = await response.json();
+      if (data && data.length > 0) {
+        return {
+          lat: parseFloat(data[0].lat),
+          lng: parseFloat(data[0].lon)
+        };
+      }
+    } catch (error) {
+      console.error('Geocoding error:', error);
+    }
+    return null;
+  };
 
   const handleDayToggle = (day: string) => {
     setFormData(prev => ({
@@ -32,15 +68,48 @@ export default function VendorRegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (!formData.address.street || !formData.address.city || !formData.address.state) {
+      setError('Street address, city, and state are required');
+      return;
+    }
+
+    if (formData.cookingDays.length === 0) {
+      setError('Please select at least one cooking day');
+      return;
+    }
+
     setLoading(true);
 
     try {
+      // Geocode the address to get coordinates
+      const coords = await geocodeAddress(formData.address.street, formData.address.city);
+      
+      if (!coords) {
+        setError('Could not find coordinates for the address. Please check the address and try again.');
+        setLoading(false);
+        return;
+      }
+
+      // Create formatted address
+      const formattedAddress = `${formData.address.street}, ${formData.address.area}, ${formData.address.city}, ${formData.address.state}, Nigeria`;
       const response = await fetch('/api/v2/vendors/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          address: {
+            ...formData.address,
+            formattedAddress
+          },
+          location: {
+            type: 'Point',
+            coordinates: [coords.lng, coords.lat]
+          },
+          verificationStatus: 'pending_verification',
+        }),
       });
 
       const data = await response.json();
@@ -58,11 +127,24 @@ export default function VendorRegisterPage() {
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData(prev => ({
-      ...prev,
-      [e.target.name]: e.target.value
-    }));
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    
+    if (name.startsWith('address.')) {
+      const addressField = name.split('.')[1];
+      setFormData(prev => ({
+        ...prev,
+        address: {
+          ...prev.address,
+          [addressField]: value
+        }
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   return (
@@ -87,13 +169,29 @@ export default function VendorRegisterPage() {
               </label>
               <input
                 type="text"
-                name="name"
-                value={formData.name}
+                name="businessName"
+                value={formData.businessName}
                 onChange={handleChange}
                 required
                 className="w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2"
                 style={{ borderColor: '#E8E8E8', color: '#1C1C1E' }}
                 placeholder="Your business name"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold mb-2" style={{ color: '#1C1C1E' }}>
+                Owner Name
+              </label>
+              <input
+                type="text"
+                name="ownerName"
+                value={formData.ownerName}
+                onChange={handleChange}
+                required
+                className="w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2"
+                style={{ borderColor: '#E8E8E8', color: '#1C1C1E' }}
+                placeholder="Your full name"
               />
             </div>
 
@@ -145,20 +243,72 @@ export default function VendorRegisterPage() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold mb-2" style={{ color: '#1C1C1E' }}>
-                Address
-              </label>
-              <textarea
-                name="address"
-                value={formData.address}
-                onChange={handleChange}
-                required
-                rows={3}
-                className="w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2"
-                style={{ borderColor: '#E8E8E8', color: '#1C1C1E' }}
-                placeholder="Your full address"
-              />
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold mb-2" style={{ color: '#1C1C1E' }}>
+                  Street Address
+                </label>
+                <input
+                  type="text"
+                  name="address.street"
+                  value={formData.address.street}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2"
+                  style={{ borderColor: '#E8E8E8', color: '#1C1C1E' }}
+                  placeholder="e.g., 14 Shehu Laminu Way"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2" style={{ color: '#1C1C1E' }}>
+                  Area/District
+                </label>
+                <input
+                  type="text"
+                  name="address.area"
+                  value={formData.address.area}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2"
+                  style={{ borderColor: '#E8E8E8', color: '#1C1C1E' }}
+                  placeholder="e.g., Gwange, Bulumkutu"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2" style={{ color: '#1C1C1E' }}>
+                  City
+                </label>
+                <input
+                  type="text"
+                  name="address.city"
+                  value={formData.address.city}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2"
+                  style={{ borderColor: '#E8E8E8', color: '#1C1C1E' }}
+                  placeholder="e.g., Maiduguri"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2" style={{ color: '#1C1C1E' }}>
+                  State
+                </label>
+                <select
+                  name="address.state"
+                  value={formData.address.state}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2"
+                  style={{ borderColor: '#E8E8E8', color: '#1C1C1E' }}
+                >
+                  <option value="">Select a state</option>
+                  {nigerianStates.map(state => (
+                    <option key={state} value={state}>{state}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div>

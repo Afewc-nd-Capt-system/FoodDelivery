@@ -3,21 +3,83 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ShoppingCart, Menu, X, MapPin, ChevronDown, User, Bell, Search } from 'lucide-react';
+import { ShoppingCart, Menu, X, MapPin, ChevronDown, User, Bell, Search, Loader2 } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
+import { useLocation } from '@/context/LocationContext';
 
-const locations = ['Ikeja, Lagos', 'Victoria Island, Lagos', 'Lekki Phase 1', 'Surulere, Lagos', 'Yaba, Lagos', 'Ajah, Lagos'];
+const nigerianStates = [
+  'Abia', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa',
+  'Benue', 'Borno', 'Cross River', 'Delta', 'Ebonyi', 'Edo', 'Ekiti',
+  'Enugu', 'FCT', 'Gombe', 'Imo', 'Jigawa', 'Kaduna', 'Kano', 'Katsina',
+  'Kebbi', 'Kogi', 'Kwara', 'Lagos', 'Nasarawa', 'Niger', 'Ogun', 'Ondo',
+  'Osun', 'Oyo', 'Plateau', 'Rivers', 'Sokoto', 'Taraba', 'Yobe', 'Zamfara'
+];
+
+const majorCities = [
+  'Lagos', 'Abuja', 'Kano', 'Ibadan', 'Kaduna', 'Port Harcourt', 
+  'Benin City', 'Maiduguri', 'Zaria', 'Aba', 'Jos', 'Ilorin',
+  'Oyo', 'Enugu', 'Abeokuta', 'Onitsha', 'Uyo', 'Warri', 'Osogbo', 'Ikeja'
+];
 
 export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [locationOpen, setLocationOpen] = useState(false);
-  const [location, setLocation] = useState('Ikeja, Lagos');
   const [scrolled, setScrolled] = useState(false);
+  const [citySearch, setCitySearch] = useState('');
   const { totalItems } = useCart();
   const { user } = useAuth();
+  const { 
+    location: userLocation, 
+    isDetecting, 
+    detectionError, 
+    isLocationEnabled, 
+    detectLocation, 
+    setLocation 
+  } = useLocation();
   const router = useRouter();
   const pathname = usePathname();
+
+  // Get display text for location
+  const getLocationDisplay = () => {
+    if (userLocation.city && userLocation.state) {
+      return `${userLocation.city}, ${userLocation.state}`;
+    }
+    return userLocation.city || 'Select Location';
+  };
+
+  // Handle location selection
+  const handleLocationSelect = async (city: string, state?: string) => {
+    if (state) {
+      setLocation({ city, state, country: 'Nigeria' });
+    } else {
+      // Try to find state for city or use city as both
+      const foundState = nigerianStates.find(s => s.toLowerCase() === city.toLowerCase());
+      setLocation({ 
+        city, 
+        state: foundState || city, 
+        country: 'Nigeria' 
+      });
+    }
+    setLocationOpen(false);
+  };
+
+  // Handle geolocation
+  const handleDetectLocation = async () => {
+    try {
+      await detectLocation();
+      setLocationOpen(false);
+    } catch (error) {
+      // Error is handled in context
+    }
+  };
+
+  // Filter cities based on search
+  const filteredCities = citySearch
+    ? majorCities.filter(city => 
+        city.toLowerCase().includes(citySearch.toLowerCase())
+      )
+    : majorCities;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -127,21 +189,25 @@ export function Navbar() {
                 className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl transition-colors hover:bg-orange-50"
                 style={{ color: '#1C1C1E' }}
               >
-                <MapPin size={15} style={{ color: '#E8621A' }} />
-                <span className="max-w-[140px] truncate">{location}</span>
-                <ChevronDown
-                  size={13}
-                  style={{
-                    color: '#A0A0A0',
-                    transform: locationOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                    transition: 'transform 0.2s',
-                  }}
-                />
+                <MapPin size={15} style={{ color: isLocationEnabled ? '#16A34A' : '#E8621A' }} />
+                <span className="max-w-[140px] truncate">{getLocationDisplay()}</span>
+                {isDetecting ? (
+                  <Loader2 size={13} className="animate-spin" style={{ color: '#E8621A' }} />
+                ) : (
+                  <ChevronDown
+                    size={13}
+                    style={{
+                      color: '#A0A0A0',
+                      transform: locationOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.2s',
+                    }}
+                  />
+                )}
               </button>
 
               {locationOpen && (
                 <div
-                  className="absolute top-full left-0 mt-2 w-56 bg-white rounded-2xl py-2 z-50"
+                  className="absolute top-full left-0 mt-2 w-80 bg-white rounded-2xl py-2 z-50 max-h-96 overflow-y-auto"
                   style={{ boxShadow: '0 12px 40px rgba(0,0,0,0.12)', border: '1px solid #F0EAE0' }}
                 >
                   <div className="px-3 pb-2 pt-1">
@@ -149,20 +215,65 @@ export function Navbar() {
                       Deliver to
                     </p>
                   </div>
-                  {locations.map(loc => (
-                    <button
-                      key={loc}
-                      onClick={() => { setLocation(loc); setLocationOpen(false); }}
-                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors hover:bg-orange-50"
-                      style={{ color: location === loc ? '#E8621A' : '#1C1C1E', fontWeight: location === loc ? '600' : '400' }}
-                    >
-                      <MapPin size={13} style={{ color: location === loc ? '#E8621A' : '#A0A0A0' }} />
-                      {loc}
-                      {location === loc && (
-                        <div className="ml-auto w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#E8621A' }} />
-                      )}
-                    </button>
-                  ))}
+
+                  {/* Detect location button */}
+                  <button
+                    onClick={handleDetectLocation}
+                    disabled={isDetecting}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors hover:bg-orange-50 disabled:opacity-50"
+                    style={{ color: isDetecting ? '#A0A0A0' : '#E8621A' }}
+                  >
+                    {isDetecting ? (
+                      <>
+                        <Loader2 size={13} className="animate-spin" />
+                        <span>Detecting location...</span>
+                      </>
+                    ) : (
+                      <>
+                        <MapPin size={13} />
+                        <span>Use current location</span>
+                      </>
+                    )}
+                  </button>
+
+                  {detectionError && (
+                    <div className="px-4 py-2 text-xs text-red-600 border-b" style={{ borderColor: '#F0EAE0' }}>
+                      {detectionError}
+                    </div>
+                  )}
+
+                  {/* City search */}
+                  <div className="px-4 py-2 border-b" style={{ borderColor: '#F0EAE0' }}>
+                    <input
+                      type="text"
+                      placeholder="Search city..."
+                      value={citySearch}
+                      onChange={(e) => setCitySearch(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
+                      style={{ borderColor: '#E8E8E8' }}
+                    />
+                  </div>
+
+                  {/* Cities list */}
+                  <div className="max-h-48 overflow-y-auto">
+                    {filteredCities.map(city => (
+                      <button
+                        key={city}
+                        onClick={() => handleLocationSelect(city)}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors hover:bg-orange-50"
+                        style={{ 
+                          color: userLocation.city === city ? '#E8621A' : '#1C1C1E', 
+                          fontWeight: userLocation.city === city ? '600' : '400' 
+                        }}
+                      >
+                        <MapPin size={13} style={{ color: userLocation.city === city ? '#E8621A' : '#A0A0A0' }} />
+                        {city}
+                        {userLocation.city === city && (
+                          <div className="ml-auto w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#E8621A' }} />
+                        )}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -267,27 +378,74 @@ export function Navbar() {
               className="flex items-center gap-2 px-3 py-2.5 rounded-xl mb-3"
               style={{ backgroundColor: '#FFF1E8' }}
             >
-              <MapPin size={15} style={{ color: '#E8621A' }} />
-              <span className="text-sm font-semibold" style={{ color: '#1C1C1E' }}>{location}</span>
-              <button
-                onClick={() => setLocationOpen(!locationOpen)}
-                className="ml-auto text-xs font-semibold"
-                style={{ color: '#E8621A' }}
-              >
-                Change
-              </button>
+              <MapPin size={15} style={{ color: isLocationEnabled ? '#16A34A' : '#E8621A' }} />
+              <span className="text-sm font-semibold" style={{ color: '#1C1C1E' }}>{getLocationDisplay()}</span>
+              {isDetecting ? (
+                <Loader2 size={12} className="animate-spin ml-auto" style={{ color: '#E8621A' }} />
+              ) : (
+                <button
+                  onClick={() => setLocationOpen(!locationOpen)}
+                  className="ml-auto text-xs font-semibold"
+                  style={{ color: '#E8621A' }}
+                >
+                  Change
+                </button>
+              )}
             </div>
 
             {locationOpen && (
               <div className="mb-3 rounded-xl overflow-hidden border" style={{ borderColor: '#F0EAE0' }}>
-                {locations.map(loc => (
+                {/* Detect location button */}
+                <button
+                  onClick={handleDetectLocation}
+                  disabled={isDetecting}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors hover:bg-orange-50 disabled:opacity-50 border-b"
+                  style={{ borderColor: '#F0EAE0', color: isDetecting ? '#A0A0A0' : '#E8621A' }}
+                >
+                  {isDetecting ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      <span>Detecting location...</span>
+                    </>
+                  ) : (
+                    <>
+                      <MapPin size={13} />
+                      <span>Use current location</span>
+                    </>
+                  )}
+                </button>
+
+                {detectionError && (
+                  <div className="px-4 py-2 text-xs text-red-600 border-b" style={{ borderColor: '#F0EAE0' }}>
+                    {detectionError}
+                  </div>
+                )}
+
+                {/* City search */}
+                <div className="px-4 py-2 border-b" style={{ borderColor: '#F0EAE0' }}>
+                  <input
+                    type="text"
+                    placeholder="Search city..."
+                    value={citySearch}
+                    onChange={(e) => setCitySearch(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
+                    style={{ borderColor: '#E8E8E8' }}
+                  />
+                </div>
+
+                {/* Cities list */}
+                {filteredCities.map(city => (
                   <button
-                    key={loc}
-                    onClick={() => { setLocation(loc); setLocationOpen(false); }}
+                    key={city}
+                    onClick={() => handleLocationSelect(city)}
                     className="w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-orange-50 border-b last:border-0"
-                    style={{ color: location === loc ? '#E8621A' : '#636366', borderColor: '#F0EAE0', fontWeight: location === loc ? '600' : '400' }}
+                    style={{ 
+                      color: userLocation.city === city ? '#E8621A' : '#636366', 
+                      borderColor: '#F0EAE0', 
+                      fontWeight: userLocation.city === city ? '600' : '400' 
+                    }}
                   >
-                    {loc}
+                    {city}
                   </button>
                 ))}
               </div>

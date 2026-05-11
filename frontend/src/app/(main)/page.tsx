@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, MapPin, ChevronRight, Star, Clock, Zap, Shield, ArrowRight, Flame, TrendingUp, ChevronLeft } from 'lucide-react';
+import { Search, MapPin, ChevronRight, Star, Clock, Zap, Shield, ArrowRight, Flame, TrendingUp, ChevronLeft, Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { restaurants, vendors } from '@/data/mockData';
+import { useLocation } from '@/context/LocationContext';
 
 const CATEGORIES = [
   { label: 'Rice', emoji: '🍚' },
@@ -260,6 +261,22 @@ export default function HomePage() {
   const carouselRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
+  const { 
+    location: userLocation, 
+    isLocationEnabled, 
+    isDetecting, 
+    detectionError,
+    detectLocation,
+    setLocation 
+  } = useLocation();
+
+  // Get location display text
+  const getLocationDisplay = () => {
+    if (userLocation.city && userLocation.state) {
+      return `${userLocation.city}, ${userLocation.state}`;
+    }
+    return userLocation.city || 'Select Location';
+  };
 
   const handleScroll = () => {
     if (!carouselRef.current) return;
@@ -275,7 +292,25 @@ export default function HomePage() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    router.push(`/restaurants${search ? `?q=${encodeURIComponent(search)}` : ''}`);
+    let url = '/restaurants';
+    const params = new URLSearchParams();
+    
+    if (search) {
+      params.set('q', search);
+    }
+    
+    if (isLocationEnabled && userLocation.lat && userLocation.lng) {
+      params.set('lat', userLocation.lat.toString());
+      params.set('lng', userLocation.lng.toString());
+    } else if (isLocationEnabled && userLocation.city) {
+      params.set('city', userLocation.city);
+    }
+    
+    if (params.toString()) {
+      url += `?${params.toString()}`;
+    }
+    
+    router.push(url);
   };
 
   const openRestaurants = restaurants.filter(r => r.isOpen);
@@ -327,7 +362,7 @@ export default function HomePage() {
               }}
             >
               <Flame size={12} />
-              #1 Food Delivery in Lagos
+              #1 Food Delivery{isLocationEnabled ? ` in ${userLocation.city}` : ' in Nigeria'}
               <TrendingUp size={12} />
             </div>
 
@@ -348,6 +383,37 @@ export default function HomePage() {
               From the best Nigerian restaurants to your doorstep in 30 minutes or less. Real food, real vibes.
             </p>
 
+            {/* Location prompt if not enabled */}
+            {!isLocationEnabled && (
+              <div
+                className="mb-6 p-4 rounded-2xl flex items-center justify-between"
+                style={{ backgroundColor: 'rgba(232,98,26,0.1)', border: '1px solid rgba(232,98,26,0.3)' }}
+              >
+                <div className="flex items-center gap-3">
+                  <MapPin size={20} style={{ color: '#E8621A' }} />
+                  <div>
+                    <p className="text-sm font-semibold text-white">Enable location to see restaurants near you</p>
+                    <p className="text-xs text-white/70">Get personalized recommendations and faster delivery</p>
+                  </div>
+                </div>
+                <button
+                  onClick={detectLocation}
+                  disabled={isDetecting}
+                  className="px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+                  style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}
+                >
+                  {isDetecting ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin inline mr-1" />
+                      Detecting...
+                    </>
+                  ) : (
+                    'Enable Location'
+                  )}
+                </button>
+              </div>
+            )}
+
             {/* Search form */}
             <form onSubmit={handleSearch}>
               <div
@@ -359,12 +425,13 @@ export default function HomePage() {
               >
                 {/* Location */}
                 <div
-                  className="hidden sm:flex items-center gap-1.5 pl-3 pr-3 border-r shrink-0"
+                  className="hidden sm:flex items-center gap-1.5 pl-3 pr-3 border-r shrink-0 cursor-pointer hover:bg-gray-50 rounded-xl transition-colors"
                   style={{ borderColor: '#F0EAE0' }}
+                  onClick={() => router.push('/restaurants?location=true')}
                 >
-                  <MapPin size={15} style={{ color: '#E8621A' }} />
+                  <MapPin size={15} style={{ color: isLocationEnabled ? '#16A34A' : '#E8621A' }} />
                   <span className="text-sm font-semibold whitespace-nowrap" style={{ color: '#1C1C1E' }}>
-                    Ikeja, Lagos
+                    {getLocationDisplay()}
                   </span>
                 </div>
                 {/* Input */}
@@ -372,7 +439,7 @@ export default function HomePage() {
                   type="text"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  placeholder="Search for food, restaurants, or dishes..."
+                  placeholder={isLocationEnabled ? "Search for food, restaurants, or dishes..." : "Enable location to search nearby restaurants..."}
                   className="flex-1 text-sm outline-none py-2.5 min-w-0 placeholder:text-gray-400"
                   style={{ color: '#1C1C1E' }}
                 />
@@ -391,20 +458,28 @@ export default function HomePage() {
             {/* Popular tags */}
             <div className="flex flex-wrap items-center gap-2 mt-5">
               <span className="text-white/30 text-xs font-medium">Trending:</span>
-              {['Jollof Rice', 'Suya', 'Egusi', 'Shawarma', 'Puff Puff'].map(term => (
-                <button
-                  key={term}
-                  onClick={() => router.push(`/restaurants?q=${encodeURIComponent(term)}`)}
-                  className="px-3 py-1 rounded-full text-xs font-medium transition-all hover:bg-white/20"
-                  style={{
-                    backgroundColor: 'rgba(255,255,255,0.08)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    color: 'rgba(255,255,255,0.65)',
-                  }}
-                >
-                  {term}
-                </button>
-              ))}
+              {['Jollof Rice', 'Suya', 'Egusi', 'Shawarma', 'Puff Puff'].map(term => {
+                let url = `/restaurants?q=${encodeURIComponent(term)}`;
+                if (isLocationEnabled && userLocation.lat && userLocation.lng) {
+                  url += `&lat=${userLocation.lat}&lng=${userLocation.lng}`;
+                } else if (isLocationEnabled && userLocation.city) {
+                  url += `&city=${encodeURIComponent(userLocation.city)}`;
+                }
+                return (
+                  <button
+                    key={term}
+                    onClick={() => router.push(url)}
+                    className="px-3 py-1 rounded-full text-xs font-medium transition-all hover:bg-white/20"
+                    style={{
+                      backgroundColor: 'rgba(255,255,255,0.08)',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      color: 'rgba(255,255,255,0.65)',
+                    }}
+                  >
+                    {term}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

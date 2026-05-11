@@ -39,7 +39,11 @@ router.get('/', async (req, res) => {
       rating,
       maxDeliveryTime,
       dietary,
+      lat,
+      lng,
+      radius = 10,
       city,
+      state,
       area,
       page = 1,
       limit = 20
@@ -47,8 +51,58 @@ router.get('/', async (req, res) => {
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    const restaurantQuery = { isOpen: true };
-    const vendorQuery = { isAvailable: true };
+    const restaurantQuery = { 
+      isOpen: true,
+      verificationStatus: 'approved'
+    };
+    const vendorQuery = { 
+      isAvailable: true,
+      verificationStatus: 'approved'
+    };
+
+    // Location filtering
+    if (lat && lng) {
+      // Use geospatial query with coordinates
+      restaurantQuery.location = {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [parseFloat(lng), parseFloat(lat)]
+          },
+          $maxDistance: parseFloat(radius) * 1000 // convert km to meters
+        }
+      };
+      vendorQuery.location = {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [parseFloat(lng), parseFloat(lat)]
+          },
+          $maxDistance: parseFloat(radius) * 1000 // convert km to meters
+        }
+      };
+    } else if (city) {
+      // Fallback to city-based filtering
+      restaurantQuery['address.city'] = { $regex: city, $options: 'i' };
+      vendorQuery['address.city'] = { $regex: city, $options: 'i' };
+    } else if (state) {
+      // Fallback to state-based filtering
+      restaurantQuery['address.state'] = { $regex: state, $options: 'i' };
+      vendorQuery['address.state'] = { $regex: state, $options: 'i' };
+    } else {
+      // No location provided - return empty array with message
+      return res.json({
+        success: true,
+        data: [],
+        pagination: {
+          total: 0,
+          page: parseInt(page),
+          totalPages: 0,
+          limit: parseInt(limit)
+        },
+        message: 'Please enable location or select a city to search'
+      });
+    }
 
     if (q) {
       const searchRegex = new RegExp(q, 'i');

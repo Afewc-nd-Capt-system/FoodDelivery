@@ -1,0 +1,112 @@
+services:
+  # Main API service
+  - type: web
+    name: vibe-chops-api
+    runtime: node
+    plan: starter
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    
+    # Environment variables (these will be set in Render dashboard)
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        sync: false # Set in Render dashboard
+      - key: MONGODB_URI
+        sync: false # Set in Render dashboard
+      - key: PAYSTACK_SECRET_KEY
+        sync: false # Set in Render dashboard
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false # Set in Render dashboard
+      - key: CLOUDINARY_API_KEY
+        sync: false # Set in Render dashboard
+      - key: CLOUDINARY_API_SECRET
+        sync: false # Set in Render dashboard
+      - key: EMAIL_USER
+        sync: false # Set in Render dashboard
+      - key: EMAIL_PASS
+        sync: false # Set in Render dashboard
+      - key: FRONTEND_URL
+        value: https://vibe-chops.vercel.app
+      - key: CORS_ORIGIN
+        value: https://vibe-chops.vercel.app
+
+    # Build and deployment settings
+    buildFilter:
+      paths:
+        - src/**/*.js
+        - src/**/*.ts
+        - package*.json
+        - server.js
+      ignoredPaths:
+        - README.md
+        - .git/**
+        - node_modules/**
+
+    # Resource limits for starter plan
+    disk:
+      name: vibe-chops-disk
+      sizeGB: 1
+      mountPath: /opt/render/project/src/uploads
+
+  # Database service (MongoDB)
+  - type: pserv
+    name: vibe-chops-mongodb
+    runtime: image
+    image:
+      url: mongo:latest
+    plan: starter
+    disk:
+      name: vibe-chops-mongo-data
+      sizeGB: 10
+      mountPath: /data/db
+    envVars:
+      - key: MONGO_INITDB_ROOT_USERNAME
+        sync: false # Set in Render dashboard
+      - key: MONGO_INITDB_ROOT_PASSWORD
+        sync: false # Set in Render dashboard
+      - key: MONGO_INITDB_DATABASE
+        value: vibe_chops
+
+# Global settings
+version: "1"
+
+# Auto-scaling configuration
+autoscaling:
+  minInstances: 1
+  maxInstances: 3
+  metrics:
+    - type: cpu
+      target: 70
+    - type: memory
+      target: 80
+
+# Networking
+networking:
+  port: 10000
+  httpPort: 10000
+  protocol: http
+
+# Health check configuration
+healthCheck:
+  http:
+    path: /health
+    port: 10000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# Build optimization
+build:
+  npm:
+    # Skip dev dependencies for smaller build
+    productionOnly: true
+    # Cache node modules for faster builds
+    cache: true
