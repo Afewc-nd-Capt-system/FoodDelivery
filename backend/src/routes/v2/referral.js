@@ -10,6 +10,40 @@ const Order = require('../../models/Order');
 
 const router = express.Router();
 
+router.get('/', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    let referral = await Referral.findOne({ referrer: req.user.id, deletedAt: null });
+
+    if (!referral) {
+      referral = await Referral.create({
+        referrer: req.user.id,
+        referralCode: 'VIBE' + Math.random().toString(36).substring(2, 10).toUpperCase()
+      });
+    }
+
+    const stats = await Referral.aggregate([
+      { $match: { referrer: user._id, deletedAt: null } },
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+
+    const pendingCount = stats.find(s => s._id === 'pending')?.count || 0;
+    const completedCount = stats.find(s => s._id === 'completed')?.count || 0;
+
+    res.json({
+      success: true,
+      data: {
+        referralCode: referral.referralCode,
+        pendingReferrals: pendingCount,
+        completedReferrals: completedCount,
+        shareUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/register?ref=${referral.referralCode}`
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 router.get('/my-code', authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.user.id);

@@ -60,6 +60,7 @@ router.post('/register', [
     setTokenCookie(res, token);
 
     res.status(201).json({
+      token,
       user: {
         id: user._id,
         name: user.name,
@@ -101,6 +102,7 @@ router.post('/login', loginLimiter, bruteForceProtection, [
     setTokenCookie(res, token);
 
     res.json({
+      token,
       user: {
         id: user._id,
         name: user.name,

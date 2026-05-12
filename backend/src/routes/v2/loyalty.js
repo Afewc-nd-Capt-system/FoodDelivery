@@ -7,6 +7,30 @@ const Order = require('../../models/Order');
 
 const router = express.Router();
 
+router.get('/', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    const config = await LoyaltyConfig.findOne({ isActive: true });
+    res.json({
+      success: true,
+      data: {
+        points: user.loyaltyPoints || 0,
+        config: config ? {
+          pointsEarnRate: config.pointsEarnRate,
+          pointsRedemptionValue: config.pointsRedemptionValue,
+          minPointsRedemption: config.minPointsRedemption,
+          maxRedemptionPercent: config.maxRedemptionPercent,
+          newUserBonus: config.newUserBonus,
+          referralPointsReward: config.referralPointsReward,
+          referralDiscountValue: config.referralDiscountValue,
+        } : null
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 router.get('/config', async (req, res) => {
   try {
     let config = await LoyaltyConfig.findOne({ isActive: true });

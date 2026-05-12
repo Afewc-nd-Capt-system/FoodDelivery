@@ -152,6 +152,7 @@ app.use('/api/v2/users', require('./routes/users'));
 app.use('/api/v2/loyalty', require('./routes/v2/loyalty'));
 app.use('/api/v2/wallet', require('./routes/v2/wallet'));
 app.use('/api/v2/subscription', require('./routes/v2/subscription'));
+app.use('/api/v2/subscriptions', require('./routes/v2/subscription'));
 app.use('/api/v2/referral', require('./routes/v2/referral'));
 app.use('/api/v2/admin/loyalty', authMiddleware, require('./routes/v2/admin-loyalty'));
 app.use('/api/v2/recommendations', require('./routes/v2/recommendations'));
