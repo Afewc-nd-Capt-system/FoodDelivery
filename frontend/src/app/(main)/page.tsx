@@ -337,11 +337,13 @@ export default function HomePage() {
         {/* Hero food image — right side */}
         <div className="absolute right-0 top-0 bottom-0 w-[52%] hidden lg:block pointer-events-none">
           <Image
-            src="https://images.unsplash.com/photo-1664992960082-0ea299a9c53e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=900"
+            src="https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=600&q=80"
             alt="Delicious Nigerian food"
-            fill
-            className="object-cover"
+            width={600}
+            height={500}
+            className="object-cover w-full h-full"
             style={{ opacity: 0.35 }}
+            priority
           />
           <div
             className="absolute inset-0"
