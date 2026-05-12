@@ -37,7 +37,13 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: [
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'https://vibe-chops.vercel.app',
+      'https://vibechops.vercel.app',
+      process.env.FRONTEND_URL,
+    ].filter(Boolean),
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -48,31 +54,17 @@ setupSocketIO(io);
 app.set('io', io);
 
 const corsOptions = {
-  origin: (origin, callback) => {
-    const allowedOrigins = [
-      process.env.FRONTEND_URL || 'http://localhost:3000',
-      process.env.CORS_ORIGIN || 'http://localhost:3000',
-      'http://localhost:3000',
-      'http://127.0.0.1:3000',
-      'https://vibe-chops.vercel.app', // Production frontend
-    ];
-    
-    // Allow requests with no origin (mobile apps, curl, etc.)
-    if (!origin) {
-      return callback(null, true);
-    }
-    
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.log('CORS blocked origin:', origin);
-      callback(new Error('CORS policy: Origin not allowed'));
-    }
-  },
+  origin: [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'https://vibe-chops.vercel.app',
+    'https://vibechops.vercel.app',
+    process.env.FRONTEND_URL,
+    process.env.CORS_ORIGIN,
+  ].filter(Boolean),
   credentials: true,
-  optionsSuccessStatus: 200,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Seed-Key'],
 };
 
 app.use(morgan('combined'));
@@ -181,7 +173,7 @@ app.use('/api/v2/riders', authMiddleware, require('./routes/v2/riders'));
 app.use('/api/v2/earnings', authMiddleware, require('./routes/v2/earnings'));
 app.use('/api/v2/admin/approvals', authMiddleware, require('./routes/v2/admin-approvals'));
 app.use('/api/v2/admin/revenue', authMiddleware, require('./routes/v2/admin-revenue'));
-app.use('/api/v2/restaurants', authMiddleware, require('./routes/v2/restaurant-docs'));
+app.use('/api/v2/restaurants', require('./routes/v2/restaurant-docs'));
 app.use('/api/v2/subscriptions', authMiddleware, require('./routes/v2/business-subscriptions'));
 app.use('/api/v2/ads', require('./routes/v2/ads'));
 app.use('/api/seed', require('./routes/seed'));

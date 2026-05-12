@@ -13,6 +13,8 @@ const plusJakarta = Plus_Jakarta_Sans({
   variable: '--font-plus-jakarta',
 });
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'VibeChops - Order food you love, delivered fast',
   description: 'Discover, Explore and Eat what you love. Order from restaurants and local vendors.',
