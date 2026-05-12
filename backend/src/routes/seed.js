@@ -6,23 +6,16 @@ const Vendor = require('../models/Vendor');
 const User = require('../models/User');
 
 const restaurants = [
-  { id: '1', name: 'Mama Cass Kitchen', rating: 4.8, reviewCount: 1243, desc: 'Homemade Nigerian classics from the heart of Lagos' },
-  { id: '2', name: 'Chop Chop African Kitchen', rating: 4.6, reviewCount: 892, desc: 'Fresh African flavors delivered daily' },
-  { id: '3', name: 'Pepper Spot Grill', rating: 4.7, reviewCount: 654, desc: 'Spicy Nigerian dishes made to order' },
-  { id: '4', name: 'Port Harcourt Seafood Grill', rating: 4.5, reviewCount: 445, desc: 'Premium seafood straight from the Niger Delta' },
-  { id: '5', name: 'Ibadan Amala Hub', rating: 4.4, reviewCount: 567, desc: 'Traditional Yoruba cuisine at its best' },
-  { id: '6', name: 'Enugu Coal City Kitchen', rating: 4.6, reviewCount: 789, desc: 'Igbo delicacies prepared with authentic recipes' },
-  { id: '7', name: 'Benin Edo Kitchen', rating: 4.3, reviewCount: 321, desc: 'Rich Edo kingdom flavors in every meal' },
-  { id: '8', name: 'Borno Delights', rating: 4.5, reviewCount: 234, desc: 'Northern Nigerian cuisine with a modern twist' },
-  { id: '9', name: 'Jos Plateau Grill', rating: 4.7, reviewCount: 456, desc: 'Fresh grilled specialties from the Plateau' },
-  { id: '10', name: 'Calabar Efik Kitchen', rating: 4.8, reviewCount: 678, desc: 'Authentic Efik dishes made with love' },
-];
-
-const restaurantEmails = [
-  'mamacass@vibechops.ng', 'chopchop@vibechops.ng', 'pepperspot@vibechops.ng',
-  'seafood@vibechops.ng', 'amala@vibechops.ng', 'coalcity@vibechops.ng',
-  'edokitchen@vibechops.ng', 'borno@vibechops.ng', 'josgrill@vibechops.ng',
-  'efik@vibechops.ng',
+  { id: '1', name: 'Mama Cass Kitchen', rating: 4.8, reviewCount: 1243 },
+  { id: '2', name: 'Chop Chop African Kitchen', rating: 4.6, reviewCount: 892 },
+  { id: '3', name: 'Pepper Spot Grill', rating: 4.7, reviewCount: 654 },
+  { id: '4', name: 'Port Harcourt Seafood Grill', rating: 4.5, reviewCount: 445 },
+  { id: '5', name: 'Ibadan Amala Hub', rating: 4.4, reviewCount: 567 },
+  { id: '6', name: 'Enugu Coal City Kitchen', rating: 4.6, reviewCount: 789 },
+  { id: '7', name: 'Benin Edo Kitchen', rating: 4.3, reviewCount: 321 },
+  { id: '8', name: 'Borno Delights', rating: 4.5, reviewCount: 234 },
+  { id: '9', name: 'Jos Plateau Grill', rating: 4.7, reviewCount: 456 },
+  { id: '10', name: 'Calabar Efik Kitchen', rating: 4.8, reviewCount: 678 },
 ];
 
 const vendors = [
@@ -48,11 +41,10 @@ router.post('/restaurants', async (req, res) => {
     for (let i = 0; i < restaurants.length; i++) {
       const r = restaurants[i];
       const inserted = await Restaurant.findOneAndUpdate(
-        { email: restaurantEmails[i] },
+        { name: r.name },
         { $setOnInsert: {
           name: r.name,
-          description: r.desc,
-          email: restaurantEmails[i],
+          description: 'Authentic Nigerian cuisine delivered fresh to your door',
           phone: `+2348000000${String(i + 1).padStart(3, '0')}`,
           rating: r.rating,
           reviewCount: r.reviewCount,
@@ -78,7 +70,7 @@ router.post('/restaurants', async (req, res) => {
         }},
         { upsert: true, new: true }
       );
-      results.push({ id: inserted._id, name: inserted.name, email: inserted.email });
+      results.push({ id: inserted._id, name: inserted.name });
     }
 
     res.status(201).json({
