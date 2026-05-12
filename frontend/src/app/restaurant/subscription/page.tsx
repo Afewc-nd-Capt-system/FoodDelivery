@@ -45,7 +45,7 @@ export default function RestaurantSubscriptionPage() {
     try {
       const response = await fetch('/api/v2/subscriptions/current', {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`,
         },
       });
       const data = await response.json();
@@ -66,7 +66,7 @@ export default function RestaurantSubscriptionPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`,
         },
         body: JSON.stringify({
           planId,

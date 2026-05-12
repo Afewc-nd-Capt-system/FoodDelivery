@@ -6,25 +6,25 @@ const Vendor = require('../models/Vendor');
 const User = require('../models/User');
 
 const restaurants = [
-  { id: '1', name: 'Mama Cass Kitchen', rating: 4.8, reviewCount: 1243 },
-  { id: '2', name: 'Chop Chop African Kitchen', rating: 4.6, reviewCount: 892 },
-  { id: '3', name: 'Pepper Spot Grill', rating: 4.7, reviewCount: 654 },
-  { id: '4', name: 'Port Harcourt Seafood Grill', rating: 4.5, reviewCount: 445 },
-  { id: '5', name: 'Ibadan Amala Hub', rating: 4.4, reviewCount: 567 },
-  { id: '6', name: 'Enugu Coal City Kitchen', rating: 4.6, reviewCount: 789 },
-  { id: '7', name: 'Benin Edo Kitchen', rating: 4.3, reviewCount: 321 },
-  { id: '8', name: 'Borno Delights', rating: 4.5, reviewCount: 234 },
-  { id: '9', name: 'Jos Plateau Grill', rating: 4.7, reviewCount: 456 },
-  { id: '10', name: 'Calabar Efik Kitchen', rating: 4.8, reviewCount: 678 },
+  { id: '1', name: 'Mama Cass Kitchen', rating: 4.8, reviewCount: 1243, city: 'Lagos', state: 'Lagos', coords: [3.3792, 6.5244] },
+  { id: '2', name: 'Chop Chop African Kitchen', rating: 4.6, reviewCount: 892, city: 'Abuja', state: 'FCT', coords: [7.4898, 9.0579] },
+  { id: '3', name: 'Pepper Spot Grill', rating: 4.7, reviewCount: 654, city: 'Kano', state: 'Kano', coords: [8.5167, 12.0000] },
+  { id: '4', name: 'Port Harcourt Seafood Grill', rating: 4.5, reviewCount: 445, city: 'Port Harcourt', state: 'Rivers', coords: [7.0134, 4.8156] },
+  { id: '5', name: 'Ibadan Amala Hub', rating: 4.4, reviewCount: 567, city: 'Ibadan', state: 'Oyo', coords: [3.8964, 7.3775] },
+  { id: '6', name: 'Enugu Coal City Kitchen', rating: 4.6, reviewCount: 789, city: 'Enugu', state: 'Enugu', coords: [7.4898, 6.4403] },
+  { id: '7', name: 'Benin Edo Kitchen', rating: 4.3, reviewCount: 321, city: 'Benin City', state: 'Edo', coords: [5.6037, 6.3176] },
+  { id: '8', name: 'Borno Delights', rating: 4.5, reviewCount: 234, city: 'Maiduguri', state: 'Borno', coords: [13.1573, 11.8333] },
+  { id: '9', name: 'Jos Plateau Grill', rating: 4.7, reviewCount: 456, city: 'Jos', state: 'Plateau', coords: [8.8967, 9.9280] },
+  { id: '10', name: 'Calabar Efik Kitchen', rating: 4.8, reviewCount: 678, city: 'Calabar', state: 'Cross River', coords: [8.3222, 4.9750] },
 ];
 
 const vendors = [
-  { id: 'v1', name: "Mama Ngozi's Kitchen", rating: 4.7, reviewCount: 234, address: 'Ikoyi, Lagos' },
-  { id: 'v2', name: "Chef Amaka's Delights", rating: 4.9, reviewCount: 189, address: 'Asokoro, Abuja' },
-  { id: 'v3', name: "Chef Segun's Special", rating: 4.6, reviewCount: 156, address: 'Sabon Gari, Kano' },
-  { id: 'v4', name: 'Sisi Bisi Catering', rating: 4.8, reviewCount: 298, address: 'GRA, Port Harcourt' },
-  { id: 'v5', name: "Mama Funke's Kitchen", rating: 4.5, reviewCount: 167, address: 'Bodija, Ibadan' },
-  { id: 'v6', name: "Aunty Ada's Delicacies", rating: 4.7, reviewCount: 234, address: 'Independence Layout, Enugu' },
+  { id: 'v1', name: "Mama Ngozi's Kitchen", rating: 4.7, reviewCount: 234, address: 'Ikoyi, Lagos', city: 'Lagos', state: 'Lagos', coords: [3.4292, 6.4744] },
+  { id: 'v2', name: "Chef Amaka's Delights", rating: 4.9, reviewCount: 189, address: 'Asokoro, Abuja', city: 'Abuja', state: 'FCT', coords: [7.5198, 9.0779] },
+  { id: 'v3', name: "Chef Segun's Special", rating: 4.6, reviewCount: 156, address: 'Sabon Gari, Kano', city: 'Kano', state: 'Kano', coords: [8.5367, 12.0200] },
+  { id: 'v4', name: 'Sisi Bisi Catering', rating: 4.8, reviewCount: 298, address: 'GRA, Port Harcourt', city: 'Port Harcourt', state: 'Rivers', coords: [7.0334, 4.8356] },
+  { id: 'v5', name: "Mama Funke's Kitchen", rating: 4.5, reviewCount: 167, address: 'Bodija, Ibadan', city: 'Ibadan', state: 'Oyo', coords: [3.9164, 7.3975] },
+  { id: 'v6', name: "Aunty Ada's Delicacies", rating: 4.7, reviewCount: 234, address: 'Independence Layout, Enugu', city: 'Enugu', state: 'Enugu', coords: [7.5098, 6.4603] },
 ];
 
 const vendorEmails = [
@@ -52,16 +52,17 @@ router.post('/restaurants', async (req, res) => {
           deliveryTime: '20-35 min',
           cuisine: ['Nigerian'],
           isOpen: true,
+          isActive: true,
           verificationStatus: 'approved',
           location: {
             type: 'Point',
-            coordinates: [3.3792 + (i * 0.01), 6.5244 + (i * 0.01)],
+            coordinates: r.coords,
           },
           address: {
             street: `${i + 1} Sample Street`,
             area: 'Central Area',
-            city: 'Lagos',
-            state: 'Lagos',
+            city: r.city,
+            state: r.state,
             country: 'Nigeria',
           },
           priceForTwo: 500,
@@ -70,7 +71,7 @@ router.post('/restaurants', async (req, res) => {
         }},
         { upsert: true, new: true }
       );
-      results.push({ id: inserted._id, name: inserted.name });
+      results.push({ id: inserted._id, name: inserted.name, city: inserted.address?.city });
     }
 
     res.status(201).json({
@@ -108,13 +109,13 @@ router.post('/vendors', async (req, res) => {
           minOrderForDelivery: 0,
           location: {
             type: 'Point',
-            coordinates: [3.3792 + (i * 0.015), 6.5244 + (i * 0.015)],
+            coordinates: v.coords,
           },
           address: {
             street: `${i + 1} Vendor Street`,
             area: 'Commercial District',
-            city: 'Lagos',
-            state: 'Lagos',
+            city: v.city,
+            state: v.state,
             country: 'Nigeria',
           },
           payOnDeliveryConfig: { enabled: true, minOrderAmount: 0 },
@@ -186,7 +187,7 @@ router.post('/all', async (req, res) => {
     const results = {};
 
     try {
-      const restaurantResponse = await fetch(`${req.protocol}://${req.get('host')}/api/seed/restaurants`, {
+      const restaurantResponse = await fetch(`${req.protocol}://${req.get('host')}/api/v2/seed/restaurants`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -196,7 +197,7 @@ router.post('/all', async (req, res) => {
     }
 
     try {
-      const vendorResponse = await fetch(`${req.protocol}://${req.get('host')}/api/seed/vendors`, {
+      const vendorResponse = await fetch(`${req.protocol}://${req.get('host')}/api/v2/seed/vendors`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -206,7 +207,7 @@ router.post('/all', async (req, res) => {
     }
 
     try {
-      const userResponse = await fetch(`${req.protocol}://${req.get('host')}/api/seed/users`, {
+      const userResponse = await fetch(`${req.protocol}://${req.get('host')}/api/v2/seed/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -266,6 +267,56 @@ router.delete('/clear', async (req, res) => {
   } catch (error) {
     console.error('Error clearing data:', error);
     res.status(500).json({ error: 'Failed to clear data', details: error.message });
+  }
+});
+
+// GET /api/v2/seed/init - Run full seed with auth guard
+router.get('/init', async (req, res) => {
+  const seedKey = req.headers['x-seed-key'];
+  if (seedKey !== 'VibeChops@Seed2026!') {
+    return res.status(403).json({ error: 'Invalid seed key' });
+  }
+
+  try {
+    const results = {};
+
+    try {
+      const restaurantResponse = await fetch(`${req.protocol}://${req.get('host')}/api/v2/seed/restaurants`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      results.restaurants = await restaurantResponse.json();
+    } catch (error) {
+      results.restaurants = { error: error.message };
+    }
+
+    try {
+      const vendorResponse = await fetch(`${req.protocol}://${req.get('host')}/api/v2/seed/vendors`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      results.vendors = await vendorResponse.json();
+    } catch (error) {
+      results.vendors = { error: error.message };
+    }
+
+    try {
+      const userResponse = await fetch(`${req.protocol}://${req.get('host')}/api/v2/seed/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      results.users = await userResponse.json();
+    } catch (error) {
+      results.users = { error: error.message };
+    }
+
+    res.json({
+      message: 'Seed initialization completed',
+      results,
+    });
+  } catch (error) {
+    console.error('Error during seed init:', error);
+    res.status(500).json({ error: 'Seed init failed', details: error.message });
   }
 });
 

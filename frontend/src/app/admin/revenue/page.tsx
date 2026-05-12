@@ -18,7 +18,7 @@ export default function AdminRevenuePage() {
     try {
       const response = await fetch(`/api/v2/admin/revenue/overview?period=${period}`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`,
         },
       });
       const data = await response.json();
@@ -34,7 +34,7 @@ export default function AdminRevenuePage() {
     try {
       const response = await fetch(`/api/v2/admin/revenue/chart?period=${period}`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`,
         },
       });
       const data = await response.json();

@@ -48,6 +48,7 @@ export function useRouteGuard(config: RouteGuardConfig) {
 }
 
 export function checkRoleAccess(requiredRole: UserRole): boolean {
+  if (typeof window === 'undefined') return false;
   const userRole = localStorage.getItem('userRole') as UserRole | null;
   if (!userRole) return false;
   

@@ -89,7 +89,7 @@ export default function SubscriptionPage() {
       });
       if (response.ok) {
         const data = await response.json();
-        window.location.href = data.paymentUrl;
+        if (typeof window !== 'undefined') window.location.href = data.paymentUrl;
       }
     } catch (error) {
       console.error('Failed to subscribe:', error);

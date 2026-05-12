@@ -27,7 +27,7 @@ export default function LoginPage() {
       await login(email, password);
       // After successful login, redirect will be handled by AuthContext
       // The AuthContext will set the user, and we can use their role to redirect
-      const userRole = localStorage.getItem('userRole') as any;
+      const userRole = typeof window !== 'undefined' ? localStorage.getItem('userRole') as any : null;
       if (userRole) {
         router.push(getDashboardPath(userRole));
       } else {

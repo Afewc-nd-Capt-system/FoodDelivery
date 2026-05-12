@@ -58,6 +58,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
   // Save location to localStorage whenever it changes
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     if (location.lat && location.lng) {
       localStorage.setItem('userLocation', JSON.stringify(location));
       setIsLocationEnabled(true);
@@ -174,7 +175,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       country: 'Nigeria',
       formattedAddress: '',
     });
-    localStorage.removeItem('userLocation');
+    if (typeof window !== 'undefined') localStorage.removeItem('userLocation');
     setIsLocationEnabled(false);
   };
 

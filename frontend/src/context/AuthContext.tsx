@@ -86,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken('logged-in');
     // Store user role in localStorage for role-based routing
     if (data.user?.role) {
-      localStorage.setItem('userRole', data.user.role);
+      if (typeof window !== 'undefined') localStorage.setItem('userRole', data.user.role);
     }
     await fetchUser();
   };
@@ -104,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken('logged-in');
     // Store user role in localStorage for role-based routing
     if (data.user?.role) {
-      localStorage.setItem('userRole', data.user.role);
+      if (typeof window !== 'undefined') localStorage.setItem('userRole', data.user.role);
     }
     await fetchUser();
   };
@@ -121,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setToken(null);
       // Clear user role from localStorage
-      localStorage.removeItem('userRole');
+      if (typeof window !== 'undefined') localStorage.removeItem('userRole');
     }
   };
 
