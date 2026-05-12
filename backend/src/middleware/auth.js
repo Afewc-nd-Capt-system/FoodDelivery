@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 const { isBlacklisted } = require('../utils/tokenBlacklist');
 
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
   try {
     const token = req.cookies?.token || req.header('Authorization')?.replace('Bearer ', '');
 
@@ -9,7 +9,7 @@ const authMiddleware = (req, res, next) => {
       return res.status(401).json({ message: 'No token, authorization denied' });
     }
 
-    if (isBlacklisted(token)) {
+    if (await isBlacklisted(token)) {
       return res.status(401).json({ message: 'Token has been invalidated. Please login again.' });
     }
 

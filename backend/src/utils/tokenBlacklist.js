@@ -25,6 +25,7 @@ const isBlacklisted = async (token) => {
 };
 
 const blacklistMiddleware = async (req, res, next) => {
+  if (process.env.DISABLE_RATE_LIMIT === 'true') return next();
   try {
     const token = req.cookies?.token || req.header('Authorization')?.replace('Bearer ', '');
     if (token && await isBlacklisted(token)) {
