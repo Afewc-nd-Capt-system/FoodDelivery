@@ -134,19 +134,20 @@ mongoose.connection.on('error', (err) => {
   console.error('MongoDB error:', err.message)
 })
 
-app.use('/api/auth', authLimiter, authRoutes);
-app.use('/api/restaurants', restaurantRoutes);
-app.use('/api/orders', orderRoutes);
-app.use('/api/cart', cartRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/payments', paymentRoutes);
-app.use('/api/promo-codes', require('./routes/promoCodes'));
-app.use('/api/delivery', require('./routes/delivery'));
-app.use('/api/vendors', require('./routes/vendors'));
-app.use('/api/uploads', authMiddleware, require('./routes/uploads'));
-app.use('/api/delivery-company', require('./routes/delivery-company'));
-app.use('/api/permissions', require('./routes/permissions'));
-app.use('/api/users', require('./routes/users'));
+app.use('/api/v2/auth', authLimiter, authRoutes);
+app.use('/api/v2/restaurants', require('./routes/v2/restaurant-docs'));
+app.use('/api/v2/restaurants', restaurantRoutes);
+app.use('/api/v2/orders', authMiddleware, require('./routes/v2/orders'));
+app.use('/api/v2/cart', cartRoutes);
+app.use('/api/v2/admin', adminRoutes);
+app.use('/api/v2/payments', paymentRoutes);
+app.use('/api/v2/promo-codes', require('./routes/promoCodes'));
+app.use('/api/v2/delivery', require('./routes/v2/delivery'));
+app.use('/api/v2/vendors', require('./routes/vendors'));
+app.use('/api/v2/uploads', authMiddleware, require('./routes/uploads'));
+app.use('/api/v2/delivery-company', require('./routes/delivery-company'));
+app.use('/api/v2/permissions', require('./routes/permissions'));
+app.use('/api/v2/users', require('./routes/users'));
 
 app.use('/api/v2/loyalty', require('./routes/v2/loyalty'));
 app.use('/api/v2/wallet', require('./routes/v2/wallet'));
@@ -155,7 +156,6 @@ app.use('/api/v2/referral', require('./routes/v2/referral'));
 app.use('/api/v2/admin/loyalty', authMiddleware, require('./routes/v2/admin-loyalty'));
 app.use('/api/v2/recommendations', require('./routes/v2/recommendations'));
 app.use('/api/v2/search', require('./routes/v2/search'));
-app.use('/api/v2/delivery', require('./routes/v2/delivery'));
 app.use('/api/v2/analytics', require('./routes/v2/restaurantAnalytics'));
 app.use('/api/v2/restaurant-promotions', require('./routes/v2/restaurantPromotions'));
 app.use('/api/v2/vendor-forecast', require('./routes/v2/vendorForecast'));
@@ -167,13 +167,11 @@ app.use('/api/v2/reservations', require('./routes/v2/reservations'));
 app.use('/api/v2/catering', authMiddleware, require('./routes/v2/catering'));
 app.use('/api/v2/disputes', authMiddleware, require('./routes/v2/disputes'));
 app.use('/api/v2/admin/disputes', authMiddleware, require('./routes/v2/admin-disputes'));
-app.use('/api/v2/orders', authMiddleware, require('./routes/v2/orders'));
 app.use('/api/v2/delivery/orders', authMiddleware, require('./routes/v2/delivery-orders'));
 app.use('/api/v2/riders', authMiddleware, require('./routes/v2/riders'));
 app.use('/api/v2/earnings', authMiddleware, require('./routes/v2/earnings'));
 app.use('/api/v2/admin/approvals', authMiddleware, require('./routes/v2/admin-approvals'));
 app.use('/api/v2/admin/revenue', authMiddleware, require('./routes/v2/admin-revenue'));
-app.use('/api/v2/restaurants', require('./routes/v2/restaurant-docs'));
 app.use('/api/v2/subscriptions', authMiddleware, require('./routes/v2/business-subscriptions'));
 app.use('/api/v2/ads', require('./routes/v2/ads'));
 app.use('/api/seed', require('./routes/seed'));
