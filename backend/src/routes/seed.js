@@ -4,374 +4,276 @@ const bcrypt = require('bcryptjs');
 const Restaurant = require('../models/Restaurant');
 const Vendor = require('../models/Vendor');
 const User = require('../models/User');
-// Seed data constants
+
 const restaurants = [
-  { id: '1', name: 'Mama Cass Kitchen', rating: 4.8, reviewCount: 1243, address: '14 Allen Avenue, Ikeja, Lagos' },
-  { id: '2', name: 'Abuja Palace Restaurant', rating: 4.6, reviewCount: 892, address: '5 Murtala Muhammed Way, Central Area, Abuja' },
-  { id: '3', name: 'Kano Suya Express', rating: 4.7, reviewCount: 654, address: '22 Ibrahim Taiwo Road, Kano' },
-  { id: '4', name: 'Port Harcourt Seafood Grill', rating: 4.5, reviewCount: 445, address: '3 Aba Road, Port Harcourt' },
-  { id: '5', name: 'Ibadan Amala Hub', rating: 4.4, reviewCount: 567, address: '7 Dugbe Market, Ibadan' },
-  { id: '6', name: 'Enugu Coal City Kitchen', rating: 4.6, reviewCount: 789, address: '15 Independence Layout, Enugu' },
-  { id: '7', name: 'Benin Edo Kitchen', rating: 4.3, reviewCount: 321, address: '9 Airport Road, Benin City' },
-  { id: '8', name: 'Maiduguri Borno Delights', rating: 4.5, reviewCount: 234, address: '3 Shehu Laminu Way, Maiduguri' },
-  { id: '9', name: 'Jos Plateau Grill', rating: 4.7, reviewCount: 456, address: '18 Bukuru Road, Jos' },
-  { id: '10', name: 'Calabar Efik Kitchen', rating: 4.8, reviewCount: 678, address: '12 Marian Road, Calabar' },
+  { id: '1', name: 'Mama Cass Kitchen', rating: 4.8, reviewCount: 1243, desc: 'Homemade Nigerian classics from the heart of Lagos' },
+  { id: '2', name: 'Chop Chop African Kitchen', rating: 4.6, reviewCount: 892, desc: 'Fresh African flavors delivered daily' },
+  { id: '3', name: 'Pepper Spot Grill', rating: 4.7, reviewCount: 654, desc: 'Spicy Nigerian dishes made to order' },
+  { id: '4', name: 'Port Harcourt Seafood Grill', rating: 4.5, reviewCount: 445, desc: 'Premium seafood straight from the Niger Delta' },
+  { id: '5', name: 'Ibadan Amala Hub', rating: 4.4, reviewCount: 567, desc: 'Traditional Yoruba cuisine at its best' },
+  { id: '6', name: 'Enugu Coal City Kitchen', rating: 4.6, reviewCount: 789, desc: 'Igbo delicacies prepared with authentic recipes' },
+  { id: '7', name: 'Benin Edo Kitchen', rating: 4.3, reviewCount: 321, desc: 'Rich Edo kingdom flavors in every meal' },
+  { id: '8', name: 'Borno Delights', rating: 4.5, reviewCount: 234, desc: 'Northern Nigerian cuisine with a modern twist' },
+  { id: '9', name: 'Jos Plateau Grill', rating: 4.7, reviewCount: 456, desc: 'Fresh grilled specialties from the Plateau' },
+  { id: '10', name: 'Calabar Efik Kitchen', rating: 4.8, reviewCount: 678, desc: 'Authentic Efik dishes made with love' },
+];
+
+const restaurantEmails = [
+  'mamacass@vibechops.ng', 'chopchop@vibechops.ng', 'pepperspot@vibechops.ng',
+  'seafood@vibechops.ng', 'amala@vibechops.ng', 'coalcity@vibechops.ng',
+  'edokitchen@vibechops.ng', 'borno@vibechops.ng', 'josgrill@vibechops.ng',
+  'efik@vibechops.ng',
 ];
 
 const vendors = [
-  { id: 'v1', name: "Auntie Joke's Kitchen", rating: 4.7, reviewCount: 234, address: 'Ikoyi, Lagos' },
-  { id: 'v2', name: "Mama Nkechi's Delights", rating: 4.9, reviewCount: 189, address: 'Asokoro, Abuja' },
+  { id: 'v1', name: "Mama Ngozi's Kitchen", rating: 4.7, reviewCount: 234, address: 'Ikoyi, Lagos' },
+  { id: 'v2', name: "Chef Amaka's Delights", rating: 4.9, reviewCount: 189, address: 'Asokoro, Abuja' },
   { id: 'v3', name: "Chef Segun's Special", rating: 4.6, reviewCount: 156, address: 'Sabon Gari, Kano' },
   { id: 'v4', name: 'Sisi Bisi Catering', rating: 4.8, reviewCount: 298, address: 'GRA, Port Harcourt' },
   { id: 'v5', name: "Mama Funke's Kitchen", rating: 4.5, reviewCount: 167, address: 'Bodija, Ibadan' },
   { id: 'v6', name: "Aunty Ada's Delicacies", rating: 4.7, reviewCount: 234, address: 'Independence Layout, Enugu' },
 ];
 
-// Seed restaurants with location data
+const vendorEmails = [
+  'mama.ngozi@vibechops.ng', 'chef.amaka@vibechops.ng', 'chef.segun@vibechops.ng',
+  'sisi.bisi@vibechops.ng', 'mama.funke@vibechops.ng', 'aunty.ada@vibechops.ng',
+];
+
+const hashedAdminPassword = bcrypt.hashSync('VibeChops@Admin2026!', 12);
+const hashedDemoPassword = bcrypt.hashSync('Demo@2026!', 12);
+
 router.post('/restaurants', async (req, res) => {
   try {
-    // Clear existing restaurants
-    await Restaurant.deleteMany({});
-    
-    // Transform mock data to match schema with location
-    const restaurantData = restaurants.map((restaurant, index) => ({
-      ...restaurant,
-      location: {
-        type: 'Point',
-        coordinates: [
-          3.3792 + (index * 0.01), // Longitude (varied across Nigeria)
-          6.5244 + (index * 0.01),  // Latitude (varied across Nigeria)
-        ]
-      },
-      address: {
-        street: `${index + 1} Sample Street`,
-        area: 'Central Area',
-        city: restaurant.address.split(',')[1]?.trim() || 'Lagos',
-        state: restaurant.address.split(',')[2]?.trim() || 'Lagos',
-        country: 'Nigeria',
-        formattedAddress: restaurant.address
-      },
-      owner: null, // Will be set later or left null
-      businessName: restaurant.name,
-      ownerName: 'System Admin',
-      businessEmail: `restaurant${index + 1}@vibechops.com`,
-      businessPhone: `0800000000${index + 1}`,
-      operatingHours: {
-        monday: { open: '09:00', close: '22:00' },
-        tuesday: { open: '09:00', close: '22:00' },
-        wednesday: { open: '09:00', close: '22:00' },
-        thursday: { open: '09:00', close: '22:00' },
-        friday: { open: '09:00', close: '22:00' },
-        saturday: { open: '09:00', close: '23:00' },
-        sunday: { open: '09:00', close: '21:00' }
-      },
-      isVerified: true,
-      isApproved: true,
-      rating: restaurant.rating,
-      reviewCount: restaurant.reviewCount,
-      totalOrders: Math.floor(Math.random() * 1000) + 100,
-      revenue: Math.floor(Math.random() * 1000000) + 100000,
-      subscriptionStatus: 'active',
-      subscriptionType: 'premium',
-      subscriptionExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days from now
-    }));
-    
-    const insertedRestaurants = await Restaurant.insertMany(restaurantData);
-    
+    const results = [];
+    for (let i = 0; i < restaurants.length; i++) {
+      const r = restaurants[i];
+      const inserted = await Restaurant.findOneAndUpdate(
+        { email: restaurantEmails[i] },
+        { $setOnInsert: {
+          name: r.name,
+          description: r.desc,
+          email: restaurantEmails[i],
+          phone: `+2348000000${String(i + 1).padStart(3, '0')}`,
+          rating: r.rating,
+          reviewCount: r.reviewCount,
+          priceRange: '$$',
+          deliveryTime: '20-35 min',
+          cuisine: ['Nigerian'],
+          isOpen: true,
+          verificationStatus: 'approved',
+          location: {
+            type: 'Point',
+            coordinates: [3.3792 + (i * 0.01), 6.5244 + (i * 0.01)],
+          },
+          address: {
+            street: `${i + 1} Sample Street`,
+            area: 'Central Area',
+            city: 'Lagos',
+            state: 'Lagos',
+            country: 'Nigeria',
+          },
+          priceForTwo: 500,
+          payOnDeliveryEnabled: true,
+          payOnDeliveryConfig: { enabled: true, minOrderAmount: 0 },
+        }},
+        { upsert: true, new: true }
+      );
+      results.push({ id: inserted._id, name: inserted.name, email: inserted.email });
+    }
+
     res.status(201).json({
       message: 'Restaurants seeded successfully',
-      count: insertedRestaurants.length,
-      restaurants: insertedRestaurants.map(r => ({
-        id: r._id,
-        name: r.name,
-        location: r.location,
-        address: r.address
-      }))
+      count: results.length,
+      restaurants: results,
     });
   } catch (error) {
     console.error('Error seeding restaurants:', error);
-    res.status(500).json({ 
-      error: 'Failed to seed restaurants',
-      details: error.message 
-    });
+    res.status(500).json({ error: 'Failed to seed restaurants', details: error.message });
   }
 });
 
-// Seed vendors with location data
 router.post('/vendors', async (req, res) => {
   try {
-    // Clear existing vendors
-    await Vendor.deleteMany({});
-    
-    // Transform mock data to match schema with location
-    const vendorData = vendors.map((vendor, index) => ({
-      ...vendor,
-      location: {
-        type: 'Point',
-        coordinates: [
-          3.3792 + (index * 0.015), // Longitude (varied across Nigeria)
-          6.5244 + (index * 0.015),  // Latitude (varied across Nigeria)
-        ]
-      },
-      address: {
-        street: `${index + 1} Vendor Street`,
-        area: 'Commercial District',
-        city: vendor.address.split(',')[1]?.trim() || 'Lagos',
-        state: vendor.address.split(',')[2]?.trim() || 'Lagos',
-        country: 'Nigeria',
-        formattedAddress: vendor.address
-      },
-      owner: null, // Will be set later or left null
-      businessName: vendor.name,
-      ownerName: 'Vendor Owner',
-      businessEmail: `vendor${index + 1}@vibechops.com`,
-      businessPhone: `0900000000${index + 1}`,
-      operatingHours: {
-        monday: { open: '10:00', close: '20:00' },
-        tuesday: { open: '10:00', close: '20:00' },
-        wednesday: { open: '10:00', close: '20:00' },
-        thursday: { open: '10:00', close: '20:00' },
-        friday: { open: '10:00', close: '20:00' },
-        saturday: { open: '10:00', close: '21:00' },
-        sunday: { open: '12:00', close: '18:00' }
-      },
-      isVerified: true,
-      isApproved: true,
-      rating: vendor.rating,
-      reviewCount: vendor.reviewCount,
-      totalOrders: Math.floor(Math.random() * 500) + 50,
-      revenue: Math.floor(Math.random() * 500000) + 50000,
-      subscriptionStatus: 'active',
-      subscriptionType: 'basic',
-      subscriptionExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days from now
-    }));
-    
-    const insertedVendors = await Vendor.insertMany(vendorData);
-    
+    const results = [];
+    for (let i = 0; i < vendors.length; i++) {
+      const v = vendors[i];
+      const inserted = await Vendor.findOneAndUpdate(
+        { email: vendorEmails[i] },
+        { $setOnInsert: {
+          businessName: v.name,
+          ownerName: v.name,
+          email: vendorEmails[i],
+          phone: `+2348000000${String(i + 10).padStart(3, '0')}`,
+          description: v.address || 'Homemade Nigerian dishes',
+          rating: v.rating,
+          reviewCount: v.reviewCount,
+          cuisine: ['Nigerian'],
+          isOpen: true,
+          isActive: true,
+          verificationStatus: 'approved',
+          cookingDays: ['saturday'],
+          deliveryTime: '12pm - 2pm',
+          minOrderForDelivery: 0,
+          location: {
+            type: 'Point',
+            coordinates: [3.3792 + (i * 0.015), 6.5244 + (i * 0.015)],
+          },
+          address: {
+            street: `${i + 1} Vendor Street`,
+            area: 'Commercial District',
+            city: 'Lagos',
+            state: 'Lagos',
+            country: 'Nigeria',
+          },
+          payOnDeliveryConfig: { enabled: true, minOrderAmount: 0 },
+        }},
+        { upsert: true, new: true }
+      );
+      results.push({ id: inserted._id, name: inserted.businessName, email: inserted.email });
+    }
+
     res.status(201).json({
       message: 'Vendors seeded successfully',
-      count: insertedVendors.length,
-      vendors: insertedVendors.map(v => ({
-        id: v._id,
-        name: v.name,
-        location: v.location,
-        address: v.address
-      }))
+      count: results.length,
+      vendors: results,
     });
   } catch (error) {
     console.error('Error seeding vendors:', error);
-    res.status(500).json({ 
-      error: 'Failed to seed vendors',
-      details: error.message 
-    });
+    res.status(500).json({ error: 'Failed to seed vendors', details: error.message });
   }
 });
 
-// Seed admin users
 router.post('/users', async (req, res) => {
   try {
-    // Clear existing users (optional - be careful with this in production)
-    // await User.deleteMany({ role: { $in: ['admin', 'superadmin'] } });
-    
-    const hashedPassword = await bcrypt.hash('admin123', 12);
-    
-    const adminUsers = [
-      {
-        name: 'Super Admin',
-        email: 'admin@vibechops.com',
-        password: hashedPassword,
-        role: 'superadmin',
-        isVerified: true,
-        isActive: true,
-        profile: {
-          firstName: 'Super',
-          lastName: 'Admin',
-          phone: '08000000000'
-        },
-        preferences: {
-          notifications: {
-            email: true,
-            push: true,
-            sms: false
-          },
-          privacy: {
-            profileVisibility: 'public',
-            showOnlineStatus: true
-          }
-        }
-      },
-      {
-        name: 'Restaurant Admin',
-        email: 'restaurant@vibechops.com',
-        password: hashedPassword,
+    const results = [];
+
+    const admin = await User.findOneAndUpdate(
+      { email: 'admin@vibechops.ng' },
+      { $setOnInsert: {
+        name: 'VibeChops Admin',
+        email: 'admin@vibechops.ng',
+        password: hashedAdminPassword,
+        phone: '+2348000000001',
         role: 'admin',
         isVerified: true,
         isActive: true,
-        profile: {
-          firstName: 'Restaurant',
-          lastName: 'Admin',
-          phone: '08000000001'
-        },
-        preferences: {
-          notifications: {
-            email: true,
-            push: true,
-            sms: false
-          },
-          privacy: {
-            profileVisibility: 'public',
-            showOnlineStatus: true
-          }
-        }
-      },
-      {
-        name: 'Test Customer',
-        email: 'customer@vibechops.com',
-        password: hashedPassword,
+      }},
+      { upsert: true, new: true }
+    );
+    results.push({ id: admin._id, name: admin.name, email: admin.email, role: admin.role });
+
+    const demo = await User.findOneAndUpdate(
+      { email: 'demo@vibechops.ng' },
+      { $setOnInsert: {
+        name: 'Demo Customer',
+        email: 'demo@vibechops.ng',
+        password: hashedDemoPassword,
+        phone: '+2348000000099',
         role: 'customer',
         isVerified: true,
         isActive: true,
-        profile: {
-          firstName: 'Test',
-          lastName: 'Customer',
-          phone: '08000000002'
-        },
-        preferences: {
-          notifications: {
-            email: true,
-            push: true,
-            sms: true
-          },
-          privacy: {
-            profileVisibility: 'public',
-            showOnlineStatus: true
-          }
-        }
-      }
-    ];
-    
-    const insertedUsers = await User.insertMany(adminUsers);
-    
+      }},
+      { upsert: true, new: true }
+    );
+    results.push({ id: demo._id, name: demo.name, email: demo.email, role: demo.role });
+
     res.status(201).json({
       message: 'Users seeded successfully',
-      count: insertedUsers.length,
-      users: insertedUsers.map(u => ({
-        id: u._id,
-        name: u.name,
-        email: u.email,
-        role: u.role
-      }))
+      count: results.length,
+      users: results,
     });
   } catch (error) {
-    console.error('Error seeding users:', error);
-    res.status(500).json({ 
-      error: 'Failed to seed users',
-      details: error.message 
-    });
+    console.error('Error seeding users:', error.message);
+    console.error('Error details:', error);
+    res.status(500).json({ error: 'Failed to seed users', details: error.message });
   }
 });
 
-// Seed all data
 router.post('/all', async (req, res) => {
   try {
     const results = {};
-    
-    // Seed restaurants
+
     try {
       const restaurantResponse = await fetch(`${req.protocol}://${req.get('host')}/api/seed/restaurants`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
       results.restaurants = await restaurantResponse.json();
     } catch (error) {
       results.restaurants = { error: error.message };
     }
-    
-    // Seed vendors
+
     try {
       const vendorResponse = await fetch(`${req.protocol}://${req.get('host')}/api/seed/vendors`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
       results.vendors = await vendorResponse.json();
     } catch (error) {
       results.vendors = { error: error.message };
     }
-    
-    // Seed users
+
     try {
       const userResponse = await fetch(`${req.protocol}://${req.get('host')}/api/seed/users`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
       results.users = await userResponse.json();
     } catch (error) {
       results.users = { error: error.message };
     }
-    
+
     res.status(201).json({
       message: 'Database seeding completed',
-      results
+      results,
     });
   } catch (error) {
     console.error('Error seeding all data:', error);
-    res.status(500).json({ 
-      error: 'Failed to seed database',
-      details: error.message 
-    });
+    res.status(500).json({ error: 'Failed to seed database', details: error.message });
   }
 });
 
-// Get seeding status
 router.get('/status', async (req, res) => {
   try {
     const restaurantCount = await Restaurant.countDocuments();
     const vendorCount = await Vendor.countDocuments();
     const userCount = await User.countDocuments();
-    
+
     res.json({
       restaurants: restaurantCount,
       vendors: vendorCount,
       users: userCount,
-      total: restaurantCount + vendorCount + userCount
+      total: restaurantCount + vendorCount + userCount,
     });
   } catch (error) {
     console.error('Error getting seed status:', error);
-    res.status(500).json({ 
-      error: 'Failed to get seed status',
-      details: error.message 
-    });
+    res.status(500).json({ error: 'Failed to get seed status', details: error.message });
   }
 });
 
-// Clear all data (use with caution)
 router.delete('/clear', async (req, res) => {
   try {
     const confirmationToken = req.headers['x-confirmation-token'];
-    
+
     if (confirmationToken !== 'CLEAR_ALL_DATA_CONFIRMED') {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: 'Confirmation token required',
-        message: 'Add header: X-Confirmation-Token: CLEAR_ALL_DATA_CONFIRMED'
+        message: 'Add header: X-Confirmation-Token: CLEAR_ALL_DATA_CONFIRMED',
       });
     }
-    
+
     const results = {};
-    
     results.restaurants = await Restaurant.deleteMany({});
     results.vendors = await Vendor.deleteMany({});
-    results.users = await User.deleteMany({ role: { $ne: 'superadmin' } }); // Keep superadmin
-    
+    results.users = await User.deleteMany({ email: { $nin: ['admin@vibechops.ng'] } });
+
     res.json({
       message: 'All data cleared successfully',
-      results
+      results,
     });
   } catch (error) {
     console.error('Error clearing data:', error);
-    res.status(500).json({ 
-      error: 'Failed to clear data',
-      details: error.message 
-    });
+    res.status(500).json({ error: 'Failed to clear data', details: error.message });
   }
 });
 
