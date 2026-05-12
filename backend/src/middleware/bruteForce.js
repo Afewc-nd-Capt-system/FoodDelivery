@@ -2,7 +2,11 @@ const rateLimit = require('express-rate-limit');
 const User = require('../models/User');
 const { getClient } = require('./redis');
 
+const disabled = process.env.DISABLE_RATE_LIMIT === 'true';
+
 const bruteForceProtection = async (req, res, next) => {
+  if (disabled) return next();
+
   const email = req.body.email?.toLowerCase();
   const ip = req.ip || req.connection.remoteAddress;
   const key = `bruteforce:${ip}:${email}`;
@@ -47,13 +51,15 @@ const bruteForceProtection = async (req, res, next) => {
   }
 };
 
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  message: { message: 'Too many login attempts. Please try again after 15 minutes.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-  skipSuccessfulRequests: true,
-});
+const loginLimiter = disabled
+  ? (req, res, next) => next()
+  : rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: 5,
+      message: { message: 'Too many login attempts. Please try again after 15 minutes.' },
+      standardHeaders: true,
+      legacyHeaders: false,
+      skipSuccessfulRequests: true,
+    });
 
 module.exports = { bruteForceProtection, loginLimiter };
