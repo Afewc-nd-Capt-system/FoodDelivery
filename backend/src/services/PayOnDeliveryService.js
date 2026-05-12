@@ -15,7 +15,7 @@ class PayOnDeliveryService {
     };
 
     return {
-      allowed: Object.values(checks).every(v => v === true),
+      allowed: Object.values(checks).every(v => v === true || v === null),
       checks,
       reason: this.getFailureReason(checks)
     };

@@ -11,6 +11,7 @@
     "seed:delivery": "node src/seed/deliveryConfig.js",
     "seed:admin": "node src/seed/createAdmin.js",
     "seed:demo": "node src/seed/demoData.js",
+    "seed:permissions": "node src/seed/permissions.js",
     "test": "jest --testPathPattern=tests",
     "security-audit": "npm audit --audit-level=high"
   },

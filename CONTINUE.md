@@ -266,7 +266,7 @@ npm run dev
 - MongoDB: mongodb://localhost:27017/food-delivery
 
 ### Credentials
-- Admin: admin@fooddelivery.com / admin123!
+- Admin: admin@fooddelivery.com / Admin123!
 - Regular user: Register via UI
 
 ### Environment Variables
@@ -318,7 +318,28 @@ NEXT_PUBLIC_API_URL=http://localhost:5000/api
 **Frontend:**
 - Hero image: replaced `<Image>` with `<img>`, opacity 0.35 → 0.85, visible on all breakpoints, proper positioning
 
-**Test Results (vibechops.onrender.com):**
+**Bugs Fixed:**
+- Seed scripts had double password hashing (pre-hashed in script, then re-hashed by User model `pre('save')` hook) — caused login to fail with "Invalid email or password" for both admin & demo users
+- `demoData.js`: Fixed `role: 'user'` → `'customer'` (enum mismatch after role extension)
+- `demoData.js`: Fixed restaurant/vendor `location` format (plain object → GeoJSON `{type: 'Point', coordinates: [lng, lat]}`)
+- `demoData.js`: Fixed restaurant/vendor `address` format (string → object), added `verificationStatus: 'approved'`
+- `demoData.js`: Fixed vendor lookup query (`{ name: ... }` → `{ businessName: ... }`)
+- `PayOnDeliveryService.checkPODEligibility()`: `allowed` returned `false` when `trustedCustomer` check was `null` (not applicable). Fixed: `v === true` → `v === true || v === null`
+- Admin password `admin123!` failed User model validation (no uppercase letter). Changed to `Admin123!`
+
+**New Routes Added:**
+- `POST /api/v2/delivery/orders/:id/confirm-arrival` — Rider confirms arrival, generates customer verification code (uses `DeliveryConfirmationService`)
+- `POST /api/v2/delivery/orders/:id/confirm-customer` — Customer provides verification code to complete delivery
+- `POST /api/v2/delivery/orders/:id/resend-code` — Resend verification code (customer or rider)
+- `POST /api/v2/orders/check-pod-eligibility` — Added to v2/orders.js (was in orphaned non-v2 orders.js)
+- `PUT /api/v2/vendors/:id/pod-config` — Vendor POD configuration update
+- `POST /api/v2/vendors/:id/trusted-customers` — Vendor trusted customer whitelist management
+
+**Seed Scripts Created:**
+- `backend/src/seed/permissions.js` — Seeds 21 system permissions (accessible via `npm run seed:permissions`)
+- Added `"seed:permissions"` script to package.json
+
+**Test Results (localhost:5000):**
 | Endpoint | Status | Result |
 |----------|--------|--------|
 | POST /auth/register | 201 | User created with token |
@@ -333,6 +354,11 @@ NEXT_PUBLIC_API_URL=http://localhost:5000/api
 | GET /loyalty/config | 200 | Full active config |
 | GET /subscriptions/plans | 200 | 2 plans (Basic ₦0, Premium ₦2,500) |
 | GET /referral | 200 | Referral code + stats |
+| GET /orders/check-pod-eligibility | 200 | allowed: true, all checks pass |
+| GET /permissions | 200 | 21 permissions seeded |
+| POST /delivery-company/register | 201 | Company registered successfully |
+| GET /users/:id/trust-profile | 200 | Full trust profile with metrics |
+| GET /wallet | 200 | Balance: 0 NGN |
 
 ### 🚀 HOW TO CONTINUE
 
@@ -340,5 +366,14 @@ NEXT_PUBLIC_API_URL=http://localhost:5000/api
 1. Check if servers are running
 2. Verify everything works
 3. Pick up where we left off
+
+### 🔧 TODO (Next Session)
+1. Test delivery confirmation flow (confirm-arrival → confirm-customer)
+2. Test wallet top-up and payment flow
+3. Test VibePass subscription flow  
+4. Test referral system
+5. Create migration scripts (`backend/src/migrations/`)
+6. Add frontend pages for POD configuration (restaurant/vendor portals)
+7. Add frontend trust profile display for customers
 
 ### 💾 SESSION END: May 12, 2026

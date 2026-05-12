@@ -17,10 +17,10 @@ const seedDemoData = async () => {
       user = new User({
         name: 'Demo User',
         email: 'demo@vibechops.com',
-        password: await bcrypt.hash('Demo123!', 12),
+        password: 'Demo123!',
         phone: '+2348012345678',
         address: { street: '123 Demo Street', city: 'Lagos', state: 'Lagos', zipCode: '10001' },
-        role: 'user'
+        role: 'customer'
       });
       await user.save();
       console.log('Demo user created');
@@ -38,15 +38,15 @@ const seedDemoData = async () => {
         deliveryTime: '30-40 mins',
         priceForTwo: 1500,
         priceRange: '$$',
-        address: '123 Pizza Street, Lagos',
-        location: { city: 'Lagos', area: 'Victoria Island' },
+        address: { street: '123 Pizza Street', area: 'Victoria Island', city: 'Lagos', state: 'Lagos' },
+        location: { type: 'Point', coordinates: [3.4219, 6.4281] },
         isOpen: true,
-        locationCoords: { lat: 6.4281, lng: 3.4219 },
+        verificationStatus: 'approved',
         menu: [
           { name: 'Margherita Pizza', description: 'Classic tomato and mozzarella', price: 2500, category: 'Pizza', isAvailable: true },
           { name: 'Pepperoni Pizza', description: 'Loaded with pepperoni', price: 2800, category: 'Pizza', isAvailable: true },
           { name: 'Spaghetti Carbonara', description: 'Creamy egg and bacon pasta', price: 2200, category: 'Pasta', isAvailable: true },
-          { name: 'Caesar Salad', description: 'Fresh romaine with croutons', price: 1500, category: 'Salads', isAvailable: true, dietaryTags: ['vegetarian'] }
+          { name: 'Caesar Salad', description: 'Fresh romaine with croutons', price: 1500, category: 'Salads', isAvailable: true }
         ]
       },
       {
@@ -59,14 +59,14 @@ const seedDemoData = async () => {
         deliveryTime: '35-45 mins',
         priceForTwo: 2000,
         priceRange: '$$',
-        address: '456 Curry Lane, Lagos',
-        location: { city: 'Lagos', area: 'Ikoyi' },
+        address: { street: '456 Curry Lane', area: 'Ikoyi', city: 'Lagos', state: 'Lagos' },
+        location: { type: 'Point', coordinates: [3.4000, 6.4500] },
         isOpen: true,
-        locationCoords: { lat: 6.4500, lng: 3.4000 },
+        verificationStatus: 'approved',
         menu: [
-          { name: 'Butter Chicken', description: 'Creamy tomato curry', price: 2500, category: 'Curry', isAvailable: true, spicyLevel: 2 },
-          { name: 'Chicken Tikka Masala', description: 'Spiced grilled chicken', price: 2300, category: 'Curry', isAvailable: true, spicyLevel: 3 },
-          { name: 'Vegetable Biryani', description: 'Fragrant rice with spices', price: 1800, category: 'Rice', isAvailable: true, dietaryTags: ['vegan', 'halal'] },
+          { name: 'Butter Chicken', description: 'Creamy tomato curry', price: 2500, category: 'Curry', isAvailable: true },
+          { name: 'Chicken Tikka Masala', description: 'Spiced grilled chicken', price: 2300, category: 'Curry', isAvailable: true },
+          { name: 'Vegetable Biryani', description: 'Fragrant rice with spices', price: 1800, category: 'Rice', isAvailable: true },
           { name: 'Garlic Naan', description: 'Soft bread with garlic', price: 500, category: 'Bread', isAvailable: true }
         ]
       },
@@ -80,10 +80,10 @@ const seedDemoData = async () => {
         deliveryTime: '25-35 mins',
         priceForTwo: 3000,
         priceRange: '$$$',
-        address: '789 Sushi Ave, Lagos',
-        location: { city: 'Lagos', area: 'Lekki' },
+        address: { street: '789 Sushi Ave', area: 'Lekki', city: 'Lagos', state: 'Lagos' },
+        location: { type: 'Point', coordinates: [3.4500, 6.4100] },
         isOpen: true,
-        locationCoords: { lat: 6.4100, lng: 3.4500 },
+        verificationStatus: 'approved',
         menu: [
           { name: 'California Roll', description: 'Crab, avocado, cucumber', price: 2500, category: 'Sushi', isAvailable: true },
           { name: 'Salmon Sashimi', description: '6 pieces fresh salmon', price: 3000, category: 'Sashimi', isAvailable: true },
@@ -114,9 +114,10 @@ const seedDemoData = async () => {
         rating: 4.6,
         deliveryTime: '45-60 mins',
         priceRange: '$',
-        address: '15 Home Cook Lane',
-        location: { city: 'Lagos', area: 'Agege' },
+        address: { street: '15 Home Cook Lane', area: 'Agege', city: 'Lagos', state: 'Lagos' },
+        location: { type: 'Point', coordinates: [3.3167, 6.6333] },
         cookingDays: ['monday', 'wednesday', 'saturday'],
+        verificationStatus: 'approved',
         isActive: true
       },
       {
@@ -130,18 +131,19 @@ const seedDemoData = async () => {
         rating: 4.4,
         deliveryTime: '40-50 mins',
         priceRange: '$$',
-        address: '20 Wellness Road',
-        location: { city: 'Lagos', area: 'Ikeja' },
+        address: { street: '20 Wellness Road', area: 'Ikeja', city: 'Lagos', state: 'Lagos' },
+        location: { type: 'Point', coordinates: [3.3500, 6.5833] },
         cookingDays: ['tuesday', 'thursday', 'friday'],
+        verificationStatus: 'approved',
         isActive: true
       }
     ];
 
     for (const vendorData of vendors) {
-      const existing = await Vendor.findOne({ name: vendorData.name });
+      const existing = await Vendor.findOne({ businessName: vendorData.businessName });
       if (!existing) {
         await Vendor.create(vendorData);
-        console.log(`Created vendor: ${vendorData.name}`);
+        console.log(`Created vendor: ${vendorData.businessName}`);
       }
     }
 
@@ -174,7 +176,7 @@ const seedDemoData = async () => {
 
     console.log('\n=== Demo Data Seed Complete ===');
     console.log('Demo User: demo@vibechops.com / Demo123!');
-    console.log('Admin: admin@fooddelivery.com / admin123!');
+    console.log('Admin: admin@fooddelivery.com / Admin123!');
 
     process.exit(0);
   } catch (error) {

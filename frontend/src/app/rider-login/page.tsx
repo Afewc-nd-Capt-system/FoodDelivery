@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Shield, Eye, EyeOff, Mail, Lock, AlertCircle, CheckCircle } from 'lucide-react';
+import { Bike, Eye, EyeOff, Mail, Lock, AlertCircle, CheckCircle, Info } from 'lucide-react';
 
-export default function AdminPage() {
+export default function RiderLoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -15,13 +16,13 @@ export default function AdminPage() {
   const [success, setSuccess] = useState(false);
   const router = useRouter();
 
-  // Check if user is already logged in as admin
+  // Check if user is already logged in as rider
   useEffect(() => {
     const token = localStorage.getItem('token');
     const userRole = localStorage.getItem('userRole');
     
-    if (token && userRole === 'admin') {
-      router.push('/admin/dashboard');
+    if (token && userRole === 'delivery_rider') {
+      router.push('/rider-dashboard');
     }
   }, [router]);
 
@@ -45,9 +46,15 @@ export default function AdminPage() {
         throw new Error(data.message || 'Login failed');
       }
 
-      // Check if user has admin role
-      if (data.user.role !== 'admin') {
-        setError('Access denied — Admin only');
+      // Check if user has delivery_rider role
+      if (data.user.role !== 'delivery_rider') {
+        setError('Access denied — Riders only');
+        return;
+      }
+
+      // Check verification status
+      if (!data.user.isVerified) {
+        setError('Your rider account is pending verification. Please wait for approval.');
         return;
       }
 
@@ -58,9 +65,9 @@ export default function AdminPage() {
 
       setSuccess(true);
       
-      // Redirect to admin dashboard after successful login
+      // Redirect to rider dashboard after successful login
       setTimeout(() => {
-        router.push('/admin/dashboard');
+        router.push('/rider-dashboard');
       }, 1000);
 
     } catch (err: any) {
@@ -87,11 +94,11 @@ export default function AdminPage() {
             <h1 className="text-2xl font-black mb-2" style={{ color: '#1C1C1E' }}>
               Vibe<span style={{ color: '#E8621A' }}>Chops</span>
             </h1>
-            <p className="text-lg font-bold" style={{ color: '#636366' }}>
-              Admin Portal
+            <p className="text-lg font-bold mb-2" style={{ color: '#636366' }}>
+              Rider Portal
             </p>
-            <p className="text-sm mt-2" style={{ color: '#A0A0A0' }}>
-              Secure access to system administration
+            <p className="text-sm" style={{ color: '#A0A0A0' }}>
+              Manage your deliveries and track your earnings
             </p>
           </div>
 
@@ -111,7 +118,7 @@ export default function AdminPage() {
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full pl-10 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:border-transparent"
                     style={{ borderColor: '#E8E8E8' }}
-                    placeholder="admin@vibechops.com"
+                    placeholder="rider@vibechops.com"
                     required
                   />
                 </div>
@@ -177,17 +184,42 @@ export default function AdminPage() {
               </Button>
             </form>
 
-            {/* Security Notice */}
-            <div className="mt-6 p-4 rounded-lg" style={{ backgroundColor: '#FFF1E8' }}>
+            {/* Links */}
+            <div className="mt-6 space-y-3">
+              <div className="text-center">
+                <Link
+                  href="/rider/register"
+                  className="text-sm font-bold hover:underline"
+                  style={{ color: '#E8621A' }}
+                >
+                  Become a rider
+                </Link>
+              </div>
+              
+              <div className="text-center">
+                <Link
+                  href="/forgot-password"
+                  className="text-sm hover:underline"
+                  style={{ color: '#636366' }}
+                >
+                  Forgot your password?
+                </Link>
+              </div>
+            </div>
+
+            {/* Rider Benefits */}
+            <div className="mt-6 p-4 rounded-lg" style={{ backgroundColor: '#FEF3C7' }}>
               <div className="flex items-start gap-2">
-                <Shield size={16} className="mt-0.5" style={{ color: '#E8621A' }} />
+                <Info size={16} className="mt-0.5" style={{ color: '#D97706' }} />
                 <div>
                   <p className="text-xs font-bold mb-1" style={{ color: '#1C1C1E' }}>
-                    Security Notice
+                    Rider Benefits
                   </p>
                   <p className="text-xs" style={{ color: '#636366' }}>
-                    This portal is restricted to authorized administrators only. 
-                    All access attempts are logged and monitored.
+                    • Flexible working hours<br/>
+                    • Competitive earnings<br/>
+                    • Real-time order tracking<br/>
+                    • Weekly payment schedule
                   </p>
                 </div>
               </div>

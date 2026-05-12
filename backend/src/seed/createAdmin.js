@@ -15,12 +15,10 @@ const createAdmin = async () => {
       process.exit(0);
     }
 
-    const hashedPassword = await bcrypt.hash('admin123!', 10);
-    
     const admin = new User({
       name: 'Admin Master',
       email: 'admin@fooddelivery.com',
-      password: hashedPassword,
+      password: 'Admin123!',
       phone: '+1234567890',
       address: {
         street: '123 Admin Street',
@@ -34,7 +32,7 @@ const createAdmin = async () => {
     await admin.save();
     console.log('Admin user created successfully');
     console.log('Email: admin@fooddelivery.com');
-    console.log('Password: [CHECK .env or documentation]');
+    console.log('Password: Admin123!');
   } catch (error) {
     console.error('Error creating admin:', error);
   } finally {

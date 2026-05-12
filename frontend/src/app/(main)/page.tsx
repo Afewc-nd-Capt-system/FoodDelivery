@@ -339,27 +339,28 @@ export default function HomePage() {
           position: 'absolute',
           right: 0,
           top: 0,
-          width: '52%',
-          height: '100%',
+          bottom: 0,
+          width: '45%',
           overflow: 'hidden',
+          display: 'block',
         }}>
           <img
             src="https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=800&q=80"
-            alt="Delicious Nigerian food"
+            alt="Nigerian food"
             style={{
               width: '100%',
               height: '100%',
               objectFit: 'cover',
               opacity: 0.85,
+              display: 'block',
             }}
+            crossOrigin="anonymous"
           />
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: 'linear-gradient(to right, #1A0E0A 0%, transparent 40%)',
-            }}
-          />
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(to right, #1A0E0A 0%, rgba(26,14,10,0.5) 30%, transparent 60%)',
+          }} />
         </div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-28">

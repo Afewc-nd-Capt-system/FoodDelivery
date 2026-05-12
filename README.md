@@ -24,7 +24,7 @@ npm run dev
 ```
 
 ## Default Credentials
-- **Admin**: admin@fooddelivery.com / admin123!
+- **Admin**: admin@fooddelivery.com / Admin123!
 - **Demo User**: demo@vibechops.com / Demo123!
 
 ## Access Points

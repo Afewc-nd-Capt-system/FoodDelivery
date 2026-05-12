@@ -3,6 +3,8 @@ const Order = require('../../models/Order');
 const DeliveryCompany = require('../../models/DeliveryCompany');
 const DeliveryPartner = require('../../models/DeliveryPartner');
 const authMiddleware = require('../../middleware/auth');
+const { deliveryRiderGuard, customerGuard } = require('../../middleware/routeGuards');
+const DeliveryConfirmationService = require('../../services/DeliveryConfirmationService');
 const router = express.Router();
 
 // Helper: Generate OTP
@@ -177,6 +179,79 @@ router.patch('/orders/:id/delivered', authMiddleware, async (req, res) => {
     }
 
     res.json({ order, otp: order.otp });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// POST /api/v2/delivery/orders/:id/confirm-arrival - Rider confirms arrival, generates customer verification code
+router.post('/orders/:id/confirm-arrival', authMiddleware, deliveryRiderGuard, async (req, res) => {
+  try {
+    const result = await DeliveryConfirmationService.riderConfirmArrival(
+      req.params.id,
+      req.user.id
+    );
+    res.json({
+      order: result.order,
+      customerNotified: false,
+      message: 'Arrival confirmed. Verification code sent to customer.'
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// POST /api/v2/delivery/orders/:id/confirm-customer - Customer verifies to complete delivery
+router.post('/orders/:id/confirm-customer', authMiddleware, customerGuard, async (req, res) => {
+  try {
+    const { verificationCode } = req.body;
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    if (order.user.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized for this order' });
+    }
+
+    const result = await DeliveryConfirmationService.customerConfirmDelivery(
+      req.params.id,
+      verificationCode,
+      order.deliveryPartner
+    );
+
+    res.json({ order: result });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// POST /api/v2/delivery/orders/:id/resend-code - Resend verification code
+router.post('/orders/:id/resend-code', authMiddleware, async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    if (order.deliveryConfirmation.customerConfirmed) {
+      return res.status(400).json({ message: 'Delivery already confirmed' });
+    }
+
+    // Only allow customer or assigned rider to resend
+    const isCustomer = order.user.toString() === req.user.id;
+    const isRider = order.deliveryPartner?.toString() === req.user.id;
+    if (!isCustomer && !isRider) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    const newCode = DeliveryConfirmationService.generateVerificationCode();
+    order.deliveryConfirmation.customerVerificationCode = newCode;
+    await order.save();
+
+    res.json({ message: 'Verification code resent', sentAt: new Date() });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }

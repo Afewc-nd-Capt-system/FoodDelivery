@@ -1,3 +1,0 @@
-Server running on port 5000
-Connected to MongoDB
-::1 - - [05/May/2026:11:52:26 +0000] "GET /api/health HTTP/1.1" 200 56 "-" "Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.26100.8328"

@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const Vendor = require('../models/Vendor');
 const authMiddleware = require('../middleware/auth');
+const { vendorGuard } = require('../middleware/routeGuards');
 const { xssProtection } = require('../middleware/sanitize');
 
 const router = express.Router();
@@ -212,6 +213,53 @@ router.delete('/:id', async (req, res) => {
     res.json({ message: 'Vendor deleted' });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+});
+
+// Update POD configuration for vendor
+router.put('/:id/pod-config', vendorGuard, async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.params.id);
+    
+    if (!vendor) {
+      return res.status(404).json({ message: 'Vendor not found' });
+    }
+
+    vendor.payOnDeliveryConfig = {
+      ...vendor.payOnDeliveryConfig,
+      ...req.body
+    };
+
+    await vendor.save();
+    res.json({ payOnDeliveryConfig: vendor.payOnDeliveryConfig });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Add/Remove trusted customer for vendor
+router.post('/:id/trusted-customers', vendorGuard, async (req, res) => {
+  try {
+    const { userId, action } = req.body;
+    const vendor = await Vendor.findById(req.params.id);
+
+    if (!vendor) {
+      return res.status(404).json({ message: 'Vendor not found' });
+    }
+
+    if (action === 'add') {
+      if (!vendor.payOnDeliveryConfig.trustedCustomerWhitelist.includes(userId)) {
+        vendor.payOnDeliveryConfig.trustedCustomerWhitelist.push(userId);
+      }
+    } else if (action === 'remove') {
+      vendor.payOnDeliveryConfig.trustedCustomerWhitelist =
+        vendor.payOnDeliveryConfig.trustedCustomerWhitelist.filter(id => id !== userId);
+    }
+
+    await vendor.save();
+    res.json({ trustedCustomerWhitelist: vendor.payOnDeliveryConfig.trustedCustomerWhitelist });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
   }
 });
 

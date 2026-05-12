@@ -11,7 +11,41 @@ const LoyaltyPoints = require('../../models/LoyaltyPoints');
 const LoyaltyConfig = require('../../models/LoyaltyConfig');
 const commissionService = require('../../services/commissionService');
 const authMiddleware = require('../../middleware/auth');
+const PayOnDeliveryService = require('../../services/PayOnDeliveryService');
 const router = express.Router();
+
+// POST /api/v2/orders/check-pod-eligibility
+router.post('/check-pod-eligibility', authMiddleware, async (req, res) => {
+  try {
+    const { restaurantId, vendorId, totalAmount, items } = req.body;
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    let restaurantOrVendor = null;
+    if (restaurantId) {
+      restaurantOrVendor = await Restaurant.findById(restaurantId);
+    } else if (vendorId) {
+      restaurantOrVendor = await Vendor.findById(vendorId);
+    }
+
+    if (!restaurantOrVendor) {
+      return res.status(404).json({ message: 'Restaurant or vendor not found' });
+    }
+
+    const result = await PayOnDeliveryService.checkPODEligibility(
+      { totalAmount, items },
+      user,
+      restaurantOrVendor
+    );
+
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
 
 // Helper: Generate OTP
 function generateOTP() {
