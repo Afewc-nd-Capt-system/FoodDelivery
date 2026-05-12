@@ -23,9 +23,15 @@ const { blacklistMiddleware } = require('./utils/tokenBlacklist');
 const { xssProtection } = require('./middleware/sanitize');
 const { connectRedis } = require('./middleware/redis');
 const setupSocketIO = require('./socket');
-const { emailQueue } = require('./jobs/financialEmailJobs');
+const { initializeEmailQueue } = require('./jobs/financialEmailJobs');
 
 connectRedis().then(() => console.log('Redis initialization complete'));
+
+initializeEmailQueue().then(() => {
+  console.log('Background jobs ready')
+}).catch(err => {
+  console.warn('Background jobs unavailable:', err.message)
+})
 
 const app = express();
 const server = http.createServer(app);
