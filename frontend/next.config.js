@@ -14,7 +14,7 @@ const nextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'vibe-chops-api.onrender.com',
+        hostname: 'vibechops.onrender.com',
         pathname: '**',
       },
       {
@@ -27,7 +27,7 @@ const nextConfig = {
     domains: [
       'images.unsplash.com',
       'res.cloudinary.com',
-      'vibe-chops-api.onrender.com',
+      'vibechops.onrender.com',
     ],
     unoptimized: false, // Enable optimization for production
   },
