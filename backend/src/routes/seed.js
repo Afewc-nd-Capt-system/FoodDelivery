@@ -8,14 +8,14 @@ const User = require('../models/User');
 const restaurants = [
   { id: '1', name: 'Mama Cass Kitchen', rating: 4.8, reviewCount: 1243, city: 'Lagos', state: 'Lagos', coords: [3.3792, 6.5244] },
   { id: '2', name: 'Chop Chop African Kitchen', rating: 4.6, reviewCount: 892, city: 'Abuja', state: 'FCT', coords: [7.4898, 9.0579] },
-  { id: '3', name: 'Pepper Spot Grill', rating: 4.7, reviewCount: 654, city: 'Kano', state: 'Kano', coords: [8.5167, 12.0000] },
-  { id: '4', name: 'Port Harcourt Seafood Grill', rating: 4.5, reviewCount: 445, city: 'Port Harcourt', state: 'Rivers', coords: [7.0134, 4.8156] },
-  { id: '5', name: 'Ibadan Amala Hub', rating: 4.4, reviewCount: 567, city: 'Ibadan', state: 'Oyo', coords: [3.8964, 7.3775] },
-  { id: '6', name: 'Enugu Coal City Kitchen', rating: 4.6, reviewCount: 789, city: 'Enugu', state: 'Enugu', coords: [7.4898, 6.4403] },
-  { id: '7', name: 'Benin Edo Kitchen', rating: 4.3, reviewCount: 321, city: 'Benin City', state: 'Edo', coords: [5.6037, 6.3176] },
-  { id: '8', name: 'Borno Delights', rating: 4.5, reviewCount: 234, city: 'Maiduguri', state: 'Borno', coords: [13.1573, 11.8333] },
-  { id: '9', name: 'Jos Plateau Grill', rating: 4.7, reviewCount: 456, city: 'Jos', state: 'Plateau', coords: [8.8967, 9.9280] },
-  { id: '10', name: 'Calabar Efik Kitchen', rating: 4.8, reviewCount: 678, city: 'Calabar', state: 'Cross River', coords: [8.3222, 4.9750] },
+  { id: '3', name: 'The Pepper Spot', rating: 4.7, reviewCount: 654, city: 'Kano', state: 'Kano', coords: [8.5167, 12.0000] },
+  { id: '4', name: 'Jollof Republic', rating: 4.5, reviewCount: 445, city: 'Lagos', state: 'Lagos', coords: [3.3892, 6.5144] },
+  { id: '5', name: 'Naija Bites Express', rating: 4.4, reviewCount: 567, city: 'Port Harcourt', state: 'Rivers', coords: [7.0134, 4.8156] },
+  { id: '6', name: 'Lagos Grill House', rating: 4.6, reviewCount: 789, city: 'Lagos', state: 'Lagos', coords: [3.3692, 6.5344] },
+  { id: '7', name: "Chef Chi's Fusion", rating: 4.3, reviewCount: 321, city: 'Ibadan', state: 'Oyo', coords: [3.8964, 7.3775] },
+  { id: '8', name: 'Suya Shack', rating: 4.5, reviewCount: 234, city: 'Kaduna', state: 'Kaduna', coords: [7.4420, 10.5264] },
+  { id: '9', name: 'Kanuri Kitchen', rating: 4.7, reviewCount: 456, city: 'Maiduguri', state: 'Borno', coords: [13.1573, 11.8333] },
+  { id: '10', name: 'Abuja Grill House', rating: 4.8, reviewCount: 678, city: 'Abuja', state: 'FCT', coords: [7.4798, 9.0479] },
 ];
 
 const vendors = [
