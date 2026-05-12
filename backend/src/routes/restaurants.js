@@ -22,7 +22,7 @@ router.get('/', async (req, res) => {
     } = req.query;
     
     let query = {
-      isActive: true,
+      isOpen: true,
       verificationStatus: 'approved'
     };
     
