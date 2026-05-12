@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const Restaurant = require('../models/Restaurant');
 const Vendor = require('../models/Vendor');
 const User = require('../models/User');
+const BusinessSubscriptionPlan = require('../models/BusinessSubscriptionPlan');
 
 const restaurants = [
   { id: '1', name: 'Mama Cass Kitchen', rating: 4.8, reviewCount: 1243, city: 'Lagos', state: 'Lagos', coords: [3.3792, 6.5244] },
@@ -308,6 +309,33 @@ router.get('/init', async (req, res) => {
       results.users = await userResponse.json();
     } catch (error) {
       results.users = { error: error.message };
+    }
+
+    // Seed subscription plans
+    try {
+      const restaurantPlans = [
+        { name: 'Basic', targetType: 'restaurant', price: 0, commissionRate: 18, maxMenuItems: 20, promotionsAllowed: 0, priorityListing: false, analyticsAccess: false, badgeLabel: null, features: ['20 menu items', '18% commission per order', 'Basic dashboard', 'Standard listing'], isActive: true },
+        { name: 'Standard', targetType: 'restaurant', price: 15000, commissionRate: 15, maxMenuItems: 50, promotionsAllowed: 2, priorityListing: false, analyticsAccess: true, badgeLabel: 'Verified', features: ['50 menu items', '15% commission per order', 'Full analytics dashboard', '2 promotions per month', 'Verified badge'], isActive: true },
+        { name: 'Premium', targetType: 'restaurant', price: 35000, commissionRate: 12, maxMenuItems: 999, promotionsAllowed: 5, priorityListing: true, analyticsAccess: true, badgeLabel: 'Featured', features: ['Unlimited menu items', '12% commission per order', 'Priority listing in search', '5 promotions per month', 'Featured badge', 'Advanced analytics'], isActive: true },
+      ];
+      const vendorPlans = [
+        { name: 'Basic', targetType: 'vendor', price: 0, commissionRate: 15, maxMenuItems: 10, promotionsAllowed: 0, priorityListing: false, analyticsAccess: false, badgeLabel: null, features: ['10 menu items', '15% commission per order', 'Basic dashboard', 'Standard listing'], isActive: true },
+        { name: 'Standard', targetType: 'vendor', price: 5000, commissionRate: 12, maxMenuItems: 25, promotionsAllowed: 1, priorityListing: false, analyticsAccess: true, badgeLabel: 'Verified Home Cook', features: ['25 menu items', '12% commission per order', 'Analytics dashboard', '1 promotion per month', 'Verified Home Cook badge'], isActive: true },
+        { name: 'Premium', targetType: 'vendor', price: 10000, commissionRate: 10, maxMenuItems: 999, promotionsAllowed: 3, priorityListing: true, analyticsAccess: true, badgeLabel: 'Top Vendor', features: ['Unlimited menu items', '10% commission per order', 'Priority listing', '3 promotions per month', 'Top Vendor badge', 'Advanced analytics'], isActive: true },
+      ];
+      let planCount = 0;
+      for (const plan of [...restaurantPlans, ...vendorPlans]) {
+        await BusinessSubscriptionPlan.findOneAndUpdate(
+          { name: plan.name, targetType: plan.targetType },
+          { $setOnInsert: plan },
+          { upsert: true, new: true }
+        );
+        planCount++;
+      }
+      results.subscriptionPlans = { count: planCount, message: 'Subscription plans seeded' };
+      console.log('Subscription plans seeded');
+    } catch (error) {
+      results.subscriptionPlans = { error: error.message };
     }
 
     res.json({

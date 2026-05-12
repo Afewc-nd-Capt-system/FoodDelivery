@@ -335,19 +335,30 @@ export default function HomePage() {
         />
 
         {/* Hero food image — right side */}
-        <div className="absolute right-0 top-0 bottom-0 w-[52%] hidden lg:block pointer-events-none">
-          <Image
-            src="https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=600&q=80"
+        <div style={{
+          position: 'absolute',
+          right: 0,
+          top: 0,
+          width: '52%',
+          height: '100%',
+          overflow: 'hidden',
+        }}>
+          <img
+            src="https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=800&q=80"
             alt="Delicious Nigerian food"
-            width={600}
-            height={500}
-            className="object-cover w-full h-full"
-            style={{ opacity: 0.35 }}
-            priority
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              opacity: 0.85,
+            }}
           />
           <div
-            className="absolute inset-0"
-            style={{ background: 'linear-gradient(to right, #1A0E0A 5%, rgba(26,14,10,0.6) 40%, transparent 70%)' }}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'linear-gradient(to right, #1A0E0A 0%, transparent 40%)',
+            }}
           />
         </div>
 
