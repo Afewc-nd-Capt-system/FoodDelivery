@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import { CartProvider } from '@/context/CartContext';
+import { LocationProvider } from '@/context/LocationContext';
 import { SocketProvider } from '@/context/SocketContext';
 import { ThemeProvider } from 'next-themes';
 
@@ -31,9 +32,11 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
           <AuthProvider>
             <CartProvider>
-              <SocketProvider>
-                {children}
-              </SocketProvider>
+              <LocationProvider>
+                <SocketProvider>
+                  {children}
+                </SocketProvider>
+              </LocationProvider>
             </CartProvider>
           </AuthProvider>
         </ThemeProvider>
