@@ -112,10 +112,29 @@ app.use('/api/', apiLimiter);
 app.use(blacklistMiddleware);
 app.use('/uploads', express.static('uploads'));
 
-mongoose
-  .connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/food-delivery')
-  .then(() => console.log('Connected to MongoDB'))
-  .catch((err) => console.error('MongoDB connection error:', err));
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/food-delivery', {
+  serverSelectionTimeoutMS: 30000,
+  socketTimeoutMS: 45000,
+  connectTimeoutMS: 30000,
+  maxPoolSize: 10,
+  retryWrites: true,
+  w: 'majority',
+})
+.then(() => console.log('MongoDB connected ✅'))
+.catch(err => {
+  console.error('MongoDB connection error:', err.message)
+})
+
+mongoose.connection.on('disconnected', () => {
+  console.warn('MongoDB disconnected, attempting reconnect...')
+  setTimeout(() => {
+    mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/food-delivery')
+  }, 5000)
+})
+
+mongoose.connection.on('error', (err) => {
+  console.error('MongoDB error:', err.message)
+})
 
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/restaurants', restaurantRoutes);

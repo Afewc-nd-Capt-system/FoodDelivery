@@ -1,4 +1,5 @@
 const Queue = require('bull');
+const Redis = require('ioredis');
 const nodemailer = require('nodemailer');
 
 // Create email queue with error handling
@@ -7,16 +8,34 @@ let emailQueue;
 (async () => {
   try {
     if (process.env.REDIS_HOST || process.env.REDIS_URL) {
+      const redisUrl = process.env.REDIS_URL ||
+        (process.env.REDIS_HOST ? `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT || 6379}` : '')
+
+      const isUpstash = redisUrl.includes('upstash.io')
+
+      const redisConnection = isUpstash ? new Redis(redisUrl, {
+        tls: { rejectUnauthorized: false },
+        maxRetriesPerRequest: 3,
+        enableReadyCheck: false,
+        lazyConnect: true,
+      }) : new Redis(redisUrl, {
+        maxRetriesPerRequest: 3,
+        enableReadyCheck: false,
+        lazyConnect: true,
+      })
+
       emailQueue = new Queue('financial-emails', {
-        redis: {
-          host: process.env.REDIS_HOST || 'localhost',
-          port: process.env.REDIS_PORT || 6379,
-          password: process.env.REDIS_PASSWORD || undefined,
-          db: process.env.REDIS_DB || 0,
-          retryDelayOnFailover: 100,
-          maxRetriesPerRequest: 3,
-          connectTimeout: 10000,
-          lazyConnect: true,
+        createClient: (type) => {
+          switch (type) {
+            case 'client':
+              return redisConnection
+            case 'subscriber':
+              return redisConnection.duplicate()
+            case 'bclient':
+              return redisConnection.duplicate()
+            default:
+              return redisConnection
+          }
         },
         defaultJobOptions: {
           removeOnComplete: 10,

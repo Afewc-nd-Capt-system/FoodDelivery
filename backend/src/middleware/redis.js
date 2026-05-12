@@ -1,5 +1,4 @@
-const redis = require('redis');
-const { promisify } = require('util');
+const Redis = require('ioredis');
 
 let client = null;
 let isConnected = false;
@@ -7,11 +6,25 @@ let isConnected = false;
 const connectRedis = async () => {
   try {
     if (process.env.REDIS_URL) {
-      client = redis.createClient({ url: process.env.REDIS_URL });
+      const redisUrl = process.env.REDIS_URL;
+      const isUpstash = redisUrl.includes('upstash.io');
+
+      client = new Redis(redisUrl, {
+        ...(isUpstash && { tls: { rejectUnauthorized: false } }),
+        maxRetriesPerRequest: 3,
+        enableReadyCheck: false,
+        lazyConnect: true,
+        retryStrategy: (times) => {
+          if (times > 3) return null;
+          return Math.min(times * 200, 1000);
+        },
+      });
+
       client.on('error', (err) => console.log('Redis error:', err));
+
       await client.connect();
       isConnected = true;
-      console.log('Redis connected');
+      console.log('Redis connected ✅');
     }
   } catch (err) {
     console.log('Redis not available, using fallback');
