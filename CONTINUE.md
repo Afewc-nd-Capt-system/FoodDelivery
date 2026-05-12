@@ -291,23 +291,48 @@ NEXT_PUBLIC_API_URL=http://localhost:5000/api
 
 ### GitHub
 - Repo: https://github.com/Afewc-nd-Capt-system/FoodDelivery
-- Pushed up to commit: 2376cd3
+- Repo: https://github.com/Afewc-nd-Capt-system/FoodDelivery
+- Pushed up to commit: 0b8010b
 
 ### 🔧 TODO (Next Session)
 
-1. Seed database with subscription plans (`npm run seed:subscription`)
+1. ~~Seed database with subscription plans (`npm run seed:subscription`)~~ ✅ Done via `/api/v2/seed/init`
 2. Test loyalty points earning and redemption
 3. Test wallet top-up and payment flow
 4. Test VibePass subscription flow
 5. Test referral system
 
-### 🚀 NEXT PHASE (Phase 6 - Intelligence Layer)
+### ✅ THIS SESSION (May 12, 2026)
 
-After Phase 1 is tested and working, the next phase will include:
-- Personalized Recommendations (past orders, time of day, location, trending)
-- Smart Search with MongoDB Atlas Search or fuzzy matching
-- Dynamic Delivery Fee (Haversine formula, surge pricing, free delivery thresholds)
-- Dietary & Allergen Tags with filtering
+**Bugs Fixed:**
+- `authMiddleware` missing `await` on `isBlacklisted()` — broke all authenticated requests
+- Auth login/register did not return `token` in JSON body (only httpOnly cookie)
+- Loyalty route had no root `GET /` handler
+- Referral route had no root `GET /` handler
+- No `/api/v2/subscriptions` plural path alias
+- No `DISABLE_RATE_LIMIT` env var support in rate limiters, brute force, and token blacklist middleware
+
+**Seed:**
+- Added VibePass plan seeding (Basic + Premium) to `GET /api/v2/seed/init` using `SubscriptionPlan` model
+
+**Frontend:**
+- Hero image: replaced `<Image>` with `<img>`, opacity 0.35 → 0.85, visible on all breakpoints, proper positioning
+
+**Test Results (vibechops.onrender.com):**
+| Endpoint | Status | Result |
+|----------|--------|--------|
+| POST /auth/register | 201 | User created with token |
+| POST /auth/login (demo) | 200 | Token + user (Demo Customer) |
+| POST /auth/login (admin) | 200 | Token + user (VibeChops Admin) |
+| GET /auth/profile | 200 | Full profile |
+| GET /restaurants?city=Lagos | 200 | 3 restaurants |
+| GET /restaurants?city=Maiduguri | 200 | 1 restaurant |
+| GET /wallet | 200 | Balance: 0 NGN |
+| GET /loyalty | 200 | Points: 0, config loaded |
+| GET /loyalty/balance | 200 | Points: 0 |
+| GET /loyalty/config | 200 | Full active config |
+| GET /subscriptions/plans | 200 | 2 plans (Basic ₦0, Premium ₦2,500) |
+| GET /referral | 200 | Referral code + stats |
 
 ### 🚀 HOW TO CONTINUE
 
@@ -316,4 +341,4 @@ After Phase 1 is tested and working, the next phase will include:
 2. Verify everything works
 3. Pick up where we left off
 
-### 💾 SESSION END: May 5, 2026
+### 💾 SESSION END: May 12, 2026
