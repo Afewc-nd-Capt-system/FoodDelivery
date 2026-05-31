@@ -322,7 +322,10 @@ export default function HomePage() {
       {/* ── HERO ─────────────────────────────── */}
       <section
         className="relative overflow-hidden"
-        style={{ background: 'linear-gradient(135deg, #1A0E0A 0%, #2C1810 45%, #1A1410 100%)' }}
+        style={{
+          background: 'linear-gradient(135deg, #1A0E0A 0%, #2C1810 45%, #1A1410 100%)',
+          minHeight: '600px',
+        }}
       >
         {/* Ambient blobs */}
         <div
@@ -335,15 +338,18 @@ export default function HomePage() {
         />
 
         {/* Hero food image — right side */}
-        <div style={{
-          position: 'absolute',
-          right: 0,
-          top: 0,
-          bottom: 0,
-          width: '45%',
-          overflow: 'hidden',
-          display: 'block',
-        }}>
+        <div
+          style={{
+            position: 'absolute',
+            right: 0,
+            top: 0,
+            bottom: 0,
+            width: '45%',
+            overflow: 'hidden',
+            display: 'block',
+            zIndex: 1,
+          }}
+        >
           <img
             src="https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=800&q=80"
             alt="Nigerian food"
@@ -354,13 +360,15 @@ export default function HomePage() {
               opacity: 0.85,
               display: 'block',
             }}
-            crossOrigin="anonymous"
           />
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'linear-gradient(to right, #1A0E0A 0%, rgba(26,14,10,0.5) 30%, transparent 60%)',
-          }} />
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background:
+                'linear-gradient(to right, #1A0E0A 0%, rgba(26,14,10,0.5) 30%, transparent 60%)',
+            }}
+          />
         </div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-28">

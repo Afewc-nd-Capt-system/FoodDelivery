@@ -16,6 +16,108 @@ const steps = [
   { id: 'delivered', label: 'Delivered', desc: 'Enjoy your meal!', icon: CheckCircle },
 ];
 
+// Google Maps Component
+function GoogleMap({ riderLat, riderLng, restaurantLat, restaurantLng, customerLat, customerLng }: {
+  riderLat?: number;
+  riderLng?: number;
+  restaurantLat: number;
+  restaurantLng: number;
+  customerLat: number;
+  customerLng: number;
+}) {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const riderMarkerRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const initMap = () => {
+      if (!mapRef.current) return;
+
+      const map = new (window as any).google.maps.Map(mapRef.current, {
+        zoom: 14,
+        center: { lat: riderLat || 6.5244, lng: riderLng || 3.3792 },
+        styles: [
+          { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+        ],
+        disableDefaultUI: true,
+        zoomControl: true,
+      });
+      mapInstanceRef.current = map;
+
+      // Restaurant marker (red)
+      new (window as any).google.maps.Marker({
+        position: { lat: restaurantLat, lng: restaurantLng },
+        map,
+        icon: {
+          url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
+          scaledSize: new (window as any).google.maps.Size(40, 40),
+        },
+        title: 'Restaurant',
+      });
+
+      // Customer marker (green)
+      new (window as any).google.maps.Marker({
+        position: { lat: customerLat, lng: customerLng },
+        map,
+        icon: {
+          url: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png',
+          scaledSize: new (window as any).google.maps.Size(40, 40),
+        },
+        title: 'Your Location',
+      });
+
+      // Rider marker (orange, animated)
+      riderMarkerRef.current = new (window as any).google.maps.Marker({
+        position: { lat: riderLat || 6.5244, lng: riderLng || 3.3792 },
+        map,
+        icon: {
+          url: 'https://maps.google.com/mapfiles/ms/icons/orange-dot.png',
+          scaledSize: new (window as any).google.maps.Size(50, 50),
+        },
+        title: 'Your Rider',
+      });
+
+      // Draw route
+      const directionsService = new (window as any).google.maps.DirectionsService();
+      const directionsRenderer = new (window as any).google.maps.DirectionsRenderer({
+        map,
+        suppressMarkers: true,
+        polylineOptions: { strokeColor: '#E8621A', strokeWeight: 4 }
+      });
+      directionsService.route({
+        origin: { lat: restaurantLat, lng: restaurantLng },
+        destination: { lat: customerLat, lng: customerLng },
+        travelMode: (window as any).google.maps.TravelMode.DRIVING,
+      }, (result: any, status: string) => {
+        if (status === 'OK') directionsRenderer.setDirections(result);
+      });
+    };
+
+    if ((window as any).google?.maps) {
+      initMap();
+    } else {
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY}`;
+      script.onload = initMap;
+      document.head.appendChild(script);
+    }
+  }, [riderLat, riderLng, restaurantLat, restaurantLng, customerLat, customerLng]);
+
+  // Update rider position when Socket.io sends new location
+  useEffect(() => {
+    if (riderMarkerRef.current && riderLat && riderLng) {
+      riderMarkerRef.current.setPosition({ lat: riderLat, lng: riderLng });
+      mapInstanceRef.current?.panTo({ lat: riderLat, lng: riderLng });
+    }
+  }, [riderLat, riderLng]);
+
+  return (
+    <div ref={mapRef} style={{ width: '100%', height: '300px', borderRadius: '24px' }} />
+  );
+}
+
 export default function OrderTrackingPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [eta, setEta] = useState(12);
@@ -199,25 +301,16 @@ export default function OrderTrackingPage() {
               </div>
             </Card>
 
-            {/* MAP PLACEHOLDER */}
-            <Card className="relative h-48 overflow-hidden">
-              <div className="absolute inset-0 bg-[#E8E8E8]">
-                <div className="absolute inset-0" style={{
-                  backgroundImage: 'linear-gradient(to right, #E8E8E8 1px, transparent 1px), linear-gradient(to bottom, #E8E8E8 1px, transparent 1px)',
-                  backgroundSize: '40px 40px',
-                }} />
-                <div className="absolute bottom-4 left-4 text-2xl">📍</div>
-                <div className="absolute top-4 right-4 text-2xl">📍</div>
-                <div
-                  className="absolute text-2xl transition-all duration-150"
-                  style={{ left: `${riderPos.x}px`, top: `${riderPos.y}px` }}
-                >
-                  🛵
-                </div>
-              </div>
-              <button className="absolute bottom-4 right-4 bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white px-4 py-2 rounded-xl text-sm font-medium">
-                Open in Maps
-              </button>
+            {/* GOOGLE MAPS */}
+            <Card className="relative h-80 overflow-hidden">
+              <GoogleMap 
+                riderLat={6.5244}
+                riderLng={3.3792}
+                restaurantLat={6.5244}
+                restaurantLng={3.3792}
+                customerLat={6.5355}
+                customerLng={3.3087}
+              />
             </Card>
 
             {/* DRIVER CARD */}

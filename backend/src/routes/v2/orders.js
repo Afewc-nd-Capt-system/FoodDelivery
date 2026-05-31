@@ -405,6 +405,47 @@ router.patch('/vendors/orders/:id/ready', authMiddleware, async (req, res) => {
       io.of('/orders').to(`delivery_company_${order.deliveryCompany}`).emit('order_ready', order);
     }
 
+    // Auto-forward to delivery company
+    try {
+      const DeliveryCompany = mongoose.model('DeliveryCompany');
+      const deliveryCompany = await DeliveryCompany.findOne({
+        'coverageAreas': { $in: [vendor.address?.city || ''] },
+        isActive: true
+      });
+
+      if (deliveryCompany) {
+        const DeliveryJob = mongoose.model('DeliveryJob');
+        await DeliveryJob.create({
+          orderId: order._id,
+          deliveryCompanyId: deliveryCompany._id,
+          pickupAddress: vendor.address,
+          dropoffAddress: order.deliveryAddress,
+          status: 'pending',
+        });
+
+        if (io) {
+          io.of('/orders')
+            .to(`delivery_company_${deliveryCompany._id}`)
+            .emit('new_delivery_job', { orderId: order._id });
+        }
+
+        await Order.findByIdAndUpdate(order._id, {
+          status: 'awaiting_pickup',
+          deliveryCompanyId: deliveryCompany._id
+        });
+
+        io?.of('/orders')
+          .to(`customer_${order.customerId}`)
+          .emit('order_status_change', {
+            orderId: order._id,
+            status: 'awaiting_pickup',
+            message: 'Your order is ready and being dispatched!'
+          });
+      }
+    } catch (err) {
+      console.warn('Auto-delivery assignment failed:', err.message);
+    }
+
     res.json({ order });
   } catch (error) {
     res.status(400).json({ message: error.message });

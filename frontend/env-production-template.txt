@@ -20,6 +20,7 @@ NEXT_PUBLIC_ENABLE_LOCATION_SERVICES=true
 NEXT_PUBLIC_ENABLE_ANALYTICS=false
 
 # Map services (for future geocoding enhancements)
+NEXT_PUBLIC_GOOGLE_MAPS_KEY=your_google_maps_api_key_here
 NEXT_PUBLIC_MAPBOX_TOKEN=your_mapbox_token_here
 
 # Sentry for error tracking (optional)

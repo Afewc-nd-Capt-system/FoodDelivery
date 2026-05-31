@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Package, TrendingUp, DollarSign, Star, Calendar,
-  Clock, Utensils, Plus, Settings, AlertCircle, User, ChefHat
+  Clock, Utensils, Plus, Settings, AlertCircle, User, ChefHat, X
 } from 'lucide-react';
 
 export default function VendorDashboardPage() {
@@ -29,6 +29,13 @@ export default function VendorDashboardPage() {
     { date: 'Wednesday, May 14', orders: 12, status: 'upcoming' },
     { date: 'Friday, May 16', orders: 15, status: 'upcoming' },
   ]);
+
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [menuForm, setMenuForm] = useState({
+    name: '', description: '', price: '', category: '', image: '',
+    availableDate: '', availableFrom: '08:00', availableTo: '18:00',
+    cutoffHours: 12, maxPreOrders: 20, cookingDay: '',
+  });
 
   const [recentOrders, setRecentOrders] = useState([
     { id: 'ORD-001', customer: 'Funmi Adeyemi', items: 3, total: 8500, status: 'pending', deliveryDate: 'Monday, May 12' },
@@ -270,11 +277,111 @@ export default function VendorDashboardPage() {
               <h2 className="text-xl font-black" style={{ color: '#1C1C1E' }}>
                 Menu Management
               </h2>
-              <Button className="bg-[#E8621A] text-white hover:bg-[#C4501A]">
-                <Plus className="w-4 h-4 mr-2" />
-                Add Menu Item
+              <Button onClick={() => setShowAddForm(!showAddForm)} className="bg-[#E8621A] text-white hover:bg-[#C4501A]">
+                {showAddForm ? <X className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+                {showAddForm ? 'Cancel' : 'Add Menu Item'}
               </Button>
             </div>
+
+            {showAddForm && (
+              <div className="mb-8 p-6 rounded-2xl" style={{ backgroundColor: '#FAFAFA', border: '1px solid #E8E8E8' }}>
+                <h3 className="font-bold text-lg mb-5" style={{ color: '#1C1C1E' }}>New Menu Item</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="text-xs font-semibold" style={{ color: '#636366' }}>Item Name</label>
+                    <input type="text" value={menuForm.name} onChange={e => setMenuForm({...menuForm, name: e.target.value})}
+                      className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm outline-none"
+                      style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold" style={{ color: '#636366' }}>Category</label>
+                    <input type="text" value={menuForm.category} onChange={e => setMenuForm({...menuForm, category: e.target.value})}
+                      className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm outline-none"
+                      style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold" style={{ color: '#636366' }}>Price (₦)</label>
+                    <input type="number" value={menuForm.price} onChange={e => setMenuForm({...menuForm, price: e.target.value})}
+                      className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm outline-none"
+                      style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold" style={{ color: '#636366' }}>Image URL</label>
+                    <input type="text" value={menuForm.image} onChange={e => setMenuForm({...menuForm, image: e.target.value})}
+                      className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm outline-none"
+                      style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-xs font-semibold" style={{ color: '#636366' }}>Description</label>
+                    <textarea value={menuForm.description} onChange={e => setMenuForm({...menuForm, description: e.target.value})}
+                      rows={2}
+                      className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm outline-none resize-none"
+                      style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Availability Settings */}
+                <div className="mt-6 pt-6 border-t" style={{ borderColor: '#E8E8E8' }}>
+                  <h4 className="font-bold mb-4" style={{ color: '#1C1C1E' }}>Pre-order Availability</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="text-xs font-semibold" style={{ color: '#636366' }}>Next Available Date</label>
+                      <input type="date" value={menuForm.availableDate}
+                        onChange={e => setMenuForm({...menuForm, availableDate: e.target.value})}
+                        min={new Date().toISOString().split('T')[0]}
+                        className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm outline-none"
+                        style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold" style={{ color: '#636366' }}>Available From</label>
+                      <input type="time" value={menuForm.availableFrom || '08:00'}
+                        onChange={e => setMenuForm({...menuForm, availableFrom: e.target.value})}
+                        className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm outline-none"
+                        style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold" style={{ color: '#636366' }}>Available Until</label>
+                      <input type="time" value={menuForm.availableTo || '18:00'}
+                        onChange={e => setMenuForm({...menuForm, availableTo: e.target.value})}
+                        className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm outline-none"
+                        style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold" style={{ color: '#636366' }}>Pre-order Cutoff (hours before)</label>
+                      <input type="number" value={menuForm.cutoffHours || 12}
+                        onChange={e => setMenuForm({...menuForm, cutoffHours: e.target.value})}
+                        min={1} max={72}
+                        className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm outline-none"
+                        style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold" style={{ color: '#636366' }}>Max Pre-orders for this Date</label>
+                      <input type="number" value={menuForm.maxPreOrders || 20}
+                        onChange={e => setMenuForm({...menuForm, maxPreOrders: e.target.value})}
+                        min={1}
+                        className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm outline-none"
+                        style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex justify-end gap-3">
+                  <Button onClick={() => setShowAddForm(false)} variant="outline">Cancel</Button>
+                  <Button className="bg-[#E8621A] text-white hover:bg-[#C4501A]">Save Menu Item</Button>
+                </div>
+              </div>
+            )}
+
             <div className="text-center py-12" style={{ color: '#636366' }}>
               <Utensils className="w-16 h-16 mx-auto mb-4" style={{ color: '#E8E8E8' }} />
               <p>Menu management coming soon</p>

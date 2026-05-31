@@ -312,48 +312,49 @@ export function Navbar() {
                 </button>
                 
                 {partnersOpen && (
-                  <div className="absolute top-full left-0 mt-1 w-56 bg-white rounded-xl shadow-lg border py-2 z-50"
-                    style={{ borderColor: '#E8E8E8' }}
+                  <div
+                    className="absolute top-full left-0 mt-2 w-56 bg-white rounded-2xl shadow-lg z-50 py-2"
+                    style={{ boxShadow: '0 12px 40px rgba(0,0,0,0.12)', border: '1px solid #F0EAE0' }}
                   >
                     <Link
                       href="/restaurant-login"
-                      className="block px-4 py-2.5 text-sm font-medium transition-colors hover:bg-orange-50"
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition-colors hover:bg-orange-50"
                       style={{ color: '#1C1C1E' }}
                       onClick={() => setPartnersOpen(false)}
                     >
-                      Restaurant Partner
+                      🍽️ Restaurant Partner
                     </Link>
                     <Link
                       href="/vendor-login"
-                      className="block px-4 py-2.5 text-sm font-medium transition-colors hover:bg-orange-50"
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition-colors hover:bg-orange-50"
                       style={{ color: '#1C1C1E' }}
                       onClick={() => setPartnersOpen(false)}
                     >
-                      Become a Vendor
-                    </Link>
-                    <Link
-                      href="/delivery-company-login"
-                      className="block px-4 py-2.5 text-sm font-medium transition-colors hover:bg-orange-50"
-                      style={{ color: '#1C1C1E' }}
-                      onClick={() => setPartnersOpen(false)}
-                    >
-                      Delivery Company
+                      👨‍🍳 Become a Vendor
                     </Link>
                     <Link
                       href="/rider-login"
-                      className="block px-4 py-2.5 text-sm font-medium transition-colors hover:bg-orange-50"
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition-colors hover:bg-orange-50"
                       style={{ color: '#1C1C1E' }}
                       onClick={() => setPartnersOpen(false)}
                     >
-                      Rider Login
+                      🚴 Rider Login
                     </Link>
                     <Link
-                      href="/admin"
-                      className="block px-4 py-2.5 text-sm font-medium transition-colors hover:bg-orange-50"
+                      href="/delivery-company-login"
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition-colors hover:bg-orange-50"
                       style={{ color: '#1C1C1E' }}
                       onClick={() => setPartnersOpen(false)}
                     >
-                      Admin
+                      🚚 Delivery Company
+                    </Link>
+                    <Link
+                      href="/admin/login"
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition-colors hover:bg-orange-50"
+                      style={{ color: '#1C1C1E' }}
+                      onClick={() => setPartnersOpen(false)}
+                    >
+                      🔐 Admin
                     </Link>
                   </div>
                 )}

@@ -4,10 +4,12 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Minus, Plus, X, Tag, MapPin, ChevronRight, CheckCircle,
-  CreditCard, Smartphone, Banknote, ShoppingBag
+  CreditCard, Smartphone, Banknote, ShoppingBag, Mail, Lock, User, Phone
 } from 'lucide-react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
+import { useAuth } from '@/context/AuthContext';
 
 const PAYMENT_METHODS = [
   { id: 'paystack', label: 'Paystack', icon: CreditCard, desc: 'Cards, Bank Transfer, USSD', badge: 'Recommended', badgeColor: '#00C3F7' },
@@ -20,6 +22,7 @@ const DELIVERY_PRESETS = ['Home', 'Work', "Partner's"];
 
 export default function CartPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const { items, updateQuantity, removeItem, clearCart, subtotal, promoCode, applyPromoCode, discount } = useCart();
 
   const [promoInput, setPromoInput] = useState('');
@@ -28,6 +31,17 @@ export default function CartPage() {
   const [paymentMethod, setPaymentMethod] = useState('paystack');
   const [placing, setPlacing] = useState(false);
   const [placed, setPlaced] = useState(false);
+
+  // Guest checkout state
+  const [checkoutTab, setCheckoutTab] = useState<'guest' | 'signin'>('guest');
+  const [guestInfo, setGuestInfo] = useState({
+    name: '', email: '', phone: '', password: '',
+    confirmPassword: '', createAccount: true
+  });
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
 
   const deliveryFee = 500;
   const serviceFee = 100;
@@ -47,6 +61,205 @@ export default function CartPage() {
     clearCart();
     setTimeout(() => router.push('/tracking'), 1600);
   };
+
+  /* ─── Guest Checkout ───────────────────── */
+  if (!user && items.length > 0) {
+    return (
+      <div style={{ backgroundColor: '#FFF8F0', minHeight: '100vh' }}>
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <h1 className="text-2xl font-black mb-6" style={{ color: '#1C1C1E' }}>
+            Checkout
+            <span className="text-base font-normal ml-2" style={{ color: '#A0A0A0' }}>
+              ({items.length} item{items.length !== 1 ? 's' : ''})
+            </span>
+          </h1>
+
+          {/* Tabs */}
+          <div className="flex bg-white rounded-2xl p-1 mb-6" style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+            <button
+              onClick={() => setCheckoutTab('guest')}
+              className="flex-1 py-3 rounded-xl text-sm font-bold transition-all"
+              style={{
+                background: checkoutTab === 'guest' ? 'linear-gradient(135deg, #E8621A, #C4501A)' : 'transparent',
+                color: checkoutTab === 'guest' ? 'white' : '#636366',
+              }}
+            >
+              Guest Checkout
+            </button>
+            <button
+              onClick={() => setCheckoutTab('signin')}
+              className="flex-1 py-3 rounded-xl text-sm font-bold transition-all"
+              style={{
+                background: checkoutTab === 'signin' ? 'linear-gradient(135deg, #E8621A, #C4501A)' : 'transparent',
+                color: checkoutTab === 'signin' ? 'white' : '#636366',
+              }}
+            >
+              Sign In to Continue
+            </button>
+          </div>
+
+          {checkoutTab === 'guest' ? (
+            <div className="bg-white rounded-3xl p-6" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
+              <h2 className="font-black text-lg mb-5" style={{ color: '#1C1C1E' }}>Guest Details</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-semibold" style={{ color: '#636366' }}>Full Name *</label>
+                  <input type="text" value={guestInfo.name} onChange={e => setGuestInfo({...guestInfo, name: e.target.value})}
+                    placeholder="John Doe"
+                    className="w-full mt-1 px-4 py-3 rounded-xl text-sm outline-none"
+                    style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold" style={{ color: '#636366' }}>Email *</label>
+                  <input type="email" value={guestInfo.email} onChange={e => setGuestInfo({...guestInfo, email: e.target.value})}
+                    placeholder="john@example.com"
+                    className="w-full mt-1 px-4 py-3 rounded-xl text-sm outline-none"
+                    style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold" style={{ color: '#636366' }}>Phone Number *</label>
+                  <input type="tel" value={guestInfo.phone} onChange={e => setGuestInfo({...guestInfo, phone: e.target.value})}
+                    placeholder="+234 80X XXX XXXX"
+                    className="w-full mt-1 px-4 py-3 rounded-xl text-sm outline-none"
+                    style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold" style={{ color: '#636366' }}>Password *</label>
+                  <input type="password" value={guestInfo.password} onChange={e => setGuestInfo({...guestInfo, password: e.target.value})}
+                    placeholder="Min 8 characters"
+                    className="w-full mt-1 px-4 py-3 rounded-xl text-sm outline-none"
+                    style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold" style={{ color: '#636366' }}>Confirm Password *</label>
+                  <input type="password" value={guestInfo.confirmPassword} onChange={e => setGuestInfo({...guestInfo, confirmPassword: e.target.value})}
+                    placeholder="Re-enter password"
+                    className="w-full mt-1 px-4 py-3 rounded-xl text-sm outline-none"
+                    style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
+                  />
+                </div>
+                <label className="flex items-center gap-3 py-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={guestInfo.createAccount}
+                    onChange={e => setGuestInfo({...guestInfo, createAccount: e.target.checked})}
+                    className="w-4 h-4 rounded"
+                    style={{ accentColor: '#E8621A' }}
+                  />
+                  <span className="text-sm font-medium" style={{ color: '#636366' }}>
+                    Save my details for faster checkout next time
+                  </span>
+                </label>
+              </div>
+
+              {authError && (
+                <div className="mt-4 p-3 rounded-xl text-sm" style={{ backgroundColor: '#FEF2F2', color: '#D32F2F', border: '1px solid #FCA5A5' }}>
+                  {authError}
+                </div>
+              )}
+
+              <button
+                onClick={async () => {
+                  setAuthLoading(true); setAuthError('');
+                  try {
+                    if (guestInfo.createAccount) {
+                      const regRes = await fetch('/api/v2/auth/register', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          name: guestInfo.name,
+                          email: guestInfo.email,
+                          phone: guestInfo.phone,
+                          password: guestInfo.password,
+                          role: 'customer'
+                        })
+                      });
+                      const regData = await regRes.json();
+                      if (!regRes.ok) throw new Error(regData.message);
+                      localStorage.setItem('token', regData.token);
+                    }
+                    router.push('/checkout');
+                  } catch (err: any) { setAuthError(err.message) }
+                  finally { setAuthLoading(false) }
+                }}
+                disabled={authLoading}
+                className="w-full mt-5 py-4 rounded-2xl text-white font-black text-base transition-all"
+                style={{
+                  background: 'linear-gradient(135deg, #E8621A, #BE3A2A)',
+                  opacity: authLoading ? 0.7 : 1,
+                }}
+              >
+                {authLoading ? 'Processing...' : `Place Order — ₦${subtotal.toLocaleString()}`}
+              </button>
+            </div>
+          ) : (
+            <div className="bg-white rounded-3xl p-6" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
+              <h2 className="font-black text-lg mb-5" style={{ color: '#1C1C1E' }}>Sign In</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-semibold" style={{ color: '#636366' }}>Email</label>
+                  <input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)}
+                    placeholder="your@email.com"
+                    className="w-full mt-1 px-4 py-3 rounded-xl text-sm outline-none"
+                    style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold" style={{ color: '#636366' }}>Password</label>
+                  <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full mt-1 px-4 py-3 rounded-xl text-sm outline-none"
+                    style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
+                  />
+                </div>
+                <div className="text-right">
+                  <Link href="/forgot-password" className="text-xs font-semibold" style={{ color: '#E8621A' }}>
+                    Forgot Password?
+                  </Link>
+                </div>
+              </div>
+
+              {authError && (
+                <div className="mt-4 p-3 rounded-xl text-sm" style={{ backgroundColor: '#FEF2F2', color: '#D32F2F', border: '1px solid #FCA5A5' }}>
+                  {authError}
+                </div>
+              )}
+
+              <button
+                onClick={async () => {
+                  setAuthLoading(true); setAuthError('');
+                  try {
+                    const res = await fetch('/api/v2/auth/login', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ email: loginEmail, password: loginPassword })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.message);
+                    localStorage.setItem('token', data.token);
+                    window.location.reload();
+                  } catch (err: any) { setAuthError(err.message) }
+                  finally { setAuthLoading(false) }
+                }}
+                disabled={authLoading}
+                className="w-full mt-5 py-4 rounded-2xl text-white font-black text-base transition-all"
+                style={{
+                  background: 'linear-gradient(135deg, #E8621A, #BE3A2A)',
+                  opacity: authLoading ? 0.7 : 1,
+                }}
+              >
+                {authLoading ? 'Signing in...' : 'Sign In'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   /* ─── Success screen ───────────────────── */
   if (placed) {

@@ -4,42 +4,20 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Star, Clock, MapPin, ArrowLeft, Heart, Share2, Plus, Minus } from 'lucide-react';
+import { Star, Clock, MapPin, ArrowLeft, Heart, Share2 } from 'lucide-react';
 import { vendors, vendorMenuItems } from '@/data/mockData';
 import { useCart } from '@/context/CartContext';
 
 export default function VendorDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { addItem } = useCart();
+  const { addItem, items, updateQuantity } = useCart();
   const vendorId = params.id as string;
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
 
   const vendor = vendors.find(v => v.id === vendorId);
   const menuItems = vendorMenuItems.filter(item => item.vendorId === vendorId);
 
-  const handleQuantityChange = (itemId: string, delta: number) => {
-    setQuantities(prev => ({
-      ...prev,
-      [itemId]: Math.max(0, (prev[itemId] || 0) + delta)
-    }));
-  };
-
-  const handlePreOrder = (item: typeof vendorMenuItems[0]) => {
-    const quantity = quantities[item.id] || 1;
-    for (let i = 0; i < quantity; i++) {
-      addItem({
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        image: item.image,
-        restaurantId: vendorId,
-        category: item.category,
-        description: item.description,
-      });
-    }
-    setQuantities(prev => ({ ...prev, [item.id]: 0 }));
-  };
+  const getItemQty = (itemId: string) => items.find(i => i.id === itemId)?.quantity || 0;
 
   if (!vendor) {
     return (
@@ -233,40 +211,67 @@ export default function VendorDetailPage() {
                   {item.calories && <span>{item.calories}</span>}
                   {item.cookingDay && <span>• Cooks on {item.cookingDay}</span>}
                 </div>
-                <div className="flex items-center justify-between mb-3">
+                {item.availableDate && (
+                  <div style={{ fontSize: '12px', color: '#636366', marginTop: '4px', marginBottom: '8px' }}>
+                    📅 Available: {new Date(item.availableDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    🕐 {item.availableFrom} - {item.availableTo}
+                    ⏰ Order by: {item.cutoffHours}h before
+                    📦 {item.maxPreOrders! - (item.currentPreOrders || 0)} slots left
+                  </div>
+                )}
+                <div className="flex items-center justify-between mt-2.5">
                   <span className="font-bold text-lg">₦{item.price.toLocaleString()}</span>
+                  {(() => {
+                    const qty = getItemQty(item.id);
+                    return qty > 0 ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button
+                          onClick={() => updateQuantity(item.id, qty - 1)}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center border-2"
+                          style={{ borderColor: '#E8621A', color: '#E8621A' }}
+                        >−</button>
+                        <span className="font-black text-sm" style={{ color: '#1C1C1E' }}>{qty}</span>
+                        <button
+                          onClick={() => addItem({
+                            id: item.id,
+                            name: item.name,
+                            price: item.price,
+                            image: item.image,
+                            restaurantId: vendorId,
+                            category: item.category,
+                            description: item.description,
+                          })}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-white"
+                          style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}
+                        >+</button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => addItem({
+                          id: item.id,
+                          name: item.name,
+                          price: item.price,
+                          image: item.image,
+                          restaurantId: vendorId,
+                          category: item.category,
+                          description: item.description,
+                        })}
+                        style={{
+                          background: 'linear-gradient(135deg, #E8621A, #C4501A)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '12px',
+                          padding: '8px 16px',
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                        }}
+                      >
+                        + Pre-order
+                      </button>
+                    );
+                  })()}
                 </div>
-
-                {/* Quantity Selector */}
-                <div className="flex items-center gap-3 mb-3">
-                  <button
-                    onClick={() => handleQuantityChange(item.id, -1)}
-                    className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100"
-                  >
-                    <Minus size={16} />
-                  </button>
-                  <span className="font-semibold w-8 text-center">{quantities[item.id] || 1}</span>
-                  <button
-                    onClick={() => handleQuantityChange(item.id, 1)}
-                    className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100"
-                  >
-                    <Plus size={16} />
-                  </button>
-                </div>
-
-                {/* Pre-order Button */}
-                <button
-                  onClick={() => handlePreOrder(item)}
-                  disabled={!vendor.isOpen}
-                  className={`w-full py-2.5 rounded-xl text-sm font-bold transition-all ${
-                    vendor.isOpen
-                      ? 'text-white hover:scale-105 active:scale-95'
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  }`}
-                  style={vendor.isOpen ? { background: 'linear-gradient(135deg, #E8621A, #C4501A)' } : {}}
-                >
-                  Pre-order
-                </button>
               </div>
             </div>
           ))}

@@ -42,6 +42,12 @@ export interface VendorMenuItem {
   popular?: boolean;
   calories?: string;
   cookingDay?: string;
+  availableDate?: string;
+  availableFrom?: string;
+  availableTo?: string;
+  cutoffHours?: number;
+  maxPreOrders?: number;
+  currentPreOrders?: number;
 }
 
 export interface Vendor {
@@ -509,6 +515,12 @@ export const vendorMenuItems: VendorMenuItem[] = [
     popular: true,
     calories: '580 cal',
     cookingDay: 'Mon',
+    availableDate: '2026-06-05',
+    availableFrom: '10:00',
+    availableTo: '18:00',
+    cutoffHours: 12,
+    maxPreOrders: 20,
+    currentPreOrders: 8,
   },
   {
     id: 'vm2',
