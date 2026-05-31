@@ -357,7 +357,7 @@ export default function VendorDashboardPage() {
                     <div>
                       <label className="text-xs font-semibold" style={{ color: '#636366' }}>Pre-order Cutoff (hours before)</label>
                       <input type="number" value={menuForm.cutoffHours || 12}
-                        onChange={e => setMenuForm({...menuForm, cutoffHours: e.target.value})}
+                        onChange={e => setMenuForm({...menuForm, cutoffHours: Number(e.target.value)})}
                         min={1} max={72}
                         className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm outline-none"
                         style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
@@ -366,7 +366,7 @@ export default function VendorDashboardPage() {
                     <div>
                       <label className="text-xs font-semibold" style={{ color: '#636366' }}>Max Pre-orders for this Date</label>
                       <input type="number" value={menuForm.maxPreOrders || 20}
-                        onChange={e => setMenuForm({...menuForm, maxPreOrders: e.target.value})}
+                        onChange={e => setMenuForm({...menuForm, maxPreOrders: Number(e.target.value)})}
                         min={1}
                         className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm outline-none"
                         style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
