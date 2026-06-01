@@ -13,8 +13,9 @@ export default function AdminLogin() {
     setLoading(true)
     setError('')
     try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/auth/login`,
+        `${API_URL}/auth/login`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -28,7 +29,8 @@ export default function AdminLogin() {
       }
       localStorage.setItem('token', data.token)
       localStorage.setItem('user', JSON.stringify(data.user))
-      router.push('/admin/dashboard')
+      localStorage.setItem('userRole', data.user.role)
+      router.push('/admin')
     } catch (err: any) {
       setError(err.message)
     } finally {

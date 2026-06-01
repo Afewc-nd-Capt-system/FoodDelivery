@@ -11,7 +11,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
-import { DollarSign, ShoppingCart, TrendingUp, Users, Star, Clock, Plus, Edit, Trash2, Calendar, Percent, User } from 'lucide-react';
+import { DollarSign, ShoppingCart, TrendingUp, Star, Clock, Plus, Edit, Trash2, Calendar, Percent, User } from 'lucide-react';
+import { useAuthGuard } from '@/hooks/useAuthGuard';
 
 const chartData = [
   { date: 'Mon', revenue: 45000, orders: 45 },
@@ -38,12 +39,15 @@ const peakHours = [
 ];
 
 function RestaurantDashboardPageContent() {
+  const { user: authUser, loading: authLoading } = useAuthGuard('restaurant')
   const searchParams = useSearchParams();
   const restaurantId = searchParams.get('restaurantId');
   const [period, setPeriod] = useState('week');
   const [showPromotionForm, setShowPromotionForm] = useState(false);
   const [promotions, setPromotions] = useState<any[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
+
+  if (authLoading) return <div className="min-h-screen bg-[#F5F5F7] flex items-center justify-center">Loading...</div>
 
   useEffect(() => {
     if (restaurantId) {

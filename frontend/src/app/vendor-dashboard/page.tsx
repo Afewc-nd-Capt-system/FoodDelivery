@@ -1,19 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Package, TrendingUp, DollarSign, Star, Calendar,
-  Clock, Utensils, Plus, Settings, AlertCircle, User, ChefHat, X
+  Clock, Utensils, Plus, Settings, AlertCircle, User, X
 } from 'lucide-react';
+import { useAuthGuard } from '@/hooks/useAuthGuard';
 
 export default function VendorDashboardPage() {
-  const router = useRouter();
+  const { user, loading } = useAuthGuard('vendor')
   const [activeTab, setActiveTab] = useState('overview');
+
+  if (loading) return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#FFF8F0' }}><div style={{ color: '#E8621A' }}>Loading...</div></div>
 
   const [vendorStats, setVendorStats] = useState({
     totalOrders: 45,

@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +9,7 @@ import {
   Bike, MapPin, Clock, CheckCircle, Package, DollarSign,
   TrendingUp, Star, Bell, Navigation, Battery, Signal, User, History
 } from 'lucide-react';
+import { useAuthGuard } from '@/hooks/useAuthGuard';
 
 interface DeliveryOrder {
   id: string;
@@ -60,12 +60,14 @@ const todayStats = {
 };
 
 export default function DeliveryDashboardPage() {
-  const router = useRouter();
+  const { user: authUser, loading: authLoading } = useAuthGuard('delivery_rider')
   const [activeTab, setActiveTab] = useState('overview');
   const [isOnline, setIsOnline] = useState(true);
   const [currentLocation, setCurrentLocation] = useState('Ikoyi, Lagos');
   const [orders, setOrders] = useState<DeliveryOrder[]>(mockOrders);
   const [confirmingArrival, setConfirmingArrival] = useState<string | null>(null);
+
+  if (authLoading) return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF8F0' }}><div style={{ color: '#E8621A' }}>Loading...</div></div>
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: Bike },

@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { getDashboardPath } from '@/lib/routeGuard';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -25,14 +24,16 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
-      // After successful login, redirect will be handled by AuthContext
-      // The AuthContext will set the user, and we can use their role to redirect
-      const userRole = typeof window !== 'undefined' ? localStorage.getItem('userRole') as any : null;
-      if (userRole) {
-        router.push(getDashboardPath(userRole));
-      } else {
-        router.push('/dashboard');
-      }
+      const userRole = typeof window !== 'undefined' ? localStorage.getItem('userRole') as string : null;
+      const roleRedirect: Record<string, string> = {
+        admin: '/admin',
+        restaurant: '/restaurant-dashboard',
+        vendor: '/vendor-dashboard',
+        delivery_rider: '/rider-dashboard',
+        delivery_company: '/delivery-company-dashboard',
+        customer: '/',
+      };
+      router.push(roleRedirect[userRole || 'customer'] || '/');
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your credentials.');
     } finally {

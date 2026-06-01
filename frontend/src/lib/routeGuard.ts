@@ -10,63 +10,57 @@ interface RouteGuardConfig {
   redirectTo?: string;
 }
 
+const ROLE_LOGIN: Record<UserRole, string> = {
+  customer: '/login',
+  restaurant: '/restaurant-login',
+  vendor: '/vendor-login',
+  delivery_company: '/delivery-company-login',
+  delivery_rider: '/rider-login',
+  admin: '/admin/login',
+};
+
+const ROLE_DASHBOARD: Record<UserRole, string> = {
+  customer: '/',
+  restaurant: '/restaurant-dashboard',
+  vendor: '/vendor-dashboard',
+  delivery_company: '/delivery-company-dashboard',
+  delivery_rider: '/rider-dashboard',
+  admin: '/admin',
+};
+
 export function useRouteGuard(config: RouteGuardConfig) {
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    const checkAuth = () => {
-      const token = localStorage.getItem('token');
-      const userRole = localStorage.getItem('userRole') as UserRole | null;
+    const token = localStorage.getItem('token');
+    const userRole = localStorage.getItem('userRole') as UserRole | null;
 
-      if (!token) {
-        router.push('/login');
-        return false;
-      }
+    if (!token) {
+      router.push('/login');
+      return;
+    }
 
-      if (config.allowedRoles.length > 0 && (!userRole || !config.allowedRoles.includes(userRole))) {
-        // Redirect based on user's role
-        const roleRedirects: Record<UserRole, string> = {
-          customer: '/dashboard',
-          restaurant: '/(restaurant)/dashboard',
-          vendor: '/(vendor)/dashboard',
-          delivery_company: '/(delivery-company)/dashboard',
-          delivery_rider: '/(delivery)/dashboard',
-          admin: '/admin'
-        };
-
-        const redirectPath = config.redirectTo || (userRole ? roleRedirects[userRole] : '/dashboard');
-        router.push(redirectPath);
-        return false;
-      }
-
-      return true;
-    };
-
-    checkAuth();
-  }, [router, pathname, config]);
+    if (config.allowedRoles.length > 0 && (!userRole || !config.allowedRoles.includes(userRole))) {
+      const redirectPath = config.redirectTo || (userRole ? ROLE_DASHBOARD[userRole] : '/login');
+      router.push(redirectPath);
+      return;
+    }
+  }, [pathname]);
 }
 
 export function checkRoleAccess(requiredRole: UserRole): boolean {
   if (typeof window === 'undefined') return false;
-  const userRole = localStorage.getItem('userRole') as UserRole | null;
-  if (!userRole) return false;
-  
-  if (requiredRole === 'admin') {
-    return userRole === 'admin';
+  const stored = localStorage.getItem('user');
+  if (!stored) return false;
+  try {
+    const user = JSON.parse(stored);
+    return user.role === requiredRole;
+  } catch {
+    return false;
   }
-
-  return userRole === requiredRole;
 }
 
 export function getDashboardPath(role: UserRole): string {
-  const paths: Record<UserRole, string> = {
-    customer: '/dashboard',
-    restaurant: '/(restaurant)/dashboard',
-    vendor: '/(vendor)/dashboard',
-    delivery_company: '/(delivery-company)/dashboard',
-    delivery_rider: '/(delivery)/dashboard',
-    admin: '/admin'
-  };
-  return paths[role] || '/dashboard';
+  return ROLE_DASHBOARD[role] || '/';
 }

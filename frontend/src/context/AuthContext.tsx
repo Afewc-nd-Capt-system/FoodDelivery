@@ -83,10 +83,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Login failed');
     setUser(data.user);
-    setToken('logged-in');
-    // Store user role in localStorage for role-based routing
-    if (data.user?.role) {
-      if (typeof window !== 'undefined') localStorage.setItem('userRole', data.user.role);
+    setToken(data.token || 'logged-in');
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('token', data.token || '');
+      localStorage.setItem('userRole', data.user?.role || '');
+      localStorage.setItem('user', JSON.stringify(data.user || {}));
     }
     await fetchUser();
   };
@@ -101,10 +102,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Registration failed');
     setUser(data.user);
-    setToken('logged-in');
-    // Store user role in localStorage for role-based routing
-    if (data.user?.role) {
-      if (typeof window !== 'undefined') localStorage.setItem('userRole', data.user.role);
+    setToken(data.token || 'logged-in');
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('token', data.token || '');
+      localStorage.setItem('userRole', data.user?.role || '');
+      localStorage.setItem('user', JSON.stringify(data.user || {}));
     }
     await fetchUser();
   };
@@ -120,8 +122,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setUser(null);
       setToken(null);
-      // Clear user role from localStorage
-      if (typeof window !== 'undefined') localStorage.removeItem('userRole');
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('userRole');
+      }
     }
   };
 

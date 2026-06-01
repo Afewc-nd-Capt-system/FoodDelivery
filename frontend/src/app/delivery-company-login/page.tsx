@@ -22,7 +22,7 @@ export default function DeliveryCompanyLoginPage() {
     const userRole = localStorage.getItem('userRole');
     
     if (token && userRole === 'delivery_company') {
-      router.push('/delivery-company/dashboard');
+      router.push('/delivery-company-dashboard');
     }
   }, [router]);
 
@@ -32,7 +32,8 @@ export default function DeliveryCompanyLoginPage() {
     setError('');
 
     try {
-      const response = await fetch('/api/v2/auth/login', {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
+      const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -67,7 +68,7 @@ export default function DeliveryCompanyLoginPage() {
       
       // Redirect to delivery company dashboard after successful login
       setTimeout(() => {
-        router.push('/delivery-company/dashboard');
+        router.push('/delivery-company-dashboard');
       }, 1000);
 
     } catch (err: any) {

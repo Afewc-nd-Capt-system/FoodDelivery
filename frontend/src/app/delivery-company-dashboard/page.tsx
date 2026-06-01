@@ -1,17 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Users, Package, DollarSign, TrendingUp, Star,
-  Bike, Settings, Wallet, Plus, Clock, User, History
+  Bike, Settings, Wallet, Plus, User, History
 } from 'lucide-react';
+import { useAuthGuard } from '@/hooks/useAuthGuard';
 
 export default function DeliveryCompanyDashboardPage() {
+  const { user, loading } = useAuthGuard('delivery_company')
   const [activeTab, setActiveTab] = useState('overview');
+
+  if (loading) return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#FFF8F0' }}><div style={{ color: '#E8621A' }}>Loading...</div></div>
 
   const [companyStats, setCompanyStats] = useState({
     totalRiders: 24,
@@ -126,7 +130,7 @@ export default function DeliveryCompanyDashboardPage() {
               Active Riders
               <Badge className="ml-2 bg-[#FFF1E8] text-[#E8621A]">{riders.length}</Badge>
             </h2>
-            <Link href="/(delivery-company)/riders">
+            <Link href="/delivery-company/riders">
               <Button className="bg-[#F5F5F5] text-[#636366] hover:bg-[#E8E8E8] text-xs">
                 View All Riders
               </Button>
@@ -174,7 +178,7 @@ export default function DeliveryCompanyDashboardPage() {
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Link href="/(delivery-company)/riders">
+          <Link href="/delivery-company/riders">
             <Card className="p-6 hover:shadow-lg transition-all cursor-pointer group">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-[#EFF6FF] flex items-center justify-center group-hover:scale-110 transition-transform">
