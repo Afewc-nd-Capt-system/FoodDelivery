@@ -3,18 +3,30 @@ import { useState } from 'react'
 import { useAuthGuard } from '@/hooks/useAuthGuard'
 
 export default function AdminDashboard() {
-  const { user, token, loading } = useAuthGuard('admin')
+  const { user, token, loading, authorized } = useAuthGuard('admin')
   const [activeTab, setActiveTab] = useState('overview')
 
   if (loading) return (
     <div style={{
       minHeight: '100vh', display: 'flex',
       alignItems: 'center', justifyContent: 'center',
-      background: '#F5F5F7'
+      background: '#FFF8F0'
     }}>
-      <div style={{ color: '#E8621A', fontSize: '18px' }}>Loading...</div>
+      <div>
+        <div style={{
+          width: '48px', height: '48px', borderRadius: '50%',
+          border: '4px solid #F0EAE0',
+          borderTop: '4px solid #E8621A',
+          animation: 'spin 1s linear infinite',
+          margin: '0 auto 16px'
+        }} />
+        <p style={{ color: '#636366', textAlign: 'center' }}>Loading...</p>
+        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      </div>
     </div>
   )
+
+  if (!authorized || !user) return null
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
@@ -37,7 +49,6 @@ export default function AdminDashboard() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#F5F5F7', display: 'flex' }}>
-      {/* Sidebar */}
       <div style={{
         width: '240px', background: '#1C1C1E', minHeight: '100vh',
         padding: '24px 0', position: 'fixed', top: 0, left: 0
@@ -81,7 +92,6 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Main content */}
       <div style={{ marginLeft: '240px', flex: 1, padding: '32px' }}>
         <div style={{
           display: 'flex', justifyContent: 'space-between',

@@ -26,7 +26,7 @@ export default function LoginPage() {
       await login(email, password);
       const userRole = typeof window !== 'undefined' ? localStorage.getItem('userRole') as string : null;
       const roleRedirect: Record<string, string> = {
-        admin: '/admin',
+        admin: '/admin/dashboard',
         restaurant: '/restaurant-dashboard',
         vendor: '/vendor-dashboard',
         delivery_rider: '/rider-dashboard',

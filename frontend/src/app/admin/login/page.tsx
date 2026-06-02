@@ -30,7 +30,7 @@ export default function AdminLogin() {
       localStorage.setItem('token', data.token)
       localStorage.setItem('user', JSON.stringify(data.user))
       localStorage.setItem('userRole', data.user.role)
-      router.push('/admin')
+      router.push('/admin/dashboard')
     } catch (err: any) {
       setError(err.message)
     } finally {

@@ -171,6 +171,66 @@ router.post('/users', async (req, res) => {
     );
     results.push({ id: demo._id, name: demo.name, email: demo.email, role: demo.role });
 
+    const testVendor = await User.findOneAndUpdate(
+      { email: 'vendor@vibechops.ng' },
+      { $setOnInsert: {
+        name: 'Mama Ngozi',
+        email: 'vendor@vibechops.ng',
+        password: bcrypt.hashSync('Vendor@2026!', 12),
+        phone: '+2348022222222',
+        role: 'vendor',
+        isVerified: true,
+        isActive: true,
+      }},
+      { upsert: true, new: true }
+    );
+    results.push({ id: testVendor._id, name: testVendor.name, email: testVendor.email, role: testVendor.role });
+
+    const testRestaurant = await User.findOneAndUpdate(
+      { email: 'restaurant@vibechops.ng' },
+      { $setOnInsert: {
+        name: 'Mama Cass Kitchen',
+        email: 'restaurant@vibechops.ng',
+        password: bcrypt.hashSync('Restaurant@2026!', 12),
+        phone: '+2348033333333',
+        role: 'restaurant',
+        isVerified: true,
+        isActive: true,
+      }},
+      { upsert: true, new: true }
+    );
+    results.push({ id: testRestaurant._id, name: testRestaurant.name, email: testRestaurant.email, role: testRestaurant.role });
+
+    const testRider = await User.findOneAndUpdate(
+      { email: 'rider@vibechops.ng' },
+      { $setOnInsert: {
+        name: 'Emeka Rider',
+        email: 'rider@vibechops.ng',
+        password: bcrypt.hashSync('Rider@2026!', 12),
+        phone: '+2348044444444',
+        role: 'delivery_rider',
+        isVerified: true,
+        isActive: true,
+      }},
+      { upsert: true, new: true }
+    );
+    results.push({ id: testRider._id, name: testRider.name, email: testRider.email, role: testRider.role });
+
+    const testDeliveryCompany = await User.findOneAndUpdate(
+      { email: 'delivery@vibechops.ng' },
+      { $setOnInsert: {
+        name: 'Swift Delivery Co',
+        email: 'delivery@vibechops.ng',
+        password: bcrypt.hashSync('Delivery@2026!', 12),
+        phone: '+2348055555555',
+        role: 'delivery_company',
+        isVerified: true,
+        isActive: true,
+      }},
+      { upsert: true, new: true }
+    );
+    results.push({ id: testDeliveryCompany._id, name: testDeliveryCompany.name, email: testDeliveryCompany.email, role: testDeliveryCompany.role });
+
     res.status(201).json({
       message: 'Users seeded successfully',
       count: results.length,
