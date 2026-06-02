@@ -150,7 +150,7 @@ export default function AdminDashboard() {
         )}
 
         {activeTab !== 'overview' && (
-          <AdminTabContent tab={activeTab} token={token} user={user} />
+          <AdminTabContent tab={activeTab} token={token} />
         )}
       </div>
     </div>
