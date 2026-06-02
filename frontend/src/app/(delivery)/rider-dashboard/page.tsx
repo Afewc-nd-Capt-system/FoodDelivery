@@ -60,14 +60,31 @@ const todayStats = {
 };
 
 export default function DeliveryDashboardPage() {
-  const { user: authUser, loading: authLoading } = useAuthGuard('delivery_rider')
+  const { user: authUser, loading: authLoading, authorized } = useAuthGuard('delivery_rider')
   const [activeTab, setActiveTab] = useState('overview');
   const [isOnline, setIsOnline] = useState(true);
   const [currentLocation, setCurrentLocation] = useState('Ikoyi, Lagos');
   const [orders, setOrders] = useState<DeliveryOrder[]>(mockOrders);
   const [confirmingArrival, setConfirmingArrival] = useState<string | null>(null);
 
-  if (authLoading) return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF8F0' }}><div style={{ color: '#E8621A' }}>Loading...</div></div>
+  if (authLoading) return (
+    <div style={{
+      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: '#FFF8F0'
+    }}>
+      <div>
+        <div style={{
+          width: '48px', height: '48px', borderRadius: '50%',
+          border: '4px solid #F0EAE0', borderTop: '4px solid #E8621A',
+          animation: 'spin 1s linear infinite', margin: '0 auto 16px'
+        }} />
+        <p style={{ color: '#636366', textAlign: 'center' }}>Loading...</p>
+        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      </div>
+    </div>
+  )
+
+  if (!authorized || !authUser) return null
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: Bike },

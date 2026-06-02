@@ -39,22 +39,13 @@ const peakHours = [
 ];
 
 function RestaurantDashboardPageContent() {
-  const { user: authUser, loading: authLoading } = useAuthGuard('restaurant')
+  const { user: authUser, loading: authLoading, authorized } = useAuthGuard('restaurant')
   const searchParams = useSearchParams();
   const restaurantId = searchParams.get('restaurantId');
   const [period, setPeriod] = useState('week');
   const [showPromotionForm, setShowPromotionForm] = useState(false);
   const [promotions, setPromotions] = useState<any[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
-
-  if (authLoading) return <div className="min-h-screen bg-[#F5F5F7] flex items-center justify-center">Loading...</div>
-
-  useEffect(() => {
-    if (restaurantId) {
-      fetchPromotions();
-      fetchAnalytics();
-    }
-  }, [restaurantId]);
 
   const fetchPromotions = async () => {
     try {
@@ -85,6 +76,29 @@ function RestaurantDashboardPageContent() {
       console.error('Failed to fetch analytics:', error);
     }
   };
+
+  useEffect(() => {
+    if (restaurantId) {
+      fetchPromotions();
+      fetchAnalytics();
+    }
+  }, [restaurantId]);
+
+  if (authLoading) return (
+    <div className="min-h-screen bg-[#FFF8F0] flex items-center justify-center">
+      <div>
+        <div style={{
+          width: '48px', height: '48px', borderRadius: '50%',
+          border: '4px solid #F0EAE0', borderTop: '4px solid #E8621A',
+          animation: 'spin 1s linear infinite', margin: '0 auto 16px'
+        }} />
+        <p style={{ color: '#636366', textAlign: 'center' }}>Loading...</p>
+        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      </div>
+    </div>
+  )
+
+  if (!authorized || !authUser) return null
 
   return (
     <div className="min-h-screen bg-[#F5F5F7]">
