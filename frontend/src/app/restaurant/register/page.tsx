@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { apiPost } from '@/lib/apiClient';
 import { Shield, Upload, FileText } from 'lucide-react';
 
 const nigerianStates = [
@@ -109,31 +110,19 @@ export default function RestaurantRegisterPage() {
       }
 
       // Register restaurant with document URLs
-      const response = await fetch('/api/v2/restaurants/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const data = await apiPost('/restaurants/register', {
+        ...formData,
+        address: {
+          ...formData.address,
+          formattedAddress
         },
-        body: JSON.stringify({
-          ...formData,
-          address: {
-            ...formData.address,
-            formattedAddress
-          },
-          location: {
-            type: 'Point',
-            coordinates: [coords.lng, coords.lat]
-          },
-          ...uploadData,
-          verificationStatus: 'pending_verification',
-        }),
+        location: {
+          type: 'Point',
+          coordinates: [coords.lng, coords.lat]
+        },
+        ...uploadData,
+        verificationStatus: 'pending_verification',
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Registration failed');
-      }
 
       router.push('/restaurant/login?status=pending_verification');
     } catch (err) {

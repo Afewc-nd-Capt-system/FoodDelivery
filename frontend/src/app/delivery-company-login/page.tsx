@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Truck, Eye, EyeOff, Mail, Lock, AlertCircle, CheckCircle, Info } from 'lucide-react';
+import { apiPost } from '@/lib/apiClient';
 
 export default function DeliveryCompanyLoginPage() {
   const [email, setEmail] = useState('');
@@ -32,20 +33,7 @@ export default function DeliveryCompanyLoginPage() {
     setError('');
 
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
-      const response = await fetch(`${API_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
-      }
+      const data = await apiPost('/auth/login', { email, password });
 
       // Check if user has delivery_company role
       if (data.user.role !== 'delivery_company') {

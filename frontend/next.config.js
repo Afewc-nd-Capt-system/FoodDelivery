@@ -80,20 +80,17 @@ const nextConfig = {
     ];
   },
   
-  // Rewrites for API proxy in development
+  // Rewrites for API proxy — always proxy to backend server
   async rewrites() {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-    
-    if (apiUrl && apiUrl.includes('localhost')) {
-      return [
-        {
-          source: '/api/:path*',
-          destination: `${apiUrl}/api/:path*`,
-        },
-      ];
-    }
-    
-    return [];
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://vibechops.onrender.com';
+    // Strip /api or /api/v2 suffix if present, since we add /api in the destination
+    const base = apiUrl.replace(/\/api(?:\/v2)?$/, '');
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${base}/api/:path*`,
+      },
+    ];
   },
   
   // Build configuration

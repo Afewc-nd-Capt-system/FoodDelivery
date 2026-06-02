@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { apiPost } from '@/lib/apiClient'
 
 export default function AdminLogin() {
   const router = useRouter()
@@ -13,17 +14,7 @@ export default function AdminLogin() {
     setLoading(true)
     setError('')
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
-      const res = await fetch(
-        `${API_URL}/auth/login`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
-        }
-      )
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.message)
+      const data = await apiPost('/auth/login', { email, password })
       if (data.user?.role !== 'admin') {
         throw new Error('Access denied. Admin accounts only.')
       }

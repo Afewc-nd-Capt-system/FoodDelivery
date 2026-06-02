@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { apiPost } from '@/lib/apiClient';
 
 const nigerianStates = [
   'Abia', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa',
@@ -93,30 +94,18 @@ export default function VendorRegisterPage() {
 
       // Create formatted address
       const formattedAddress = `${formData.address.street}, ${formData.address.area}, ${formData.address.city}, ${formData.address.state}, Nigeria`;
-      const response = await fetch('/api/v2/vendors/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const data = await apiPost('/vendors/register', {
+        ...formData,
+        address: {
+          ...formData.address,
+          formattedAddress
         },
-        body: JSON.stringify({
-          ...formData,
-          address: {
-            ...formData.address,
-            formattedAddress
-          },
-          location: {
-            type: 'Point',
-            coordinates: [coords.lng, coords.lat]
-          },
-          verificationStatus: 'pending_verification',
-        }),
+        location: {
+          type: 'Point',
+          coordinates: [coords.lng, coords.lat]
+        },
+        verificationStatus: 'pending_verification',
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Registration failed');
-      }
 
       // JWT is stored in cookies by the backend
       router.push('/vendor/dashboard');

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { apiPost } from '@/lib/apiClient';
 
 export default function RiderLoginPage() {
   const router = useRouter();
@@ -17,19 +18,7 @@ export default function RiderLoginPage() {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/v2/riders/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
-      }
+      const data = await apiPost('/riders/login', { email, password });
 
       router.push('/delivery/rider-dashboard');
     } catch (err) {

@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Clock } from 'lucide-react';
+import { apiPost } from '@/lib/apiClient';
 
 function RestaurantLoginPageContent() {
   const router = useRouter();
@@ -26,19 +27,7 @@ function RestaurantLoginPageContent() {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/v2/restaurants/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
-      }
+      const data = await apiPost('/restaurants/login', { email, password });
 
       if (data.verificationStatus !== 'approved') {
         setError('Your restaurant is pending CAC verification. You will be notified by email once approved (24-48 hours).');

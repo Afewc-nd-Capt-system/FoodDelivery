@@ -10,6 +10,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
+import { apiPost } from '@/lib/apiClient';
 
 const PAYMENT_METHODS = [
   { id: 'paystack', label: 'Paystack', icon: CreditCard, desc: 'Cards, Bank Transfer, USSD', badge: 'Recommended', badgeColor: '#00C3F7' },
@@ -166,21 +167,15 @@ export default function CartPage() {
                 onClick={async () => {
                   setAuthLoading(true); setAuthError('');
                   try {
-                    if (guestInfo.createAccount) {
-                      const regRes = await fetch('/api/v2/auth/register', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
+                      if (guestInfo.createAccount) {
+                        const regData = await apiPost('/auth/register', {
                           name: guestInfo.name,
                           email: guestInfo.email,
                           phone: guestInfo.phone,
                           password: guestInfo.password,
                           role: 'customer'
-                        })
-                      });
-                      const regData = await regRes.json();
-                      if (!regRes.ok) throw new Error(regData.message);
-                      localStorage.setItem('token', regData.token);
+                        });
+                        localStorage.setItem('token', regData.token);
                     }
                     router.push('/checkout');
                   } catch (err: any) { setAuthError(err.message) }
@@ -233,13 +228,7 @@ export default function CartPage() {
                 onClick={async () => {
                   setAuthLoading(true); setAuthError('');
                   try {
-                    const res = await fetch('/api/v2/auth/login', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ email: loginEmail, password: loginPassword })
-                    });
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data.message);
+                    const data = await apiPost('/auth/login', { email: loginEmail, password: loginPassword });
                     localStorage.setItem('token', data.token);
                     window.location.reload();
                   } catch (err: any) { setAuthError(err.message) }

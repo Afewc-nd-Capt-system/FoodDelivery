@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { apiPost } from '@/lib/apiClient';
 
 export default function DeliveryCompanyRegisterPage() {
   const router = useRouter();
@@ -22,19 +23,7 @@ export default function DeliveryCompanyRegisterPage() {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/v2/delivery-companies/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Registration failed');
-      }
+      const data = await apiPost('/delivery-companies/register', formData);
 
       router.push('/delivery-company-dashboard');
     } catch (err) {
