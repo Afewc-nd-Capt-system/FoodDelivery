@@ -37,16 +37,17 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: [
-      'http://localhost:3000',
-      'http://127.0.0.1:3000',
-      'https://vibe-chops.vercel.app',
-      'https://vibechops.vercel.app',
-      process.env.FRONTEND_URL,
-    ].filter(Boolean),
+    origin: function(origin, callback) {
+      if (!origin) return callback(null, true)
+      if (origin.endsWith('.vercel.app') ||
+          origin === 'http://localhost:3000') {
+        return callback(null, true)
+      }
+      callback(new Error('Not allowed by CORS'))
+    },
     methods: ['GET', 'POST'],
     credentials: true,
-  },
+  }
 });
 
 setupSocketIO(io);
@@ -54,17 +55,35 @@ setupSocketIO(io);
 app.set('io', io);
 
 const corsOptions = {
-  origin: [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'https://vibe-chops.vercel.app',
-    'https://vibechops.vercel.app',
-    process.env.FRONTEND_URL,
-    process.env.CORS_ORIGIN,
-  ].filter(Boolean),
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true)
+
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'https://vibe-chops.vercel.app',
+      'https://food-delivery-app-ten-beta.vercel.app',
+      'https://vibechops.vercel.app',
+    ]
+
+    if (origin.endsWith('.vercel.app') ||
+        allowedOrigins.includes(origin)) {
+      return callback(null, true)
+    }
+
+    callback(new Error('Not allowed by CORS'))
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Seed-Key'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Seed-Key',
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+  ],
+  optionsSuccessStatus: 200,
 };
 
 app.use(morgan('combined'));
@@ -100,7 +119,29 @@ app.use(helmet({
   referrerPolicy: { policy: "strict-origin-when-cross-origin" },
   xssFilter: true,
 }));
+app.use((req, res, next) => {
+  const origin = req.headers.origin
+  if (origin && (origin.endsWith('.vercel.app') ||
+      origin === 'http://localhost:3000')) {
+    res.setHeader('Access-Control-Allow-Origin', origin)
+  }
+  res.setHeader('Access-Control-Allow-Credentials', 'true')
+  res.setHeader('Access-Control-Allow-Methods',
+    'GET,POST,PUT,PATCH,DELETE,OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers',
+    'Content-Type,Authorization,X-Seed-Key,X-Requested-With,Accept,Origin')
+
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200)
+  }
+  next()
+})
+
 app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions))
+
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(cookieParser());
