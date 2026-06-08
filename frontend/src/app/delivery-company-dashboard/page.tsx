@@ -182,45 +182,125 @@ export default function DeliveryCompanyDashboardPage() {
         {activeTab === 'riders' && (
           <div className="p-6 bg-white rounded-2xl shadow-sm">
             <h3 className="font-bold mb-4" style={{ color: '#1C1C1E' }}>Riders Management</h3>
-            <div className="text-center py-12" style={{ color: '#636366' }}>
-              <Bike size={64} style={{ color: '#E8E8E8' }} />
-              <p className="mt-4">Riders management coming soon</p>
+            <div className="space-y-4">
+              {(riders || []).map((rider) => (
+                <div key={rider.id} className="flex items-center justify-between p-4 rounded-xl" style={{ background: '#F5F5F7' }}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#EFF6FF' }}>
+                      <Bike size={20} style={{ color: '#2563EB' }} />
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm" style={{ color: '#1C1C1E' }}>{rider.name}</p>
+                      <p className="text-xs" style={{ color: '#636366' }}>{rider.phone}</p>
+                    </div>
+                  </div>
+                  <span style={{
+                    padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: '700',
+                    background: rider.isOnline ? '#F0FDF4' : '#F5F5F5',
+                    color: rider.isOnline ? '#16A34A' : '#636366'
+                  }}>{rider.isOnline ? 'Online' : 'Offline'}</span>
+                </div>
+              ))}
+              {(riders || []).length === 0 && (
+                <div className="text-center py-12" style={{ color: '#636366' }}>
+                  <Bike size={48} style={{ color: '#E8E8E8' }} />
+                  <p className="mt-2 font-bold" style={{ color: '#1C1C1E' }}>No riders yet</p>
+                  <p className="text-sm">Add riders from the button above</p>
+                </div>
+              )}
             </div>
           </div>
         )}
         {activeTab === 'earnings' && (
-          <div className="p-6 bg-white rounded-2xl shadow-sm">
-            <h3 className="font-bold mb-4" style={{ color: '#1C1C1E' }}>Earnings</h3>
-            <div className="text-center py-12" style={{ color: '#636366' }}>
-              <DollarSign size={64} style={{ color: '#E8E8E8' }} />
-              <p className="mt-4">Earnings dashboard coming soon</p>
+          <div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              {[
+                { label: 'Total Earnings', value: '₦375,000', color: '#16A34A' },
+                { label: 'This Month', value: '₦82,500', color: '#2563EB' },
+                { label: 'Pending Payout', value: '₦12,500', color: '#E8621A' },
+              ].map((stat) => (
+                <div key={stat.label} className="p-6 bg-white rounded-2xl shadow-sm">
+                  <p className="text-sm" style={{ color: '#636366' }}>{stat.label}</p>
+                  <p className="text-2xl font-black mt-1" style={{ color: stat.color }}>{stat.value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="p-6 bg-white rounded-2xl shadow-sm">
+              <h3 className="font-bold mb-4" style={{ color: '#1C1C1E' }}>Recent Transactions</h3>
+              <div className="text-center py-8" style={{ color: '#636366' }}>
+                <DollarSign size={48} style={{ color: '#E8E8E8' }} />
+                <p className="mt-2 text-sm">Transaction history will appear here</p>
+              </div>
             </div>
           </div>
         )}
         {activeTab === 'wallet' && (
-          <div className="p-6 bg-white rounded-2xl shadow-sm">
-            <h3 className="font-bold mb-4" style={{ color: '#1C1C1E' }}>Wallet</h3>
-            <div className="text-center py-12" style={{ color: '#636366' }}>
-              <Wallet size={64} style={{ color: '#E8E8E8' }} />
-              <p className="mt-4">Wallet management coming soon</p>
+          <div>
+            <div className="p-8 bg-white rounded-2xl shadow-sm mb-6 text-center">
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: '#FFF1E8' }}>
+                <Wallet size={32} style={{ color: '#E8621A' }} />
+              </div>
+              <p className="text-sm" style={{ color: '#636366' }}>Available Balance</p>
+              <p className="text-4xl font-black mt-1" style={{ color: '#1C1C1E' }}>₦87,500</p>
+              <p className="text-sm mt-2" style={{ color: '#D32F2F' }}>Pending withdrawals: ₦12,500</p>
+              <div className="flex gap-3 justify-center mt-6">
+                <button style={{
+                  padding: '12px 24px', borderRadius: '12px', border: 'none',
+                  background: 'linear-gradient(135deg, #E8621A, #C4501A)',
+                  color: 'white', fontWeight: '700', cursor: 'pointer'
+                }}>Withdraw</button>
+                <button style={{
+                  padding: '12px 24px', borderRadius: '12px', border: '1.5px solid #E8E8E8',
+                  background: 'white', color: '#1C1C1E', fontWeight: '700', cursor: 'pointer'
+                }}>Transaction History</button>
+              </div>
             </div>
           </div>
         )}
         {activeTab === 'history' && (
           <div className="p-6 bg-white rounded-2xl shadow-sm">
             <h3 className="font-bold mb-4" style={{ color: '#1C1C1E' }}>Delivery History</h3>
-            <div className="text-center py-12" style={{ color: '#636366' }}>
-              <History size={64} style={{ color: '#E8E8E8' }} />
-              <p className="mt-4">Delivery history coming soon</p>
+            <div className="space-y-3">
+              {[
+                { id: 'DEL-4521', customer: 'Funmi Adeyemi', amount: '₦8,500', status: 'Delivered', time: '2 hours ago' },
+                { id: 'DEL-4520', customer: 'Tunde Bello', amount: '₦5,200', status: 'Delivered', time: '4 hours ago' },
+                { id: 'DEL-4519', customer: 'Chioma Obi', amount: '₦3,800', status: 'Cancelled', time: 'Yesterday' },
+                { id: 'DEL-4518', customer: 'Segun Adebayo', amount: '₦12,000', status: 'Delivered', time: 'Yesterday' },
+              ].map((delivery) => (
+                <div key={delivery.id} className="flex items-center justify-between p-4 rounded-xl" style={{ background: '#F5F5F7' }}>
+                  <div>
+                    <p className="font-bold text-sm" style={{ color: '#1C1C1E' }}>{delivery.customer}</p>
+                    <p className="text-xs" style={{ color: '#636366' }}>{delivery.id} · {delivery.time}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-sm" style={{ color: '#1C1C1E' }}>{delivery.amount}</p>
+                    <span style={{
+                      padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '700',
+                      background: delivery.status === 'Delivered' ? '#F0FDF4' : '#FEF2F2',
+                      color: delivery.status === 'Delivered' ? '#16A34A' : '#D32F2F'
+                    }}>{delivery.status}</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
         {activeTab === 'profile' && (
           <div className="p-6 bg-white rounded-2xl shadow-sm">
-            <h3 className="font-bold mb-4" style={{ color: '#1C1C1E' }}>Profile Settings</h3>
-            <div className="text-center py-12" style={{ color: '#636366' }}>
-              <User size={64} style={{ color: '#E8E8E8' }} />
-              <p className="mt-4">Profile management coming soon</p>
+            <h3 className="font-bold mb-4" style={{ color: '#1C1C1E' }}>Company Profile</h3>
+            <div className="space-y-4">
+              {[
+                { label: 'Company Name', value: user?.name || 'VibeChops Delivery Co.' },
+                { label: 'Email', value: user?.email || 'company@vibechops.com' },
+                { label: 'Phone', value: '08012345678' },
+                { label: 'Total Riders', value: String(companyStats.totalRiders) },
+                { label: 'Active Riders', value: String(companyStats.activeRiders) },
+              ].map((field) => (
+                <div key={field.label} className="flex justify-between items-center p-3 rounded-xl" style={{ background: '#F5F5F7' }}>
+                  <span className="text-sm" style={{ color: '#636366' }}>{field.label}</span>
+                  <span className="text-sm font-bold" style={{ color: '#1C1C1E' }}>{field.value}</span>
+                </div>
+              ))}
             </div>
           </div>
         )}

@@ -110,34 +110,29 @@ export function Navbar() {
           { label: 'Home', to: '/' },
           { label: 'Restaurants', to: '/restaurants' },
           { label: 'Vendors', to: '/vendors' },
-          { label: 'Dashboard', to: '/dashboard' },
           { label: 'Orders', to: '/orders' },
+          { label: 'Trust Profile', to: '/trust-profile' },
         ];
       case 'restaurant':
         return [
-          { label: 'Dashboard', to: '/(restaurant)/dashboard' },
-          { label: 'Menu', to: '/(restaurant)/menu' },
-          { label: 'Orders', to: '/(restaurant)/orders' },
-          { label: 'POD Config', to: '/(restaurant)/pod-config' },
+          { label: 'Dashboard', to: '/restaurant-dashboard' },
+          { label: 'POD Config', to: '/pod-config' },
         ];
       case 'vendor':
         return [
-          { label: 'Dashboard', to: '/(vendor)/dashboard' },
-          { label: 'Menu', to: '/(vendor)/menu' },
-          { label: 'Orders', to: '/(vendor)/orders' },
-          { label: 'POD Config', to: '/(vendor)/pod-config' },
+          { label: 'Forecast', to: '/forecast' },
+          { label: 'POD Config', to: '/pod-settings' },
         ];
       case 'delivery_company':
         return [
-          { label: 'Dashboard', to: '/(delivery-company)/dashboard' },
-          { label: 'Riders', to: '/(delivery-company)/riders' },
-          { label: 'Earnings', to: '/(delivery-company)/earnings' },
+          { label: 'Dashboard', to: '/delivery-company-dashboard' },
+          { label: 'Riders', to: '/riders' },
         ];
       case 'delivery_rider':
         return [
-          { label: 'Dashboard', to: '/(delivery)/dashboard' },
-          { label: 'History', to: '/(delivery)/history' },
-          { label: 'Earnings', to: '/(delivery)/earnings' },
+          { label: 'Dashboard', to: '/rider-dashboard' },
+          { label: 'History', to: '/history' },
+          { label: 'Verification', to: '/verification' },
         ];
       case 'admin':
         return [
