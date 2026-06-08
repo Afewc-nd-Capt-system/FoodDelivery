@@ -158,7 +158,7 @@ export default function AdminDashboard() {
 }
 
 function AdminTabContent({ tab, token }: { tab: string, token: string }) {
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
+  const apiBase = 'https://vibechops.onrender.com/api'
 
   return (
     <div style={{

@@ -177,7 +177,7 @@ export default function OrderTrackingPage() {
 
     setConfirmingDelivery(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/delivery/orders/ORD-8021/confirm-customer`, {
+      const response = await fetch(`https://vibechops.onrender.com/api/delivery/orders/ORD-8021/confirm-customer`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

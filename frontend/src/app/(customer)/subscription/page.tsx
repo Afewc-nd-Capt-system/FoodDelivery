@@ -21,7 +21,7 @@ export default function SubscriptionPage() {
   const fetchSubscription = async () => {
     setLoading(true);
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const API_URL = 'https://vibechops.onrender.com/api';
       const response = await fetch(`${API_URL}/v2/subscription/my-subscription`, {
         credentials: 'include',
       });
@@ -38,7 +38,7 @@ export default function SubscriptionPage() {
 
   const fetchPlans = async () => {
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const API_URL = 'https://vibechops.onrender.com/api';
       const response = await fetch(`${API_URL}/v2/subscription/plans`, {
         credentials: 'include',
       });
@@ -54,7 +54,7 @@ export default function SubscriptionPage() {
   const handleCancel = async () => {
     if (!confirm('Are you sure you want to cancel your subscription?')) return;
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const API_URL = 'https://vibechops.onrender.com/api';
       await fetch(`${API_URL}/v2/subscription/cancel`, {
         method: 'POST',
         credentials: 'include',
@@ -67,7 +67,7 @@ export default function SubscriptionPage() {
 
   const handlePause = async () => {
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const API_URL = 'https://vibechops.onrender.com/api';
       await fetch(`${API_URL}/v2/subscription/pause`, {
         method: 'POST',
         credentials: 'include',
@@ -80,7 +80,7 @@ export default function SubscriptionPage() {
 
   const handleSubscribe = async (planType: string) => {
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const API_URL = 'https://vibechops.onrender.com/api';
       const response = await fetch(`${API_URL}/v2/subscription/subscribe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -97,7 +97,7 @@ export default function DeliveryDashboardPage() {
   const handleConfirmArrival = async (orderId: string) => {
     setConfirmingArrival(orderId);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/delivery/orders/${orderId}/confirm-arrival`, {
+      const response = await fetch(`https://vibechops.onrender.com/api/delivery/orders/${orderId}/confirm-arrival`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

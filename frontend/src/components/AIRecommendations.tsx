@@ -23,7 +23,7 @@ export function AIRecommendations({ limit = 6 }: AIRecommendationsProps) {
   const fetchRecommendations = async () => {
     setLoading(true);
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const API_URL = 'https://vibechops.onrender.com/api';
       const response = await fetch(`${API_URL}/v2/recommendations?limit=${limit}`, {
         credentials: 'include',
       });

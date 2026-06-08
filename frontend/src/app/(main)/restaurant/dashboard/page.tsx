@@ -54,7 +54,7 @@ function RestaurantDashboardPageContent() {
 
   const fetchPromotions = async () => {
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const API_URL = 'https://vibechops.onrender.com/api';
       const response = await fetch(`${API_URL}/v2/restaurant-promotions?restaurantId=${restaurantId}`, {
         credentials: 'include',
       });
@@ -69,7 +69,7 @@ function RestaurantDashboardPageContent() {
 
   const fetchAnalytics = async () => {
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const API_URL = 'https://vibechops.onrender.com/api';
       const response = await fetch(`${API_URL}/v2/analytics/dashboard?restaurantId=${restaurantId}&period=${period}`, {
         credentials: 'include',
       });

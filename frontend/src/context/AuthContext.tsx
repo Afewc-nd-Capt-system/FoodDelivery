@@ -41,7 +41,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://vibechops.onrender.com/api/v2';
+const API_BASE = 'https://vibechops.onrender.com/api/v2';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);

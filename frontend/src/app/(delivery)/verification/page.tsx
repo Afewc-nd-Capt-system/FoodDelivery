@@ -22,7 +22,7 @@ export default function DriverVerificationPage() {
 
   const fetchVerificationStatus = async () => {
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const API_URL = 'https://vibechops.onrender.com/api';
       const response = await fetch(`${API_URL}/delivery/verification/status`, {
         credentials: 'include',
       });
@@ -37,7 +37,7 @@ export default function DriverVerificationPage() {
 
   const fetchDocuments = async () => {
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const API_URL = 'https://vibechops.onrender.com/api';
       const response = await fetch(`${API_URL}/delivery/verification/documents`, {
         credentials: 'include',
       });
@@ -57,7 +57,7 @@ export default function DriverVerificationPage() {
       formData.append('file', file);
       formData.append('documentType', documentType);
 
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const API_URL = 'https://vibechops.onrender.com/api';
       const response = await fetch(`${API_URL}/delivery/verification/upload`, {
         method: 'POST',
         credentials: 'include',

@@ -49,7 +49,7 @@ export default function GroupOrderCreatePage() {
   const handleCreate = async () => {
     setLoading(true);
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const API_URL = 'https://vibechops.onrender.com/api';
       const response = await fetch(`${API_URL}/v2/group-orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

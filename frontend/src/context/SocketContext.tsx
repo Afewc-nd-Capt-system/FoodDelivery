@@ -21,7 +21,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const [orderUpdates, setOrderUpdates] = useState<any[]>([]);
 
   useEffect(() => {
-    const socketUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
+    const socketUrl = 'https://vibechops.onrender.com';
     const newSocket = io(socketUrl, {
       transports: ['websocket', 'polling'],
       reconnection: true,
