@@ -1,144 +1,94 @@
-'use client';
+'use client'
+import {
+  createContext, useContext, useState,
+  useEffect, useCallback, type ReactNode
+} from 'react'
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+const BACKEND = 'https://vibechops.onrender.com/api/v2'
 
 interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: 'customer' | 'restaurant' | 'vendor' | 'delivery_company' | 'delivery_rider' | 'admin';
-  phone?: string;
-  address?: {
-    street?: string;
-    city?: string;
-    state?: string;
-    zipCode?: string;
-  };
-  dietaryPreferences?: string[];
-  isVibePassMember?: boolean;
-  trustMetrics?: {
-    successfulDeliveries: number;
-    failedDeliveries: number;
-    prepaidOrdersCompleted: number;
-    refundCount: number;
-    disputeCount: number;
-    reliabilityScore: number;
-    lastUpdated: Date;
-  };
-  payOnDeliveryEnabled?: boolean;
-  company?: string;
+  _id: string
+  name: string
+  email: string
+  phone?: string
+  role: string
+  isVerified?: boolean
 }
 
 interface AuthContextType {
-  user: User | null;
-  loading: boolean;
-  token: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string, phone?: string) => Promise<void>;
-  logout: () => void;
-  updateUser: (userData: User) => void;
+  user: User | null
+  token: string | null
+  loading: boolean
+  login: (email: string, password: string) => Promise<User>
+  logout: () => void
+  isAuthenticated: boolean
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const API_BASE = 'https://vibechops.onrender.com/api/v2';
+const AuthContext = createContext<AuthContextType>({
+  user: null, token: null, loading: true,
+  login: async () => { throw new Error('Not initialized') },
+  logout: () => {},
+  isAuthenticated: false,
+})
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState<string | null>(null);
-
-  const updateUser = (userData: User) => {
-    setUser(userData);
-  };
+  const [user, setUser] = useState<User | null>(null)
+  const [token, setToken] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchUser();
-  }, []);
-
-  const fetchUser = async () => {
     try {
-      const res = await fetch(API_BASE + '/auth/profile', {
-        credentials: 'include',
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setUser(data);
+      const storedToken = localStorage.getItem('token')
+      const storedUser = localStorage.getItem('user')
+      if (storedToken && storedUser) {
+        setToken(storedToken)
+        setUser(JSON.parse(storedUser))
       }
-    } catch (error) {
-      // Silently handle backend unavailability during frontend development
-      // console.error('Failed to fetch user', error);
+    } catch {
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }, [])
 
-  const login = async (email: string, password: string) => {
-    const res = await fetch(API_BASE + '/auth/login', {
+  const login = useCallback(async (
+    email: string, password: string
+  ): Promise<User> => {
+    const res = await fetch(`${BACKEND}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify({ email, password }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Login failed');
-    setUser(data.user);
-    setToken(data.token || 'logged-in');
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('token', data.token || '');
-      localStorage.setItem('userRole', data.user?.role || '');
-      localStorage.setItem('user', JSON.stringify(data.user || {}));
-    }
-    await fetchUser();
-  };
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.message || 'Login failed')
 
-  const register = async (name: string, email: string, password: string, phone?: string) => {
-    const res = await fetch(API_BASE + '/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ name, email, password, phone }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Registration failed');
-    setUser(data.user);
-    setToken(data.token || 'logged-in');
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('token', data.token || '');
-      localStorage.setItem('userRole', data.user?.role || '');
-      localStorage.setItem('user', JSON.stringify(data.user || {}));
-    }
-    await fetchUser();
-  };
+    localStorage.setItem('token', data.token)
+    localStorage.setItem('user', JSON.stringify(data.user))
+    localStorage.setItem('userRole', data.user.role)
+    setToken(data.token)
+    setUser(data.user)
+    return data.user
+  }, [])
 
-  const logout = async () => {
-    try {
-      await fetch(API_BASE + '/auth/logout', {
-        method: 'POST',
-        credentials: 'include',
-      });
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
-      setUser(null);
-      setToken(null);
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        localStorage.removeItem('userRole');
-      }
-    }
-  };
+  const logout = useCallback(() => {
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    localStorage.removeItem('userRole')
+    setToken(null)
+    setUser(null)
+  }, [])
 
   return (
-    <AuthContext.Provider value={{ user, loading, token, login, register, logout, updateUser }}>
+    <AuthContext.Provider value={{
+      user, token, loading,
+      login, logout,
+      isAuthenticated: !!token,
+    }}>
       {children}
     </AuthContext.Provider>
-  );
+  )
 }
 
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within AuthProvider');
-  return context;
-}
+export const useAuth = () => useContext(AuthContext)
+export default AuthContext

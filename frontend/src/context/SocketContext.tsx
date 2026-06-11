@@ -1,87 +1,54 @@
-'use client';
+'use client'
+import {
+  createContext, useContext, useEffect,
+  useState, type ReactNode
+} from 'react'
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { io, Socket } from 'socket.io-client';
+const SOCKET_URL = 'https://vibechops.onrender.com'
 
-interface SocketContextType {
-  socket: Socket | null;
-  isConnected: boolean;
-  orderUpdates: any[];
-}
+const SocketContext = createContext<any>(null)
 
-const SocketContext = createContext<SocketContextType>({
-  socket: null,
-  isConnected: false,
-  orderUpdates: [],
-});
-
-export function SocketProvider({ children }: { children: React.ReactNode }) {
-  const [socket, setSocket] = useState<Socket | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
-  const [orderUpdates, setOrderUpdates] = useState<any[]>([]);
+export function SocketProvider({ children }: { children: ReactNode }) {
+  const [socket, setSocket] = useState<any>(null)
 
   useEffect(() => {
-    const socketUrl = 'https://vibechops.onrender.com';
-    const newSocket = io(socketUrl, {
-      transports: ['polling', 'websocket'],
-      reconnection: true,
-      reconnectionDelay: 2000,
-      reconnectionAttempts: 5,
-      timeout: 10000,
-    });
+    const token = localStorage.getItem('token')
+    if (!token) return
 
-    newSocket.on('connect', () => {
-      // console.log('Socket connected:', newSocket.id);
-      setIsConnected(true);
-    });
+    let s: any = null
 
-    newSocket.on('disconnect', () => {
-      // console.log('Socket disconnected');
-      setIsConnected(false);
-    });
+    import('socket.io-client').then(({ io }) => {
+      s = io(SOCKET_URL, {
+        auth: { token },
+        transports: ['polling', 'websocket'],
+        reconnection: true,
+        reconnectionDelay: 2000,
+        reconnectionAttempts: 3,
+        timeout: 10000,
+      })
 
-    newSocket.on('connect_error', () => {
-      // Silently handle connection errors during frontend development
-      setIsConnected(false);
-    });
+      s.on('connect', () => {
+        console.log('Socket connected')
+      })
 
-    newSocket.on('order-status-update', (data) => {
-      // console.log('Order status update:', data);
-      setOrderUpdates(prev => [...prev, data]);
-    });
+      s.on('connect_error', (err: any) => {
+        console.warn('Socket connection error:', err.message)
+      })
 
-    setSocket(newSocket);
+      setSocket(s)
+    })
 
     return () => {
-      newSocket.close();
-    };
-  }, []);
+      if (s) s.disconnect()
+    }
+  }, [])
 
   return (
-    <SocketContext.Provider value={{ socket, isConnected, orderUpdates }}>
+    <SocketContext.Provider value={socket}>
       {children}
     </SocketContext.Provider>
-  );
+  )
 }
 
-export const useSocket = () => useContext(SocketContext);
-
-export const useOrderSocket = (orderId: string) => {
-  const { socket } = useSocket();
-
-  useEffect(() => {
-    if (socket && orderId) {
-      socket.emit('join-order', orderId);
-    }
-  }, [socket, orderId]);
-};
-
-export const useUserSocket = (userId: string) => {
-  const { socket } = useSocket();
-
-  useEffect(() => {
-    if (socket && userId) {
-      socket.emit('join-user', userId);
-    }
-  }, [socket, userId]);
-};
+export const useSocket = () => useContext(SocketContext)
+export default SocketContext
