@@ -23,10 +23,11 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const socketUrl = 'https://vibechops.onrender.com';
     const newSocket = io(socketUrl, {
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
       reconnection: true,
+      reconnectionDelay: 2000,
       reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
+      timeout: 10000,
     });
 
     newSocket.on('connect', () => {

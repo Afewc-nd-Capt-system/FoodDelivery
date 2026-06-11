@@ -1,7 +1,6 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { apiPost } from '@/lib/apiClient'
 
 export default function AdminLogin() {
   const router = useRouter()
@@ -11,19 +10,34 @@ export default function AdminLogin() {
   const [loading, setLoading] = useState(false)
 
   const handleLogin = async () => {
+    if (!email || !password) {
+      setError('Please enter email and password')
+      return
+    }
     setLoading(true)
     setError('')
     try {
-      const data = await apiPost('/auth/login', { email, password })
+      const res = await fetch(
+        'https://vibechops.onrender.com/api/v2/auth/login',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        }
+      )
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || 'Login failed')
       if (data.user?.role !== 'admin') {
         throw new Error('Access denied. Admin accounts only.')
       }
-      localStorage.setItem('token', data.token)
-      localStorage.setItem('user', JSON.stringify(data.user))
-      localStorage.setItem('userRole', data.user.role)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('token', data.token)
+        localStorage.setItem('user', JSON.stringify(data.user))
+        localStorage.setItem('userRole', data.user.role)
+      }
       router.push('/admin/dashboard')
     } catch (err: any) {
-      setError(err.message)
+      setError(err.message || 'Login failed. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -33,30 +47,27 @@ export default function AdminLogin() {
     <div style={{
       minHeight: '100vh',
       background: '#1C1C1E',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
+      display: 'flex', alignItems: 'center',
+      justifyContent: 'center', padding: '24px'
     }}>
       <div style={{
-        background: 'white',
-        borderRadius: '24px',
-        padding: '48px',
-        width: '100%',
-        maxWidth: '420px',
-        boxShadow: '0 32px 80px rgba(0,0,0,0.35)',
+        background: 'white', borderRadius: '24px',
+        padding: '48px', width: '100%', maxWidth: '420px',
+        boxShadow: '0 32px 80px rgba(0,0,0,0.35)'
       }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div style={{
             width: '56px', height: '56px', borderRadius: '16px',
             background: 'linear-gradient(135deg, #E8621A, #BE3A2A)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 12px',
-            fontSize: '24px', fontWeight: '900', color: 'white',
+            display: 'flex', alignItems: 'center',
+            justifyContent: 'center', margin: '0 auto 12px',
+            fontSize: '24px', fontWeight: '900', color: 'white'
           }}>V</div>
-          <h1 style={{ fontWeight: '900', fontSize: '24px', color: '#1C1C1E' }}>
+          <h1 style={{ fontWeight: '900', fontSize: '24px',
+            color: '#1C1C1E', margin: '0 0 4px' }}>
             Admin Portal
           </h1>
-          <p style={{ color: '#636366', fontSize: '14px', marginTop: '4px' }}>
+          <p style={{ color: '#636366', fontSize: '14px', margin: 0 }}>
             VibeChops Admin Dashboard
           </p>
         </div>
@@ -82,7 +93,8 @@ export default function AdminLogin() {
             style={{
               width: '100%', padding: '12px 16px',
               border: '1.5px solid #E8E8E8', borderRadius: '12px',
-              fontSize: '15px', outline: 'none', boxSizing: 'border-box',
+              fontSize: '15px', outline: 'none',
+              boxSizing: 'border-box',
             }}
           />
         </div>
@@ -101,7 +113,8 @@ export default function AdminLogin() {
             style={{
               width: '100%', padding: '12px 16px',
               border: '1.5px solid #E8E8E8', borderRadius: '12px',
-              fontSize: '15px', outline: 'none', boxSizing: 'border-box',
+              fontSize: '15px', outline: 'none',
+              boxSizing: 'border-box',
             }}
           />
         </div>
@@ -111,9 +124,12 @@ export default function AdminLogin() {
           disabled={loading}
           style={{
             width: '100%', padding: '14px',
-            background: 'linear-gradient(135deg, #E8621A, #C4501A)',
+            background: loading
+              ? '#ccc'
+              : 'linear-gradient(135deg, #E8621A, #C4501A)',
             color: 'white', border: 'none', borderRadius: '12px',
-            fontSize: '16px', fontWeight: '800', cursor: 'pointer',
+            fontSize: '16px', fontWeight: '800',
+            cursor: loading ? 'not-allowed' : 'pointer',
             opacity: loading ? 0.7 : 1,
           }}
         >
