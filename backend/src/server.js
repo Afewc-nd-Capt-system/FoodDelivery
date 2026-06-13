@@ -180,6 +180,7 @@ app.use('/api/v2/restaurants', require('./routes/v2/restaurant-docs'));
 app.use('/api/v2/restaurants', restaurantRoutes);
 app.use('/api/v2/orders', authMiddleware, require('./routes/v2/orders'));
 app.use('/api/v2/cart', cartRoutes);
+app.use('/api/v2/admin', authMiddleware, require('./routes/v2/admin-stats'));
 app.use('/api/v2/admin', adminRoutes);
 app.use('/api/v2/payments', paymentRoutes);
 app.use('/api/v2/promo-codes', require('./routes/promoCodes'));

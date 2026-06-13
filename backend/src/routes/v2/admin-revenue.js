@@ -42,7 +42,7 @@ function getDateRange(period) {
 }
 
 // GET /api/v2/admin/revenue/overview?period=30
-router.get('/revenue/overview', authMiddleware, adminMiddleware, async (req, res) => {
+router.get('/overview', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { period = '30' } = req.query;
     const { start, end } = getDateRange(period.toString());
@@ -82,7 +82,7 @@ router.get('/revenue/overview', authMiddleware, adminMiddleware, async (req, res
 });
 
 // GET /api/v2/admin/revenue/chart?period=30
-router.get('/revenue/chart', authMiddleware, adminMiddleware, async (req, res) => {
+router.get('/chart', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { period = '30' } = req.query;
     const { start, end } = getDateRange(period.toString());
@@ -130,7 +130,7 @@ router.get('/revenue/chart', authMiddleware, adminMiddleware, async (req, res) =
 });
 
 // GET /api/v2/admin/revenue/commissions?period=30
-router.get('/revenue/commissions', authMiddleware, adminMiddleware, async (req, res) => {
+router.get('/commissions', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { period = '30' } = req.query;
     const { start, end } = getDateRange(period.toString());
@@ -173,7 +173,7 @@ router.get('/revenue/commissions', authMiddleware, adminMiddleware, async (req, 
 });
 
 // GET /api/v2/admin/revenue/subscriptions
-router.get('/revenue/subscriptions', authMiddleware, adminMiddleware, async (req, res) => {
+router.get('/subscriptions', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const plans = await BusinessSubscriptionPlan.find({ isActive: true });
     

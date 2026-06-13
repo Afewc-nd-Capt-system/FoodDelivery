@@ -35,4 +35,77 @@ router.patch('/availability', authMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/v2/riders/earnings?period=today|week|month
+router.get('/earnings', authMiddleware, async (req, res) => {
+  try {
+    const { period = 'today' } = req.query;
+    const Order = require('../../models/Order');
+    const now = new Date();
+    let startDate = new Date();
+
+    if (period === 'today') {
+      startDate.setHours(0, 0, 0, 0);
+    } else if (period === 'week') {
+      startDate.setDate(now.getDate() - 7);
+    } else if (period === 'month') {
+      startDate.setDate(now.getDate() - 30);
+    }
+
+    const orders = await Order.find({
+      deliveryPartner: req.user.id,
+      status: 'completed',
+      updatedAt: { $gte: startDate }
+    }).select('deliveryFee totalAmount createdAt updatedAt');
+
+    const totalEarnings = orders.reduce((sum, o) => sum + (o.deliveryFee || 0), 0);
+    const byDay = {};
+    orders.forEach(o => {
+      const day = new Date(o.updatedAt).toLocaleDateString('en-US', { weekday: 'short' });
+      byDay[day] = (byDay[day] || 0) + (o.deliveryFee || 0);
+    });
+
+    res.json({
+      totalEarnings,
+      deliveriesCount: orders.length,
+      chartData: Object.entries(byDay).map(([day, amount]) => ({ day, amount })),
+      period,
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', earnings: 0 });
+  }
+});
+
+// GET /api/v2/riders/deliveries/completed
+router.get('/deliveries/completed', authMiddleware, async (req, res) => {
+  try {
+    const Order = require('../../models/Order');
+    const orders = await Order.find({
+      deliveryPartner: req.user.id,
+      status: 'completed'
+    })
+      .populate('restaurant', 'name')
+      .sort({ updatedAt: -1 })
+      .limit(50);
+
+    res.json({ deliveries: orders });
+  } catch (err) {
+    res.status(500).json({ deliveries: [] });
+  }
+});
+
+// GET /api/v2/riders/active-delivery
+router.get('/active-delivery', authMiddleware, async (req, res) => {
+  try {
+    const Order = require('../../models/Order');
+    const active = await Order.findOne({
+      deliveryPartner: req.user.id,
+      status: { $in: ['assigned', 'picked_up', 'out_for_delivery'] }
+    }).populate('restaurant', 'name address phone');
+
+    res.json({ delivery: active });
+  } catch (err) {
+    res.status(500).json({ delivery: null });
+  }
+});
+
 module.exports = router;
