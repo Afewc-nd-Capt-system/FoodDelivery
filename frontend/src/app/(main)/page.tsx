@@ -2,10 +2,11 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, MapPin, ChevronRight, Star, Clock, Zap, Shield, ArrowRight, Flame, TrendingUp, ChevronLeft, Loader2 } from 'lucide-react';
+import { Search, MapPin, ChevronRight, Star, Clock, Zap, Shield, ArrowRight, Flame, TrendingUp, ChevronLeft, Loader2, Heart, RefreshCw, Gift } from 'lucide-react';
 import Image from 'next/image';
 import { restaurants, vendors } from '@/data/mockData';
 import { useLocation } from '@/context/LocationContext';
+import { useAuth } from '@/context/AuthContext';
 
 const CATEGORIES = [
   { label: 'Rice', emoji: '🍚' },
@@ -261,6 +262,8 @@ export default function HomePage() {
   const carouselRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
   const { 
     location: userLocation, 
     isLocationEnabled, 
@@ -529,6 +532,152 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* ── LOGGED-IN SECTIONS ──────────────── */}
+      {isLoggedIn && (
+        <>
+          {/* Personalized Greeting */}
+          <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-4">
+            <div className="mb-8">
+              <h2 className="text-3xl font-black" style={{ color: '#1C1C1E' }}>
+                Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}, {user?.name?.split(' ')[0] || 'there'} 👋
+              </h2>
+              <p className="text-lg mt-1" style={{ color: '#A0A0A0' }}>What are you craving today?</p>
+            </div>
+
+            {/* Loyalty Points Widget */}
+            <div
+              className="rounded-2xl p-5 mb-6 flex items-center justify-between cursor-pointer hover:scale-[1.01] transition-transform"
+              style={{ background: 'linear-gradient(135deg, #FFF1E8, #FFE0CC)', border: '1px solid rgba(232,98,26,0.2)' }}
+              onClick={() => router.push('/loyalty')}
+            >
+              <div className="flex items-center gap-4">
+                <div style={{
+                  width: '48px', height: '48px', borderRadius: '14px',
+                  background: 'linear-gradient(135deg, #E8621A, #C4501A)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px'
+                }}>🔥</div>
+                <div>
+                  <p className="font-bold text-lg" style={{ color: '#1C1C1E' }}>2,450 points</p>
+                  <p className="text-sm" style={{ color: '#636366' }}>Redeem for ₦245 off your next order</p>
+                </div>
+              </div>
+              <ChevronRight size={20} style={{ color: '#E8621A' }} />
+            </div>
+          </section>
+
+          {/* Recent Orders */}
+          <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-black" style={{ color: '#1C1C1E' }}>Continue from last time</h2>
+              <button onClick={() => router.push('/orders')} className="flex items-center gap-1 text-sm font-bold" style={{ color: '#E8621A' }}>
+                View all <ChevronRight size={16} />
+              </button>
+            </div>
+            <div className="flex gap-4 overflow-x-auto pb-4" style={{ scrollbarWidth: 'none' }}>
+              {restaurants.slice(0, 3).map(r => (
+                <div key={r.id} className="rounded-3xl overflow-hidden bg-white shrink-0 w-72 cursor-pointer hover:shadow-lg transition-shadow"
+                  style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.07)' }}
+                  onClick={() => router.push(`/restaurant/${r.id}`)}
+                >
+                  <div className="relative h-36">
+                    <Image src={r.image} alt={r.name} width={288} height={144} className="w-full h-full object-cover" />
+                    <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.4), transparent)' }} />
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <h3 className="font-bold text-sm" style={{ color: '#1C1C1E' }}>{r.name}</h3>
+                      <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg" style={{ backgroundColor: '#FFF1E8' }}>
+                        <Star size={11} fill="#E8621A" stroke="none" />
+                        <span className="text-xs font-black" style={{ color: '#E8621A' }}>{r.rating}</span>
+                      </div>
+                    </div>
+                    <p className="text-xs mb-3" style={{ color: '#A0A0A0' }}>{r.cuisine}</p>
+                    <button className="w-full py-2 rounded-xl text-white text-sm font-bold transition-all hover:scale-105 active:scale-95"
+                      style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}>
+                      <RefreshCw size={14} className="inline mr-1.5" />Reorder
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Saved Restaurants */}
+          <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-black" style={{ color: '#1C1C1E' }}>Your saved spots</h2>
+              <button onClick={() => router.push('/favorites')} className="flex items-center gap-1 text-sm font-bold" style={{ color: '#E8621A' }}>
+                View all <ChevronRight size={16} />
+              </button>
+            </div>
+            <div className="flex gap-4 overflow-x-auto pb-4" style={{ scrollbarWidth: 'none' }}>
+              {restaurants.slice(0, 5).map(r => (
+                <div key={r.id} className="rounded-3xl overflow-hidden bg-white shrink-0 w-48 cursor-pointer hover:shadow-lg transition-shadow"
+                  style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.07)' }}
+                  onClick={() => router.push(`/restaurant/${r.id}`)}
+                >
+                  <div className="relative h-32">
+                    <Image src={r.image} alt={r.name} width={192} height={128} className="w-full h-full object-cover" />
+                    <div style={{
+                      position: 'absolute', top: '8px', right: '8px', width: '28px', height: '28px',
+                      borderRadius: '50%', background: 'rgba(255,255,255,0.9)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <Heart size={14} fill="#E8621A" stroke="#E8621A" />
+                    </div>
+                  </div>
+                  <div className="p-3">
+                    <h3 className="font-bold text-xs" style={{ color: '#1C1C1E' }}>{r.name}</h3>
+                    <p className="text-[11px]" style={{ color: '#A0A0A0' }}>{r.cuisine} · {r.deliveryTime}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Personalized Recommendations */}
+          <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-black" style={{ color: '#1C1C1E' }}>Recommended for you</h2>
+              <button onClick={() => router.push('/restaurants')} className="flex items-center gap-1 text-sm font-bold" style={{ color: '#E8621A' }}>
+                See all <ChevronRight size={16} />
+              </button>
+            </div>
+            <div className="flex gap-4 overflow-x-auto pb-4" style={{ scrollbarWidth: 'none' }}>
+              {restaurants.filter(r => r.isOpen).slice(0, 5).map(r => (
+                <div key={r.id} className="rounded-3xl overflow-hidden bg-white shrink-0 w-64 cursor-pointer hover:shadow-lg transition-shadow"
+                  style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.07)' }}
+                  onClick={() => router.push(`/restaurant/${r.id}`)}
+                >
+                  <div className="relative h-36">
+                    <Image src={r.image} alt={r.name} width={256} height={144} className="w-full h-full object-cover" />
+                    <div className="absolute bottom-2 left-2 flex items-center gap-1">
+                      <MapPin size={11} className="text-white/80" />
+                      <span className="text-xs text-white/80 font-medium">{r.distance}</span>
+                    </div>
+                  </div>
+                  <div className="p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <h3 className="font-bold text-sm" style={{ color: '#1C1C1E' }}>{r.name}</h3>
+                      <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg" style={{ backgroundColor: '#FFF1E8' }}>
+                        <Star size={10} fill="#E8621A" stroke="none" />
+                        <span className="text-[11px] font-black" style={{ color: '#E8621A' }}>{r.rating}</span>
+                      </div>
+                    </div>
+                    <p className="text-[11px]" style={{ color: '#A0A0A0' }}>{r.cuisine}</p>
+                    <div className="flex items-center gap-2 mt-2 text-xs" style={{ color: '#636366' }}>
+                      <span>{r.deliveryTime}</span>
+                      <span>·</span>
+                      <span className="text-green-600 font-medium">{r.deliveryFee === 0 ? 'Free' : `₦${r.deliveryFee}`}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </>
+      )}
 
       {/* ── PROMO BANNERS ───────────────────── */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-4">

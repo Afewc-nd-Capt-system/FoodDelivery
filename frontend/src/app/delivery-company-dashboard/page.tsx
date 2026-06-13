@@ -1,14 +1,46 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuthGuard } from '@/hooks/useAuthGuard'
 import {
   Users, Package, DollarSign, TrendingUp, Star,
-  Bike, Settings, Wallet, Plus, User, History
+  Bike, Settings, Wallet, Plus, User, History, Bell
 } from 'lucide-react'
 
 export default function DeliveryCompanyDashboardPage() {
   const { user, loading, authorized } = useAuthGuard('delivery_company')
   const [activeTab, setActiveTab] = useState('overview')
+  const [deliveryJobs, setDeliveryJobs] = useState<any[]>([])
+  const [socketConnected, setSocketConnected] = useState(false)
+  const [notificationCount, setNotificationCount] = useState(0)
+
+  // Socket.io for real-time delivery job notifications
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    if (!token || !user) return
+
+    let socket: any = null
+
+    import('socket.io-client').then(({ io }) => {
+      socket = io('https://vibechops.onrender.com', {
+        auth: { token },
+        transports: ['polling', 'websocket'],
+      })
+
+      socket.on('connect', () => {
+        setSocketConnected(true)
+        socket.emit('join_room', { role: 'delivery_company', id: user._id })
+      })
+
+      socket.on('new_delivery_job', (job: any) => {
+        setDeliveryJobs((prev: any[]) => [job, ...prev])
+        setNotificationCount((prev: number) => prev + 1)
+      })
+
+      socket.on('connect_error', () => setSocketConnected(false))
+    })
+
+    return () => { if (socket) socket.disconnect() }
+  }, [user])
   const [companyStats] = useState({
     totalRiders: 24,
     activeRiders: 18,
@@ -54,12 +86,24 @@ export default function DeliveryCompanyDashboardPage() {
   return (
     <div style={{ backgroundColor: '#FFF8F0', minHeight: '100vh' }}>
       <div style={{ background: 'linear-gradient(135deg, #1C1C1E 0%, #2C1810 100%)' }} className="py-6">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-black text-white mb-1">Delivery Company</h1>
-              <p className="text-white/40 text-sm">Welcome back, {user?.name || 'Company'}</p>
-            </div>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div>
+                  <h1 className="text-2xl font-black text-white mb-1">Delivery Company</h1>
+                  <p className="text-white/40 text-sm">Welcome back, {user?.name || 'Company'}</p>
+                </div>
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium mt-5" style={{ background: socketConnected ? 'rgba(22,163,74,0.2)' : 'rgba(211,47,47,0.2)', color: socketConnected ? '#16A34A' : '#D32F2F' }}>
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: socketConnected ? '#16A34A' : '#D32F2F' }} />
+                  {socketConnected ? 'Live' : 'Offline'}
+                </div>
+                {notificationCount > 0 && (
+                  <div className="relative mt-5">
+                    <Bell size={18} className="text-white" />
+                    <span style={{ position: 'absolute', top: '-6px', right: '-6px', padding: '2px 6px', borderRadius: '8px', background: '#E8621A', color: 'white', fontSize: '10px', fontWeight: '700' }}>{notificationCount}</span>
+                  </div>
+                )}
+              </div>
             <div className="flex items-center gap-3">
               <button style={{
                 padding: '10px 20px', borderRadius: '12px', border: 'none',

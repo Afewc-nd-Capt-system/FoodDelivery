@@ -46,6 +46,9 @@ function RestaurantDashboardPageContent() {
   const [showPromotionForm, setShowPromotionForm] = useState(false);
   const [promotions, setPromotions] = useState<any[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
+  const [notificationCount, setNotificationCount] = useState(0);
+  const [pendingOrders, setPendingOrders] = useState<any[]>([]);
+  const [socketConnected, setSocketConnected] = useState(false);
 
   const fetchPromotions = async () => {
     try {
@@ -84,6 +87,39 @@ function RestaurantDashboardPageContent() {
     }
   }, [restaurantId]);
 
+  // Socket.io connection for real-time orders
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token || !restaurantId) return;
+
+    let socket: any = null;
+
+    import('socket.io-client').then(({ io }) => {
+      socket = io('https://vibechops.onrender.com', {
+        auth: { token },
+        transports: ['polling', 'websocket'],
+      });
+
+      socket.on('connect', () => {
+        setSocketConnected(true);
+        socket.emit('join_room', { role: 'restaurant', id: restaurantId });
+      });
+
+      socket.on('new_order', (order: any) => {
+        setPendingOrders((prev: any[]) => [order, ...prev]);
+        setNotificationCount((prev: number) => prev + 1);
+      });
+
+      socket.on('connect_error', () => {
+        setSocketConnected(false);
+      });
+    });
+
+    return () => {
+      if (socket) socket.disconnect();
+    };
+  }, [restaurantId]);
+
   if (authLoading) return (
     <div className="min-h-screen bg-[#FFF8F0] flex items-center justify-center">
       <div>
@@ -105,7 +141,13 @@ function RestaurantDashboardPageContent() {
       {/* Header */}
       <header className="bg-white border-b border-[#F0EAE0] px-4 sm:px-6 lg:px-8 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <h1 className="text-xl font-black text-[#1C1C1E]">Restaurant Dashboard</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-black text-[#1C1C1E]">Restaurant Dashboard</h1>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium" style={{ background: socketConnected ? '#F0FDF4' : '#FEF2F2', color: socketConnected ? '#16A34A' : '#D32F2F' }}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: socketConnected ? '#16A34A' : '#D32F2F' }} />
+              {socketConnected ? 'Live' : 'Offline'}
+            </div>
+          </div>
           <Link href="/">
             <Button className="bg-[#FFF1E8] text-[#E8621A] hover:bg-[#FFF1E8]/80">
               Back to Home
@@ -119,7 +161,11 @@ function RestaurantDashboardPageContent() {
           <div className="flex items-center justify-between mb-6">
             <TabsList>
               <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="orders">Orders</TabsTrigger>
+              <TabsTrigger value="orders">
+                Orders {notificationCount > 0 && (
+                  <span style={{ marginLeft: '6px', padding: '2px 8px', borderRadius: '8px', background: '#E8621A', color: 'white', fontSize: '11px', fontWeight: '700' }}>{notificationCount}</span>
+                )}
+              </TabsTrigger>
               <TabsTrigger value="menu">Menu</TabsTrigger>
               <TabsTrigger value="promotions">Promotions</TabsTrigger>
               <TabsTrigger value="analytics">Analytics</TabsTrigger>

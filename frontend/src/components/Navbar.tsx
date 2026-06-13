@@ -28,8 +28,9 @@ export function Navbar() {
   const [partnersOpen, setPartnersOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [citySearch, setCitySearch] = useState('');
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { totalItems } = useCart();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { 
     location: userLocation, 
     isDetecting, 
@@ -394,24 +395,95 @@ export function Navbar() {
                 )}
               </button>
 
-              {/* Sign in — desktop */}
-              <button
-                onClick={() => router.push('/login')}
-                className="hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-semibold transition-colors hover:bg-gray-50"
-                style={{ borderColor: '#E8E8E8', color: '#1C1C1E' }}
-              >
-                <User size={15} />
-                Sign In
-              </button>
+              {/* User dropdown when logged in */}
+              {user ? (
+                <div className="hidden md:block relative">
+                  <button
+                    onClick={() => setUserMenuOpen(!userMenuOpen)}
+                    onMouseEnter={() => setUserMenuOpen(true)}
+                    className="flex items-center gap-2 rounded-xl transition-all duration-200 hover:bg-orange-50"
+                    style={{ padding: '8px 12px', border: 'none', cursor: 'pointer', background: 'none' }}
+                  >
+                    <div style={{
+                      width: '36px', height: '36px', borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #E8621A, #BE3A2A)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: 'white', fontWeight: '800', fontSize: '14px',
+                    }}>
+                      {user.name?.charAt(0).toUpperCase()}
+                    </div>
+                    <span style={{ fontWeight: '600', color: '#1C1C1E', fontSize: '14px', maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {user.name?.split(' ')[0]}
+                    </span>
+                  </button>
 
-              {/* Sign up — desktop */}
-              <button
-                onClick={() => router.push('/register')}
-                className="hidden md:flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-bold transition-all duration-200 hover:scale-105 active:scale-95"
-                style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}
-              >
-                Sign Up
-              </button>
+                  {userMenuOpen && (
+                    <>
+                      <div onClick={() => setUserMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+                      <div
+                        onMouseLeave={() => setUserMenuOpen(false)}
+                        style={{
+                          position: 'absolute', top: '100%', right: 0, marginTop: '8px', width: '220px',
+                          background: 'white', borderRadius: '16px',
+                          boxShadow: '0 12px 40px rgba(0,0,0,0.12)', border: '1px solid #F0EAE0', zIndex: 50, overflow: 'hidden',
+                        }}
+                      >
+                        <div style={{ padding: '16px', borderBottom: '1px solid #F0EAE0', background: '#FFF8F0' }}>
+                          <p style={{ fontWeight: '800', color: '#1C1C1E', fontSize: '14px', margin: '0 0 2px' }}>{user.name}</p>
+                          <p style={{ color: '#636366', fontSize: '12px', margin: 0 }}>{user.email}</p>
+                        </div>
+                        {[
+                          { label: '📦 My Orders', path: '/orders' },
+                          { label: '💰 My Wallet', path: '/wallet' },
+                          { label: '⭐ Loyalty Points', path: '/loyalty' },
+                          { label: '🎁 Referrals', path: '/referral' },
+                          { label: '🔥 VibePass', path: '/vibepass' },
+                          { label: '❤️ Favorites', path: '/favorites' },
+                          { label: '👤 Profile', path: '/profile' },
+                        ].map(item => (
+                          <button key={item.path}
+                            onClick={() => { router.push(item.path); setUserMenuOpen(false) }}
+                            style={{
+                              width: '100%', textAlign: 'left', padding: '12px 16px', border: 'none',
+                              background: 'none', cursor: 'pointer', fontSize: '14px', color: '#1C1C1E',
+                              borderBottom: '1px solid #F5F5F5',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#FFF8F0')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                          >{item.label}</button>
+                        ))}
+                        <button onClick={() => { logout(); setUserMenuOpen(false) }}
+                          style={{
+                            width: '100%', textAlign: 'left', padding: '12px 16px', border: 'none',
+                            background: 'none', cursor: 'pointer', fontSize: '14px', color: '#D32F2F', fontWeight: '600',
+                          }}
+                        >🚪 Sign Out</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {/* Sign in — desktop */}
+                  <button
+                    onClick={() => router.push('/login')}
+                    className="hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-semibold transition-colors hover:bg-gray-50"
+                    style={{ borderColor: '#E8E8E8', color: '#1C1C1E' }}
+                  >
+                    <User size={15} />
+                    Sign In
+                  </button>
+
+                  {/* Sign up — desktop */}
+                  <button
+                    onClick={() => router.push('/register')}
+                    className="hidden md:flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-bold transition-all duration-200 hover:scale-105 active:scale-95"
+                    style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}
+                  >
+                    Sign Up
+                  </button>
+                </>
+              )}
 
               {/* Hamburger */}
               <button
