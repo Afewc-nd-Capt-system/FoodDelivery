@@ -125,31 +125,25 @@ router.patch('/vendors/:id/approve', async (req, res) => {
         { isActive: true, isVerified: true, verificationStatus: 'approved' }
       );
     } catch {}
-    // Send approval email
-    try {
-      const nodemailer = require('nodemailer');
-      const transporter = nodemailer.createTransport({
-        service: process.env.EMAIL_SERVICE,
-        auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
-      });
-      await transporter.sendMail({
-        from: `"VibeChops" <${process.env.EMAIL_USER}>`,
-        to: vendor.email,
-        subject: 'Your VibeChops vendor application is approved!',
-        html: `
-          <h2>Congratulations ${vendor.name}! \u{1F389}</h2>
-          <p>Your vendor application has been approved.</p>
-          <p>Login to your dashboard:
-            <a href="${process.env.FRONTEND_URL}/vendor-login"
-               style="background:#E8621A;color:white;padding:10px 20px;border-radius:8px;text-decoration:none">
-              Click here
-            </a>
-          </p>
-        `
-      });
-    } catch (emailErr) {
-      console.warn('Approval email failed:', emailErr.message);
-    }
+    // Send approval email (fire-and-forget to avoid hanging the response)
+    (async () => {
+      try {
+        const nodemailer = require('nodemailer');
+        const transporter = nodemailer.createTransport({
+          service: process.env.EMAIL_SERVICE,
+          auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+          connectionTimeout: 5000,
+        });
+        await transporter.sendMail({
+          from: `"VibeChops" <${process.env.EMAIL_USER}>`,
+          to: vendor.email,
+          subject: 'Your VibeChops vendor application is approved!',
+          html: '<h2>Congratulations ' + vendor.name + '!</h2><p>Your vendor application has been approved.</p><p><a href=\"' + process.env.FRONTEND_URL + '/vendor-login\" style=\"background:#E8621A;color:white;padding:10px 20px;border-radius:8px;text-decoration:none\">Login to Dashboard</a></p>'
+        });
+      } catch (emailErr) {
+        console.warn('Approval email failed:', emailErr.message);
+      }
+    })();
     res.json({ success: true, message: 'Vendor approved successfully', vendor: { id: vendor._id, name: vendor.name, email: vendor.email } });
   } catch (err) {
     console.error('Vendor approve error:', err);
