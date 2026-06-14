@@ -106,6 +106,93 @@ router.get('/vendors', async (req, res) => {
   }
 });
 
+// PATCH /api/v2/admin/vendors/:id/approve
+router.patch('/vendors/:id/approve', async (req, res) => {
+  try {
+    const vendor = await User.findByIdAndUpdate(
+      req.params.id,
+      { isActive: true, isVerified: true, verificationStatus: 'approved' },
+      { new: true }
+    );
+    if (!vendor) {
+      return res.status(404).json({ message: 'Vendor not found' });
+    }
+    // Try to also update Vendor model if it exists separately
+    try {
+      const Vendor = require('../../models/Vendor');
+      await Vendor.findOneAndUpdate(
+        { email: vendor.email },
+        { isActive: true, isVerified: true, verificationStatus: 'approved' }
+      );
+    } catch {}
+    // Send approval email
+    try {
+      const nodemailer = require('nodemailer');
+      const transporter = nodemailer.createTransport({
+        service: process.env.EMAIL_SERVICE,
+        auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+      });
+      await transporter.sendMail({
+        from: `"VibeChops" <${process.env.EMAIL_USER}>`,
+        to: vendor.email,
+        subject: 'Your VibeChops vendor application is approved!',
+        html: `
+          <h2>Congratulations ${vendor.name}! \u{1F389}</h2>
+          <p>Your vendor application has been approved.</p>
+          <p>Login to your dashboard:
+            <a href="${process.env.FRONTEND_URL}/vendor-login"
+               style="background:#E8621A;color:white;padding:10px 20px;border-radius:8px;text-decoration:none">
+              Click here
+            </a>
+          </p>
+        `
+      });
+    } catch (emailErr) {
+      console.warn('Approval email failed:', emailErr.message);
+    }
+    res.json({ success: true, message: 'Vendor approved successfully', vendor: { id: vendor._id, name: vendor.name, email: vendor.email } });
+  } catch (err) {
+    console.error('Vendor approve error:', err);
+    res.status(500).json({ message: err.message || 'Server error' });
+  }
+});
+
+// PATCH /api/v2/admin/vendors/:id/reject
+router.patch('/vendors/:id/reject', async (req, res) => {
+  try {
+    const { reason } = req.body;
+    const vendor = await User.findByIdAndUpdate(
+      req.params.id,
+      { isActive: false, verificationStatus: 'rejected', verificationNotes: reason },
+      { new: true }
+    );
+    if (!vendor) {
+      return res.status(404).json({ message: 'Vendor not found' });
+    }
+    res.json({ success: true, message: 'Vendor rejected' });
+  } catch (err) {
+    console.error('Vendor reject error:', err);
+    res.status(500).json({ message: err.message || 'Server error' });
+  }
+});
+
+// PATCH /api/v2/admin/vendors/:id/suspend
+router.patch('/vendors/:id/suspend', async (req, res) => {
+  try {
+    const vendor = await User.findByIdAndUpdate(
+      req.params.id,
+      { isActive: false },
+      { new: true }
+    );
+    if (!vendor) {
+      return res.status(404).json({ message: 'Vendor not found' });
+    }
+    res.json({ message: 'Vendor suspended' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 router.get('/promo-codes', async (req, res) => {
   try {
     const codes = await PromoCode.find({}).sort({ createdAt: -1 });
