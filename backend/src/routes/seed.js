@@ -162,7 +162,7 @@ router.post('/restaurants', async (req, res) => {
     for (const r of restaurantDocs) {
       const inserted = await Restaurant.findOneAndUpdate(
         { name: r.name },
-        { $setOnInsert: r },
+        { $set: r },
         { upsert: true, new: true }
       );
       results.push({ id: inserted._id, name: inserted.name, city: inserted.address?.city });
