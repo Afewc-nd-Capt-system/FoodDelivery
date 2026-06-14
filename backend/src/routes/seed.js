@@ -6,17 +6,137 @@ const Vendor = require('../models/Vendor');
 const User = require('../models/User');
 const SubscriptionPlan = require('../models/SubscriptionPlan');
 
-const restaurants = [
-  { id: '1', name: 'Mama Cass Kitchen', rating: 4.8, reviewCount: 1243, city: 'Lagos', state: 'Lagos', coords: [3.3792, 6.5244] },
-  { id: '2', name: 'Chop Chop African Kitchen', rating: 4.6, reviewCount: 892, city: 'Abuja', state: 'FCT', coords: [7.4898, 9.0579] },
-  { id: '3', name: 'The Pepper Spot', rating: 4.7, reviewCount: 654, city: 'Kano', state: 'Kano', coords: [8.5167, 12.0000] },
-  { id: '4', name: 'Jollof Republic', rating: 4.5, reviewCount: 445, city: 'Lagos', state: 'Lagos', coords: [3.3892, 6.5144] },
-  { id: '5', name: 'Naija Bites Express', rating: 4.4, reviewCount: 567, city: 'Port Harcourt', state: 'Rivers', coords: [7.0134, 4.8156] },
-  { id: '6', name: 'Lagos Grill House', rating: 4.6, reviewCount: 789, city: 'Lagos', state: 'Lagos', coords: [3.3692, 6.5344] },
-  { id: '7', name: "Chef Chi's Fusion", rating: 4.3, reviewCount: 321, city: 'Ibadan', state: 'Oyo', coords: [3.8964, 7.3775] },
-  { id: '8', name: 'Suya Shack', rating: 4.5, reviewCount: 234, city: 'Kaduna', state: 'Kaduna', coords: [7.4420, 10.5264] },
-  { id: '9', name: 'Kanuri Kitchen', rating: 4.7, reviewCount: 456, city: 'Maiduguri', state: 'Borno', coords: [13.1573, 11.8333] },
-  { id: '10', name: 'Abuja Grill House', rating: 4.8, reviewCount: 678, city: 'Abuja', state: 'FCT', coords: [7.4798, 9.0479] },
+const restaurantDocs = [
+  {
+    name: 'Mama Cass Kitchen',
+    email: 'mamacass@vibechops.ng',
+    phone: '+2348000000002',
+    description: 'Best Nigerian cuisine in Lagos',
+    cuisine: 'Traditional Nigerian',
+    address: {
+      street: '14 Allen Avenue',
+      area: 'Ikeja',
+      city: 'Lagos',
+      state: 'Lagos',
+      formattedAddress: '14 Allen Avenue, Ikeja, Lagos'
+    },
+    location: { type: 'Point', coordinates: [3.3792, 6.5244] },
+    rating: 4.8,
+    reviewCount: 1243,
+    deliveryTime: '20-35 min',
+    deliveryFee: 500,
+    minOrder: 2000,
+    priceRange: '\u20A6\u20A6',
+    categories: ['Rice', 'Soups', 'Swallow'],
+    isActive: true,
+    isOpen: true,
+    verificationStatus: 'approved',
+    image: 'https://images.unsplash.com/photo-1574484284002-952d92456975?w=400',
+  },
+  {
+    name: 'Abuja Grill House',
+    email: 'abujagrill@vibechops.ng',
+    phone: '+2348000000003',
+    description: 'Premium grills in the heart of Abuja',
+    cuisine: 'Nigerian Grills',
+    address: {
+      street: '5 Wuse Zone 4',
+      area: 'Wuse',
+      city: 'Abuja',
+      state: 'FCT',
+      formattedAddress: '5 Wuse Zone 4, Abuja'
+    },
+    location: { type: 'Point', coordinates: [7.4898, 9.0579] },
+    rating: 4.6,
+    reviewCount: 892,
+    deliveryTime: '25-40 min',
+    deliveryFee: 600,
+    minOrder: 3000,
+    priceRange: '\u20A6\u20A6\u20A6',
+    categories: ['Grills', 'Premium'],
+    isActive: true,
+    isOpen: true,
+    verificationStatus: 'approved',
+    image: 'https://images.unsplash.com/photo-1529042410759-befb1204b468?w=400',
+  },
+  {
+    name: 'Kano Suya Express',
+    email: 'kanosuya@vibechops.ng',
+    phone: '+2348000000004',
+    description: 'Authentic northern Nigerian suya',
+    cuisine: 'Northern Nigerian',
+    address: {
+      street: '22 Bompai Road',
+      area: 'Nassarawa',
+      city: 'Kano',
+      state: 'Kano',
+      formattedAddress: '22 Bompai Road, Kano'
+    },
+    location: { type: 'Point', coordinates: [8.5167, 12.0000] },
+    rating: 4.7,
+    reviewCount: 654,
+    deliveryTime: '20-30 min',
+    deliveryFee: 400,
+    minOrder: 1500,
+    priceRange: '\u20A6\u20A6',
+    categories: ['Suya', 'Grills'],
+    isActive: true,
+    isOpen: true,
+    verificationStatus: 'approved',
+    image: 'https://images.unsplash.com/photo-1529042410759-befb1204b468?w=400',
+  },
+  {
+    name: 'Kanuri Kitchen',
+    email: 'kanurikitchen@vibechops.ng',
+    phone: '+2348000000005',
+    description: 'Authentic Kanuri and northern Nigerian dishes',
+    cuisine: 'Kanuri Traditional',
+    address: {
+      street: '14 Shehu Laminu Way',
+      area: 'Gwange',
+      city: 'Maiduguri',
+      state: 'Borno',
+      formattedAddress: '14 Shehu Laminu Way, Maiduguri'
+    },
+    location: { type: 'Point', coordinates: [13.1573, 11.8333] },
+    rating: 4.9,
+    reviewCount: 321,
+    deliveryTime: '20-35 min',
+    deliveryFee: 300,
+    minOrder: 1000,
+    priceRange: '\u20A6\u20A6',
+    categories: ['Traditional', 'Soups'],
+    isActive: true,
+    isOpen: true,
+    verificationStatus: 'approved',
+    image: 'https://images.unsplash.com/photo-1574484284002-952d92456975?w=400',
+  },
+  {
+    name: 'Port Harcourt Seafood',
+    email: 'phseafood@vibechops.ng',
+    phone: '+2348000000006',
+    description: 'Fresh seafood from the Niger Delta',
+    cuisine: 'Seafood & Delta',
+    address: {
+      street: '8 Aba Road',
+      area: 'Rumuola',
+      city: 'Port Harcourt',
+      state: 'Rivers',
+      formattedAddress: '8 Aba Road, Port Harcourt'
+    },
+    location: { type: 'Point', coordinates: [7.0134, 4.8156] },
+    rating: 4.5,
+    reviewCount: 445,
+    deliveryTime: '30-45 min',
+    deliveryFee: 700,
+    minOrder: 3000,
+    priceRange: '\u20A6\u20A6\u20A6',
+    categories: ['Seafood', 'Delta'],
+    isActive: true,
+    isOpen: true,
+    verificationStatus: 'approved',
+    image: 'https://images.unsplash.com/photo-1565680018434-b513d5e5fd47?w=400',
+  },
 ];
 
 const vendors = [
@@ -39,37 +159,10 @@ const hashedDemoPassword = bcrypt.hashSync('Demo@2026!', 12);
 router.post('/restaurants', async (req, res) => {
   try {
     const results = [];
-    for (let i = 0; i < restaurants.length; i++) {
-      const r = restaurants[i];
+    for (const r of restaurantDocs) {
       const inserted = await Restaurant.findOneAndUpdate(
         { name: r.name },
-        { $setOnInsert: {
-          name: r.name,
-          description: 'Authentic Nigerian cuisine delivered fresh to your door',
-          phone: `+2348000000${String(i + 1).padStart(3, '0')}`,
-          rating: r.rating,
-          reviewCount: r.reviewCount,
-          priceRange: '$$',
-          deliveryTime: '20-35 min',
-          cuisine: ['Nigerian'],
-          isOpen: true,
-          isActive: true,
-          verificationStatus: 'approved',
-          location: {
-            type: 'Point',
-            coordinates: r.coords,
-          },
-          address: {
-            street: `${i + 1} Sample Street`,
-            area: 'Central Area',
-            city: r.city,
-            state: r.state,
-            country: 'Nigeria',
-          },
-          priceForTwo: 500,
-          payOnDeliveryEnabled: true,
-          payOnDeliveryConfig: { enabled: true, minOrderAmount: 0 },
-        }},
+        { $setOnInsert: r },
         { upsert: true, new: true }
       );
       results.push({ id: inserted._id, name: inserted.name, city: inserted.address?.city });
