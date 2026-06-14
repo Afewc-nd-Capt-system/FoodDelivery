@@ -217,6 +217,7 @@ app.use('/api/v2/admin/approvals', authMiddleware, require('./routes/v2/admin-ap
 app.use('/api/v2/admin/revenue', authMiddleware, require('./routes/v2/admin-revenue'));
 app.use('/api/v2/subscriptions', authMiddleware, require('./routes/v2/business-subscriptions'));
 app.use('/api/v2/ads', require('./routes/v2/ads'));
+app.use('/api/v2/contact', require('./routes/v2/contact'));
 app.use('/api/v2/seed', require('./routes/seed'));
 
 // Health check endpoint for Render

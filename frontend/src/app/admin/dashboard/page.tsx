@@ -30,6 +30,7 @@ export default function AdminDashboard() {
     { id: 'promotions', label: 'Promotions' },
     { id: 'promo-codes', label: 'Promo Codes' },
     { id: 'revenue', label: 'Revenue' },
+    { id: 'profile', label: 'Profile' },
   ]
 
   const handleLogout = () => {
@@ -76,6 +77,7 @@ export default function AdminDashboard() {
         {activeTab === 'promotions' && <PromotionsTab token={token} />}
         {activeTab === 'promo-codes' && <PromoCodesTab token={token} />}
         {activeTab === 'revenue' && <RevenueTab token={token} />}
+        {activeTab === 'profile' && <AdminProfileTab user={user} token={token} />}
       </div>
     </div>
   )
@@ -411,7 +413,7 @@ function UsersTab({ token }: { token: string }) {
   const fetchData = useCallback(async () => {
     setLoading(true); setError(false)
     try {
-      const res = await fetch(`${API_BASE}/v2/users`, { headers: { Authorization: `Bearer ${token}` } })
+      const res = await fetch(`${API_BASE}/v2/admin/users`, { headers: { Authorization: `Bearer ${token}` } })
       if (!res.ok) throw new Error('Failed')
       setData(await res.json())
     } catch { setError(true) } finally { setLoading(false) }
@@ -674,6 +676,88 @@ function PromoCodesTab({ token }: { token: string }) {
             })}</tbody>
           </table>
         )}
+      </div>
+    </div>
+  )
+}
+
+function AdminProfileTab({ user, token }: { user: any, token: string }) {
+  const [name, setName] = useState(user?.name || '')
+  const [email] = useState(user?.email || '')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [oldPassword, setOldPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [pwSaving, setPwSaving] = useState(false)
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await fetch('https://vibechops.onrender.com/api/v2/users/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name })
+      })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch {} finally { setSaving(false) }
+  }
+
+  const handlePasswordChange = async () => {
+    if (!oldPassword || !newPassword) return
+    setPwSaving(true)
+    try {
+      await fetch('https://vibechops.onrender.com/api/v2/users/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ oldPassword, newPassword })
+      })
+      setOldPassword('')
+      setNewPassword('')
+      alert('Password changed successfully')
+    } catch {} finally { setPwSaving(false) }
+  }
+
+  return (
+    <div style={{ maxWidth: '560px' }}>
+      <div style={{ background: 'white', borderRadius: '20px', padding: '32px', marginBottom: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+        <h3 style={{ fontWeight: '700', marginBottom: '24px', color: '#1C1C1E' }}>Admin Profile</h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '32px' }}>
+          <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: 'linear-gradient(135deg, #E8621A, #BE3A2A)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', fontWeight: '900', color: 'white' }}>
+            {user?.name?.charAt(0).toUpperCase() || 'A'}
+          </div>
+          <div>
+            <p style={{ fontWeight: '800', fontSize: '18px', color: '#1C1C1E', margin: '0 0 4px' }}>{user?.name}</p>
+            <p style={{ color: '#636366', margin: '0 0 4px', fontSize: '14px' }}>{user?.email}</p>
+            <span style={{ background: '#FFF1E8', color: '#E8621A', padding: '2px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '700' }}>Super Admin</span>
+          </div>
+        </div>
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ fontWeight: '600', color: '#636366', display: 'block', marginBottom: '6px', fontSize: '13px' }}>Full Name</label>
+          <input value={name} onChange={e => setName(e.target.value)} style={{ width: '100%', padding: '12px 16px', border: '1.5px solid #E8E8E8', borderRadius: '12px', fontSize: '15px', outline: 'none', boxSizing: 'border-box' }} />
+        </div>
+        <div style={{ marginBottom: '24px' }}>
+          <label style={{ fontWeight: '600', color: '#636366', display: 'block', marginBottom: '6px', fontSize: '13px' }}>Email Address</label>
+          <input value={email} disabled style={{ width: '100%', padding: '12px 16px', border: '1.5px solid #E8E8E8', borderRadius: '12px', fontSize: '15px', background: '#FAFAFA', color: '#A0A0A0', boxSizing: 'border-box' }} />
+        </div>
+        <button onClick={handleSave} disabled={saving} style={{ padding: '12px 24px', border: 'none', borderRadius: '12px', background: saved ? '#16A34A' : 'linear-gradient(135deg, #E8621A, #C4501A)', color: 'white', fontWeight: '700', cursor: 'pointer' }}>
+          {saving ? 'Saving...' : saved ? '✓ Saved' : 'Save Changes'}
+        </button>
+      </div>
+      <div style={{ background: 'white', borderRadius: '20px', padding: '32px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+        <h3 style={{ fontWeight: '700', marginBottom: '24px', color: '#1C1C1E' }}>Change Password</h3>
+        {[
+          { label: 'Current Password', value: oldPassword, set: setOldPassword },
+          { label: 'New Password', value: newPassword, set: setNewPassword },
+        ].map(field => (
+          <div key={field.label} style={{ marginBottom: '16px' }}>
+            <label style={{ fontWeight: '600', color: '#636366', display: 'block', marginBottom: '6px', fontSize: '13px' }}>{field.label}</label>
+            <input type="password" value={field.value} onChange={e => field.set(e.target.value)} style={{ width: '100%', padding: '12px 16px', border: '1.5px solid #E8E8E8', borderRadius: '12px', fontSize: '15px', outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+        ))}
+        <button onClick={handlePasswordChange} disabled={pwSaving} style={{ padding: '12px 24px', border: 'none', borderRadius: '12px', background: 'linear-gradient(135deg, #E8621A, #C4501A)', color: 'white', fontWeight: '700', cursor: 'pointer' }}>
+          {pwSaving ? 'Updating...' : 'Update Password'}
+        </button>
       </div>
     </div>
   )

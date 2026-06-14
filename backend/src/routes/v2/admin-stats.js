@@ -45,6 +45,48 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+router.get('/users', async (req, res) => {
+  try {
+    const { page = 1, limit = 20, role, search } = req.query
+    const query = {}
+    if (role) query.role = role
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+      ]
+    }
+    const users = await User.find(query)
+      .select('-password -refreshToken -mfaSecret -backupCodes')
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .skip((parseInt(page) - 1) * parseInt(limit))
+    const total = await User.countDocuments(query)
+    res.json({ users, total, page: parseInt(page) })
+  } catch (err) {
+    console.error('Admin users error:', err)
+    res.status(500).json({ message: 'Server error' })
+  }
+})
+
+router.patch('/users/:id/suspend', async (req, res) => {
+  try {
+    await User.findByIdAndUpdate(req.params.id, { isActive: false })
+    res.json({ message: 'User suspended' })
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' })
+  }
+})
+
+router.patch('/users/:id/restore', async (req, res) => {
+  try {
+    await User.findByIdAndUpdate(req.params.id, { isActive: true })
+    res.json({ message: 'User restored' })
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' })
+  }
+})
+
 router.get('/vendors', async (req, res) => {
   try {
     const { status = 'all', page = 1, limit = 20 } = req.query;
@@ -75,10 +117,25 @@ router.get('/promo-codes', async (req, res) => {
 
 router.post('/promo-codes', async (req, res) => {
   try {
-    const code = await PromoCode.create(req.body);
-    res.status(201).json({ code });
+    const { code, discountType, discountValue, minOrder, expiresAt, maxUses } = req.body
+    if (!code || !discountType || !discountValue || !expiresAt) {
+      return res.status(400).json({ message: 'Code, type, value and expiry are required' })
+    }
+    const promo = await PromoCode.create({
+      code: code.toUpperCase().trim(),
+      discountType,
+      discountValue: Number(discountValue),
+      minOrderAmount: Number(minOrder) || 0,
+      validUntil: new Date(expiresAt),
+      usageLimit: Number(maxUses) || 100,
+    })
+    res.status(201).json({ code: promo, message: 'Promo code created' })
   } catch (err) {
-    res.status(500).json({ message: 'Server error' });
+    if (err.code === 11000) {
+      return res.status(400).json({ message: 'This promo code already exists' })
+    }
+    console.error('Promo code error:', err)
+    res.status(500).json({ message: err.message || 'Server error' })
   }
 });
 

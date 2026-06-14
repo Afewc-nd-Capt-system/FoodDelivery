@@ -141,10 +141,45 @@ router.patch('/vendors/:id/approve', authMiddleware, adminMiddleware, async (req
     if (!vendor) {
       return res.status(404).json({ message: 'Vendor not found' });
     }
+    // Also update the User record
+    await User.findByIdAndUpdate(vendor.owner, {
+      isActive: true,
+      isVerified: true,
+      verificationStatus: 'approved',
+    });
+
+    // Send approval email
+    const vendorUser = vendor.owner ? await User.findById(vendor.owner) : null;
+    if (vendorUser?.email) {
+      try {
+        const nodemailer = require('nodemailer');
+        const transporter = nodemailer.createTransport({
+          service: process.env.EMAIL_SERVICE,
+          auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+        });
+        await transporter.sendMail({
+          from: `"VibeChops" <${process.env.EMAIL_USER}>`,
+          to: vendorUser.email,
+          subject: 'Your VibeChops vendor application is approved!',
+          html: `
+            <h2>Congratulations! 🎉</h2>
+            <p>Hi ${vendorUser.name},</p>
+            <p>Your vendor application has been approved.</p>
+            <p>You can now login to your vendor dashboard at:</p>
+            <a href="${process.env.FRONTEND_URL}/vendor-login"
+               style="background:#E8621A;color:white;padding:10px 20px;border-radius:8px;text-decoration:none">
+              Login to Dashboard
+            </a>
+          `
+        });
+      } catch(e) {}
+    }
+
     await logAdminAction(req.user.id, 'approve_vendor', { vendorId: req.params.id });
     res.json({ vendor });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error('Vendor approve error:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -160,10 +195,34 @@ router.patch('/vendors/:id/reject', authMiddleware, adminMiddleware, async (req,
     if (!vendor) {
       return res.status(404).json({ message: 'Vendor not found' });
     }
+    // Also update the User record
+    await User.findByIdAndUpdate(vendor.owner, {
+      isActive: false,
+      verificationStatus: 'rejected',
+      verificationNotes: reason,
+    });
     await logAdminAction(req.user.id, 'reject_vendor', { vendorId: req.params.id, reason });
     res.json({ vendor });
   } catch (error) {
     res.status(400).json({ message: error.message });
+  }
+});
+
+// PATCH /api/v2/admin/vendors/:id/suspend
+router.patch('/vendors/:id/suspend', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const vendor = await Vendor.findByIdAndUpdate(
+      req.params.id,
+      { isActive: false },
+      { new: true }
+    );
+    if (!vendor) {
+      return res.status(404).json({ message: 'Vendor not found' });
+    }
+    await User.findByIdAndUpdate(vendor.owner, { isActive: false });
+    res.json({ message: 'Vendor suspended' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
