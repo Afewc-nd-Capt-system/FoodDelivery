@@ -11,141 +11,209 @@ import { restaurants, menuItems, reviews } from '@/data/mockData';
 import { useCart } from '@/context/CartContext';
 import type { MenuItem } from '@/data/mockData';
 
-/* ─── Customization Modal ─────────────────────────────── */
-function CustomizationModal({
-  item, onClose, onAdd,
+/* ─── Zomato-style Item Detail Modal ─────────────────── */
+function ItemDetailModal({
+  item, restaurantName, onClose, onAddToCart, onOrderNow,
 }: {
   item: MenuItem;
+  restaurantName: string;
   onClose: () => void;
-  onAdd: (item: MenuItem, options: Record<string, string>, qty: number) => void;
+  onAddToCart: (item: MenuItem, options: Record<string, string>, qty: number, instructions: string) => void;
+  onOrderNow: (item: MenuItem, options: Record<string, string>, qty: number, instructions: string) => void;
 }) {
-  const [selections, setSelections] = useState<Record<string, string>>({});
+  const [customizations, setCustomizations] = useState<Record<string, string>>({});
   const [qty, setQty] = useState(1);
+  const [specialInstructions, setSpecialInstructions] = useState('');
 
-  const extraCost = Object.values(selections).reduce((sum, label) => {
+  const extraCost = Object.values(customizations).reduce((sum, label) => {
     const opt = item.customizations?.flatMap(c => c.options).find(o => o.label === label);
     return sum + (opt?.price || 0);
   }, 0);
 
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-      style={{ backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)' }}
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-md bg-white rounded-3xl overflow-hidden"
-        style={{ boxShadow: '0 32px 80px rgba(0,0,0,0.35)' }}
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="relative h-52">
-          <Image
-            src={item.image}
-            alt={item.name}
-            fill
-            className="object-cover"
-          />
-          <div
-            className="absolute inset-0"
-            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.8), rgba(0,0,0,0.2) 40%, transparent)' }}
-          />
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center text-white backdrop-blur-sm"
-            style={{ backgroundColor: 'rgba(0,0,0,0.35)' }}
-          >
-            <X size={16} />
-          </button>
-          <div className="absolute bottom-4 left-4 right-4 text-white">
-            <h3 className="font-black text-lg leading-tight">{item.name}</h3>
-            <p className="text-sm text-white/70 mt-0.5 line-clamp-2">{item.description}</p>
-          </div>
-        </div>
+  const totalPrice = (item.price + extraCost) * qty;
 
-        <div className="p-5 max-h-80 overflow-y-auto">
-          {item.customizations?.map(group => (
-            <div key={group.name} className="mb-5 last:mb-0">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="font-black text-sm" style={{ color: '#1C1C1E' }}>{group.name}</h4>
-                <span
-                  className="text-xs font-bold px-2 py-0.5 rounded-full"
-                  style={{ backgroundColor: '#FFF1E8', color: '#E8621A' }}
-                >
-                  Pick 1
-                </span>
-              </div>
-              <div className="space-y-2">
-                {group.options.map(opt => (
-                  <label
-                    key={opt.label}
-                    className="flex items-center justify-between p-3.5 rounded-2xl cursor-pointer transition-all"
-                    style={{
-                      backgroundColor: selections[group.name] === opt.label ? '#FFF1E8' : '#FAFAFA',
-                      border: `2px solid ${selections[group.name] === opt.label ? '#E8621A' : 'transparent'}`,
-                    }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0"
-                        style={{ borderColor: selections[group.name] === opt.label ? '#E8621A' : '#D0D0D0' }}
-                      >
-                        {selections[group.name] === opt.label && (
-                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#E8621A' }} />
+  return (
+    <>
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed', inset: 0, zIndex: 100,
+          background: 'rgba(0,0,0,0.65)',
+          backdropFilter: 'blur(4px)',
+        }}
+      />
+      <div style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0,
+        zIndex: 101, background: 'white',
+        borderRadius: '24px 24px 0 0',
+        maxHeight: '90vh', overflow: 'hidden',
+        display: 'flex', flexDirection: 'column',
+      }}>
+        <div style={{ overflowY: 'auto', flex: 1 }}>
+          <div style={{ position: 'relative', height: '240px' }}>
+            <img
+              src={item.image}
+              alt={item.name}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent 50%)',
+            }} />
+            <button
+              onClick={onClose}
+              style={{
+                position: 'absolute', top: '16px', right: '16px',
+                width: '36px', height: '36px', borderRadius: '50%',
+                background: 'rgba(0,0,0,0.5)', border: 'none',
+                color: 'white', fontSize: '18px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >✕</button>
+            <div style={{ position: 'absolute', bottom: '16px', left: '20px', right: '20px' }}>
+              <h2 style={{ color: 'white', fontWeight: '900', fontSize: '22px', margin: '0 0 4px' }}>
+                {item.name}
+              </h2>
+              {item.popular && (
+                <span style={{
+                  background: '#E8621A', color: 'white',
+                  padding: '2px 10px', borderRadius: '20px',
+                  fontSize: '11px', fontWeight: '700',
+                }}>🔥 Popular</span>
+              )}
+            </div>
+          </div>
+
+          <div style={{ padding: '20px 24px' }}>
+            <p style={{ color: '#636366', lineHeight: 1.6, marginBottom: '12px', fontSize: '14px' }}>
+              {item.description}
+            </p>
+            <div style={{ display: 'flex', gap: '16px', marginBottom: '20px', fontSize: '13px', color: '#A0A0A0' }}>
+              {item.calories && <span>🔥 {item.calories}</span>}
+              <span style={{ color: '#E8621A', fontWeight: '900', fontSize: '22px' }}>
+                ₦{totalPrice.toLocaleString()}
+              </span>
+            </div>
+
+            {item.customizations?.map((group: any) => (
+              <div key={group.name} style={{
+                marginBottom: '20px', padding: '16px',
+                background: '#FAFAFA', borderRadius: '16px',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h4 style={{ fontWeight: '800', color: '#1C1C1E', margin: 0 }}>{group.name}</h4>
+                  <span style={{
+                    background: '#FFF1E8', color: '#E8621A',
+                    padding: '2px 8px', borderRadius: '8px',
+                    fontSize: '11px', fontWeight: '700',
+                  }}>Required</span>
+                </div>
+                {group.options.map((opt: any) => (
+                  <label key={opt.label} style={{
+                    display: 'flex', alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 0',
+                    borderBottom: '1px solid #F0EAE0',
+                    cursor: 'pointer',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{
+                        width: '20px', height: '20px', borderRadius: '50%',
+                        border: `2px solid ${customizations[group.name] === opt.label ? '#E8621A' : '#E8E8E8'}`,
+                        background: customizations[group.name] === opt.label ? '#E8621A' : 'white',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                      }}>
+                        {customizations[group.name] === opt.label && (
+                          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'white' }} />
                         )}
                       </div>
-                      <input
-                        type="radio"
-                        name={group.name}
-                        className="sr-only"
-                        checked={selections[group.name] === opt.label}
-                        onChange={() => setSelections(prev => ({ ...prev, [group.name]: opt.label }))}
-                      />
-                      <span className="text-sm font-medium" style={{ color: '#1C1C1E' }}>{opt.label}</span>
+                      <span style={{ color: '#1C1C1E', fontSize: '14px' }}>{opt.label}</span>
                     </div>
-                    {opt.price > 0 ? (
-                      <span className="text-sm font-bold" style={{ color: '#E8621A' }}>+₦{opt.price}</span>
-                    ) : (
-                      <span className="text-xs" style={{ color: '#A0A0A0' }}>Included</span>
+                    {opt.price > 0 && (
+                      <span style={{ color: '#E8621A', fontWeight: '700', fontSize: '13px' }}>
+                        +₦{opt.price.toLocaleString()}
+                      </span>
                     )}
+                    <input type="radio" name={group.name}
+                      value={opt.label} style={{ display: 'none' }}
+                      checked={customizations[group.name] === opt.label}
+                      onChange={() => setCustomizations(prev => ({ ...prev, [group.name]: opt.label }))}
+                    />
                   </label>
                 ))}
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
 
-        <div className="p-5 border-t" style={{ borderColor: '#F0EAE0' }}>
-          <div className="flex items-center justify-between mb-4">
-            <span className="font-bold" style={{ color: '#1C1C1E' }}>Quantity</span>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setQty(q => Math.max(1, q - 1))}
-                className="w-9 h-9 rounded-xl flex items-center justify-center border-2 transition-colors"
-                style={{ borderColor: '#E8E8E8', color: '#636366' }}
-              >
-                <Minus size={14} />
-              </button>
-              <span className="font-black text-lg w-6 text-center" style={{ color: '#1C1C1E' }}>{qty}</span>
-              <button
-                onClick={() => setQty(q => q + 1)}
-                className="w-9 h-9 rounded-xl flex items-center justify-center text-white transition-all hover:scale-110"
-                style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}
-              >
-                <Plus size={14} />
-              </button>
+            <div style={{ marginBottom: '80px' }}>
+              <label style={{ fontWeight: '700', color: '#1C1C1E', display: 'block', marginBottom: '8px', fontSize: '14px' }}>
+                Special Instructions (Optional)
+              </label>
+              <textarea
+                placeholder="Any allergies, preferences or special requests..."
+                value={specialInstructions}
+                onChange={e => setSpecialInstructions(e.target.value)}
+                rows={3}
+                style={{
+                  width: '100%', padding: '12px 16px',
+                  border: '1.5px solid #E8E8E8', borderRadius: '12px',
+                  fontSize: '14px', outline: 'none', resize: 'none',
+                  boxSizing: 'border-box', fontFamily: 'inherit',
+                }}
+              />
             </div>
           </div>
+        </div>
+
+        <div style={{
+          padding: '16px 24px',
+          borderTop: '1px solid #F0EAE0',
+          background: 'white',
+          display: 'flex', alignItems: 'center', gap: '16px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#F5F5F5', borderRadius: '12px', padding: '8px 16px' }}>
+            <button
+              onClick={() => setQty(q => Math.max(1, q - 1))}
+              style={{
+                width: '28px', height: '28px', borderRadius: '50%',
+                border: 'none', background: qty > 1 ? '#E8621A' : '#E8E8E8',
+                color: qty > 1 ? 'white' : '#A0A0A0',
+                fontWeight: '900', fontSize: '18px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>−</button>
+            <span style={{ fontWeight: '900', fontSize: '18px', color: '#1C1C1E', minWidth: '20px', textAlign: 'center' }}>{qty}</span>
+            <button
+              onClick={() => setQty(q => Math.min(10, q + 1))}
+              style={{
+                width: '28px', height: '28px', borderRadius: '50%',
+                border: 'none', background: '#E8621A',
+                color: 'white', fontWeight: '900', fontSize: '18px',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>+</button>
+          </div>
           <button
-            onClick={() => onAdd(item, selections, qty)}
-            className="w-full py-4 rounded-2xl text-white font-black text-base flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98]"
-            style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}
-          >
-            <ShoppingCart size={18} />
-            Add to Cart — ₦{((item.price + extraCost) * qty).toLocaleString()}
+            onClick={() => { onAddToCart(item, customizations, qty, specialInstructions); onClose(); }}
+            style={{
+              flex: 1, padding: '14px',
+              border: '2px solid #E8621A', borderRadius: '14px',
+              background: 'white', color: '#E8621A',
+              fontWeight: '800', fontSize: '15px', cursor: 'pointer',
+            }}>
+            Add to Cart
+          </button>
+          <button
+            onClick={() => { onOrderNow(item, customizations, qty, specialInstructions); }}
+            style={{
+              flex: 1, padding: '14px', border: 'none',
+              borderRadius: '14px',
+              background: 'linear-gradient(135deg, #E8621A, #C4501A)',
+              color: 'white', fontWeight: '800', fontSize: '15px',
+              cursor: 'pointer',
+            }}>
+            Order Now →
           </button>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -161,17 +229,48 @@ export default function RestaurantDetailPage() {
   const restaurantReviews = reviews.filter(r => r.restaurantId === (id || '1'));
 
   const [activeCategory, setActiveCategory] = useState('All');
-  const [customizingItem, setCustomizingItem] = useState<MenuItem | null>(null);
+  const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [toast, setToast] = useState('');
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(''), 2000);
+  };
 
   const categories = useMemo(() => ['All', ...Array.from(new Set(menu.map(m => m.category)))], [menu]);
   const filtered = activeCategory === 'All' ? menu : menu.filter(m => m.category === activeCategory);
 
   const getItemQty = (itemId: string) => items.find(i => i.id === itemId)?.quantity || 0;
 
-  const handleAddToCart = (item: MenuItem, options: Record<string, string> = {}, qty = 1) => {
-    for (let i = 0; i < qty; i++) addItem(item, options);
-    setCustomizingItem(null);
+  const handleAddToCart = (
+    item: MenuItem,
+    options: Record<string, string> = {},
+    qty = 1,
+    instructions = '',
+  ) => {
+    const enriched = { ...item, restaurantName: restaurant.name };
+    for (let i = 0; i < qty; i++) addItem(enriched, options);
+    setModalOpen(false);
+    showToast('Added to cart!');
+  };
+
+  const handleOrderNow = (
+    item: MenuItem,
+    options: Record<string, string> = {},
+    qty = 1,
+    instructions = '',
+  ) => {
+    const enriched = { ...item, restaurantName: restaurant.name };
+    for (let i = 0; i < qty; i++) addItem(enriched, options);
+    setModalOpen(false);
+    router.push('/cart');
+  };
+
+  const handleItemClick = (item: MenuItem) => {
+    setSelectedItem(item);
+    setModalOpen(true);
   };
 
   const deliveryTotal = restaurant.deliveryFee;
@@ -179,6 +278,19 @@ export default function RestaurantDetailPage() {
 
   return (
     <div style={{ backgroundColor: '#FFF8F0' }}>
+      {/* Toast */}
+      {toast && (
+        <div style={{
+          position: 'fixed', top: '80px', left: '50%', transform: 'translateX(-50%)',
+          zIndex: 200, background: '#16A34A', color: 'white',
+          padding: '12px 24px', borderRadius: '14px', fontWeight: '700',
+          fontSize: '14px', boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+          animation: 'fadeIn 0.3s ease',
+        }}>
+          {toast}
+        </div>
+      )}
+
       {/* Cover image */}
       <div className="relative h-64 sm:h-80 lg:h-[420px] overflow-hidden">
         <Image
@@ -308,8 +420,9 @@ export default function RestaurantDetailPage() {
                 return (
                   <div
                     key={item.id}
-                    className="group flex gap-4 bg-white rounded-2xl p-4 transition-all hover:shadow-md"
+                    className="group flex gap-4 bg-white rounded-2xl p-4 transition-all hover:shadow-md cursor-pointer"
                     style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
+                    onClick={() => handleItemClick(item)}
                   >
                     <div className="relative w-24 h-24 rounded-2xl overflow-hidden shrink-0">
                       <Image
@@ -344,32 +457,10 @@ export default function RestaurantDetailPage() {
                         <span className="font-black text-base" style={{ color: '#E8621A' }}>
                           ₦{item.price.toLocaleString()}
                         </span>
-                        {qty === 0 ? (
-                          <button
-                            onClick={() => item.customizations ? setCustomizingItem(item) : handleAddToCart(item)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-white text-xs font-black transition-all hover:scale-105 active:scale-95"
-                            style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}
-                          >
-                            <Plus size={13} /> Add
-                          </button>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => updateQuantity(item.id, qty - 1)}
-                              className="w-7 h-7 rounded-lg flex items-center justify-center border-2 transition-colors"
-                              style={{ borderColor: '#E8621A', color: '#E8621A' }}
-                            >
-                              <Minus size={12} />
-                            </button>
-                            <span className="font-black text-sm w-5 text-center" style={{ color: '#1C1C1E' }}>{qty}</span>
-                            <button
-                              onClick={() => updateQuantity(item.id, qty + 1)}
-                              className="w-7 h-7 rounded-lg flex items-center justify-center text-white"
-                              style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}
-                            >
-                              <Plus size={12} />
-                            </button>
-                          </div>
+                        {qty > 0 && (
+                          <span className="text-xs font-bold px-2 py-1 rounded-lg" style={{ backgroundColor: '#FFF1E8', color: '#E8621A' }}>
+                            {qty} in cart
+                          </span>
                         )}
                       </div>
                     </div>
@@ -611,14 +702,23 @@ export default function RestaurantDetailPage() {
         </div>
       )}
 
-      {/* Customization modal */}
-      {customizingItem && (
-        <CustomizationModal
-          item={customizingItem}
-          onClose={() => setCustomizingItem(null)}
-          onAdd={handleAddToCart}
+      {/* Item detail modal */}
+      {modalOpen && selectedItem && (
+        <ItemDetailModal
+          item={selectedItem}
+          restaurantName={restaurant.name}
+          onClose={() => setModalOpen(false)}
+          onAddToCart={handleAddToCart}
+          onOrderNow={handleOrderNow}
         />
       )}
+
+      <style jsx>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+          to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }

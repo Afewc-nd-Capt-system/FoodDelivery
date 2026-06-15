@@ -30,11 +30,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const addItem = useCallback((item: MenuItem, options?: Record<string, string>) => {
     setItems(prev => {
+      if (prev.length > 0 && prev[0].restaurantId !== item.restaurantId) {
+        const confirmed = window.confirm(
+          `Your cart has items from ${prev[0].restaurantName || 'another restaurant'}. ` +
+          `Adding this item will clear your current cart. Continue?`
+        );
+        if (!confirmed) return prev;
+        return [{ ...item, quantity: 1, selectedOptions: options, restaurantName: item.restaurantName }];
+      }
       const existing = prev.find(i => i.id === item.id);
       if (existing) {
         return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i);
       }
-      return [...prev, { ...item, quantity: 1, selectedOptions: options }];
+      return [...prev, { ...item, quantity: 1, selectedOptions: options, restaurantName: item.restaurantName }];
     });
   }, []);
 

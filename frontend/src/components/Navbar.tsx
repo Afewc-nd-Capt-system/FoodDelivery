@@ -95,61 +95,12 @@ export function Navbar() {
     setLocationOpen(false);
   }, [pathname]);
 
-  // Role-based navigation links
-  const getNavLinks = () => {
-    if (!user) {
-      return [
-        { label: 'Home', to: '/' },
-        { label: 'Restaurants', to: '/restaurants' },
-        { label: 'Vendors', to: '/vendors' },
-      ];
-    }
-
-    switch (user.role) {
-      case 'customer':
-        return [
-          { label: 'Home', to: '/' },
-          { label: 'Restaurants', to: '/restaurants' },
-          { label: 'Vendors', to: '/vendors' },
-        ];
-      case 'restaurant':
-        return [
-          { label: 'Dashboard', to: '/restaurant-dashboard' },
-          { label: 'POD Config', to: '/pod-config' },
-        ];
-      case 'vendor':
-        return [
-          { label: 'Forecast', to: '/forecast' },
-          { label: 'POD Config', to: '/pod-settings' },
-        ];
-      case 'delivery_company':
-        return [
-          { label: 'Dashboard', to: '/delivery-company-dashboard' },
-          { label: 'Riders', to: '/riders' },
-        ];
-      case 'delivery_rider':
-        return [
-          { label: 'Dashboard', to: '/rider-dashboard' },
-          { label: 'History', to: '/history' },
-          { label: 'Verification', to: '/verification' },
-        ];
-      case 'admin':
-        return [
-          { label: 'Dashboard', to: '/admin' },
-          { label: 'Users', to: '/admin/users' },
-          { label: 'Restaurants', to: '/admin/restaurants' },
-          { label: 'Companies', to: '/admin/companies' },
-        ];
-      default:
-        return [
-          { label: 'Home', to: '/' },
-          { label: 'Restaurants', to: '/restaurants' },
-          { label: 'Vendors', to: '/vendors' },
-        ];
-    }
-  };
-
-  const navLinks = getNavLinks();
+  // Nav links — same for all users (Zomato-style)
+  const navLinks = [
+    { label: 'Home', to: '/' },
+    { label: 'Restaurants', to: '/restaurants' },
+    { label: 'Vendors', to: '/vendors' },
+  ];
 
   return (
     <>

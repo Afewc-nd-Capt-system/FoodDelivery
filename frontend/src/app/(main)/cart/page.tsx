@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Minus, Plus, X, Tag, MapPin, ChevronRight, CheckCircle,
@@ -56,12 +56,103 @@ export default function CartPage() {
 
   const handlePlaceOrder = async () => {
     setPlacing(true);
-    await new Promise(r => setTimeout(r, 2200));
-    setPlacing(false);
-    setPlaced(true);
-    clearCart();
-    setTimeout(() => router.push('/tracking'), 1600);
+    try {
+      // Build order payload
+      const orderPayload = {
+        items: items.map(i => ({
+          menuItem: i.id,
+          name: i.name,
+          quantity: i.quantity,
+          price: i.price,
+          selectedOptions: i.selectedOptions,
+        })),
+        totalAmount: total,
+        deliveryAddress: address,
+        paymentMethod: paymentMethod === 'paystack' ? 'card' : paymentMethod,
+        restaurantId: items[0]?.restaurantId,
+        restaurantName: items[0]?.restaurantName || 'Restaurant',
+      };
+
+      // Call API to create order
+      const token = localStorage.getItem('token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/v2/orders`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(orderPayload),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.message || 'Failed to create order');
+      }
+
+      const orderData = await res.json();
+
+      // If Paystack, initialize payment
+      if (paymentMethod === 'paystack' || paymentMethod === 'card') {
+        const paystackRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/v2/payments/initialize`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            orderId: orderData._id || orderData.order?._id,
+            amount: total,
+            email: user?.email || 'guest@vibechops.com',
+          }),
+        });
+
+        if (paystackRes.ok) {
+          const paystackData = await paystackRes.json();
+          if (paystackData.authorizationUrl) {
+            window.location.href = paystackData.authorizationUrl;
+            setPlacing(false);
+            return;
+          }
+        }
+
+        // Fallback: use Paystack inline popup
+        const PaystackPop = (window as any).PaystackPop;
+        if (PaystackPop) {
+          const handler = PaystackPop.setup({
+            key: 'pk_test_cb0238963e7d12b2e4990bdc202036ceabf34952',
+            email: user?.email || 'guest@vibechops.com',
+            amount: total * 100,
+            ref: `VIBE-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            onSuccess: () => {
+              clearCart();
+              setPlaced(true);
+              setTimeout(() => router.push(`/tracking/${orderData._id || orderData.order?._id}`), 1600);
+            },
+            onCancel: () => {
+              setPlacing(false);
+            },
+          });
+          handler.openIframe();
+          return;
+        }
+      }
+
+      // Pay on Delivery or wallet — direct order
+      clearCart();
+      setPlaced(true);
+      setTimeout(() => router.push(`/tracking/${orderData._id || orderData.order?._id}`), 1600);
+    } catch (err: any) {
+      alert(err.message || 'Failed to place order. Please try again.');
+      setPlacing(false);
+    }
   };
+
+  // Load Paystack script
+  useEffect(() => {
+    if (!(window as any).PaystackPop) {
+      const script = document.createElement('script');
+      script.src = 'https://js.paystack.co/v1/inline.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  }, []);
 
   /* ─── Guest Checkout ───────────────────── */
   if (!user && items.length > 0) {
@@ -315,10 +406,15 @@ export default function CartPage() {
               className="bg-white rounded-3xl p-6"
               style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}
             >
-              <h2 className="font-black text-lg mb-5 flex items-center gap-2" style={{ color: '#1C1C1E' }}>
+              <h2 className="font-black text-lg mb-1 flex items-center gap-2" style={{ color: '#1C1C1E' }}>
                 <ShoppingBag size={18} style={{ color: '#E8621A' }} />
                 Order Items
               </h2>
+              {items[0]?.restaurantName && (
+                <p className="text-xs font-semibold mb-4" style={{ color: '#E8621A' }}>
+                  📍 {items[0].restaurantName}
+                </p>
+              )}
               <div className="space-y-4">
                 {items.map(item => (
                   <div
