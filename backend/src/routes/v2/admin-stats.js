@@ -91,17 +91,39 @@ router.get('/vendors', async (req, res) => {
   try {
     const { status = 'all', page = 1, limit = 20 } = req.query;
     const query = { role: 'vendor' };
-    if (status !== 'all') query.isActive = status === 'active';
+    if (status !== 'all') query.verificationStatus = status;
 
-    const vendors = await User.find(query)
-      .select('-password -refreshToken')
+    const users = await User.find(query)
+      .select('-password -refreshToken -mfaSecret -backupCodes')
+      .sort({ createdAt: -1 })
       .limit(parseInt(limit))
-      .skip((parseInt(page) - 1) * parseInt(limit))
-      .sort({ createdAt: -1 });
+      .skip((parseInt(page) - 1) * parseInt(limit));
+
+    // Try to enrich with Vendor profile data
+    let vendors = users.map((u) => u.toObject());
+    try {
+      const Vendor = require('../../models/Vendor');
+      const vendorProfiles = await Vendor.find({
+        userId: { $in: users.map((u) => u._id) }
+      });
+      const profileMap = {};
+      vendorProfiles.forEach((v) => {
+        profileMap[v.userId.toString()] = v;
+      });
+      vendors = vendors.map((u) => ({
+        ...u,
+        cuisine: profileMap[u._id.toString()]?.cuisine || u.cuisine,
+        city: profileMap[u._id.toString()]?.address?.city || u.address?.city,
+        vendorProfile: profileMap[u._id.toString()],
+      }));
+    } catch {
+      // Vendor model may not exist
+    }
 
     const total = await User.countDocuments(query);
     res.json({ vendors, total, page: parseInt(page) });
   } catch (err) {
+    console.error('Admin vendors error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });

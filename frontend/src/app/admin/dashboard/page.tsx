@@ -183,6 +183,21 @@ function RestaurantsTab({ token }: { token: string }) {
     try {
       await apiFetch(`${API_BASE}/v2/admin/restaurants/${id}/${action}`, { method: 'PATCH', body: reason ? JSON.stringify({ reason }) : undefined })
       showToast(`Restaurant ${action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'updated'}!`)
+      setData((prev: any) => {
+        if (!prev) return prev
+        const updateRestaurant = (r: any) => {
+          if (r._id !== id) return r
+          if (action === 'approve') return { ...r, verificationStatus: 'approved', isActive: true }
+          if (action === 'reject') return { ...r, verificationStatus: 'rejected' }
+          return r
+        }
+        return {
+          pending: { ...prev.pending, restaurants: prev.pending?.restaurants?.map(updateRestaurant) },
+          approved: { ...prev.approved, restaurants: prev.approved?.restaurants?.map(updateRestaurant) },
+          rejected: { ...prev.rejected, restaurants: prev.rejected?.restaurants?.map(updateRestaurant) },
+          all: { ...prev.all, restaurants: prev.all?.restaurants?.map(updateRestaurant) },
+        }
+      })
       fetchData()
     } catch (e: any) { showToast(e.message, 'error') }
   }
@@ -285,6 +300,18 @@ function VendorsTab({ token }: { token: string }) {
     try {
       await apiFetch(`${API_BASE}/v2/admin/vendors/${id}/${action}`, { method: 'PATCH', body: reason ? JSON.stringify({ reason }) : undefined })
       showToast(`Vendor ${action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'updated'}!`)
+      setData((prev: any) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          vendors: prev.vendors.map((v: any) => {
+            if (v._id !== id) return v
+            if (action === 'approve') return { ...v, isActive: true, isVerified: true, verificationStatus: 'approved' }
+            if (action === 'reject') return { ...v, isActive: false, verificationStatus: 'rejected' }
+            return v
+          })
+        }
+      })
       fetchData()
     } catch { showToast('Action failed') }
   }
@@ -316,8 +343,8 @@ function VendorsTab({ token }: { token: string }) {
             <tbody>{filtered.map((v: any) => (
               <tr key={v._id} style={{ borderBottom: '1px solid #F0EAE0' }}>
                 <td style={{ padding: '12px 16px', fontSize: '14px', fontWeight: '600' }}>{v.businessName || v.name}</td>
-                <td style={{ padding: '12px 16px', fontSize: '14px', color: '#636366' }}>{v.cuisineType || v.cuisine || '-'}</td>
-                <td style={{ padding: '12px 16px', fontSize: '14px', color: '#636366' }}>{v.address?.city || v.city || '-'}</td>
+                <td style={{ padding: '12px 16px', fontSize: '14px', color: '#636366' }}>{v.cuisine || v.businessType || v.vendorProfile?.cuisine || '-'}</td>
+                <td style={{ padding: '12px 16px', fontSize: '14px', color: '#636366' }}>{v.address?.city || v.city || v.location?.city || '-'}</td>
                 <td style={{ padding: '12px 16px' }}><span style={{ padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', background: v.verificationStatus === 'approved' ? '#F0FDF4' : v.verificationStatus === 'rejected' ? '#FEF2F2' : '#FFF1E8', color: v.verificationStatus === 'approved' ? '#16A34A' : v.verificationStatus === 'rejected' ? '#D32F2F' : '#E8621A' }}>{v.verificationStatus || 'pending'}</span></td>
                 <td style={{ padding: '12px 16px' }}>
                   <div style={{ display: 'flex', gap: '6px' }}>
