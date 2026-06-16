@@ -1,15 +1,82 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Star, Clock, MapPin, ShoppingCart, Plus, Minus, X,
   ChevronLeft, ThumbsUp, Phone, Heart, Share2
 } from 'lucide-react';
 import Image from 'next/image';
-import { restaurants, menuItems, reviews } from '@/data/mockData';
 import { useCart } from '@/context/CartContext';
-import type { MenuItem } from '@/data/mockData';
+
+interface MenuItemOption {
+  label: string;
+  price: number;
+}
+
+interface MenuCustomization {
+  name: string;
+  options: MenuItemOption[];
+}
+
+interface MenuItem {
+  id: string;
+  restaurantId: string;
+  restaurantName?: string;
+  name: string;
+  description: string;
+  price: number;
+  image: string;
+  category: string;
+  popular?: boolean;
+  calories?: string;
+  customizations?: MenuCustomization[];
+}
+
+interface Review {
+  id: string;
+  restaurantId: string;
+  userName: string;
+  avatar: string;
+  rating: number;
+  comment: string;
+  date: string;
+  helpful: number;
+}
+
+interface ApiMenuItem {
+  _id: string;
+  name: string;
+  description?: string;
+  price: number;
+  image?: string;
+  category?: string;
+  popular?: boolean;
+  calories?: string;
+  customizationOptions?: {
+    name: string;
+    options: { name: string; price: number }[];
+  }[];
+}
+
+function apiMenuToMock(api: ApiMenuItem, restaurantId: string, restaurantName?: string): MenuItem {
+  return {
+    id: api._id,
+    restaurantId,
+    restaurantName,
+    name: api.name,
+    description: api.description || '',
+    price: api.price,
+    image: api.image || '',
+    category: api.category || '',
+    popular: api.popular || false,
+    calories: api.calories || undefined,
+    customizations: (api.customizationOptions || []).map(c => ({
+      name: c.name,
+      options: c.options.map(o => ({ label: o.name, price: o.price })),
+    })),
+  };
+}
 
 /* ─── Zomato-style Item Detail Modal ─────────────────── */
 function ItemDetailModal({
@@ -224,9 +291,53 @@ export default function RestaurantDetailPage() {
   const { addItem, items, updateQuantity, totalItems, subtotal } = useCart();
 
   const id = params.id as string;
-  const restaurant = restaurants.find(r => r.id === id) || restaurants[0];
-  const menu = menuItems.filter(m => m.restaurantId === (id || '1'));
-  const restaurantReviews = reviews.filter(r => r.restaurantId === (id || '1'));
+
+  const [restaurant, setRestaurant] = useState<any>(null);
+  const [menu, setMenu] = useState<MenuItem[]>([]);
+  const [restaurantReviews, setRestaurantReviews] = useState<Review[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!id) return;
+    const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+    (async () => {
+      try {
+        const res = await fetch(`${API}/restaurants/${id}`);
+        if (!res.ok) throw new Error('Not found');
+        const data = await res.json();
+
+        // Enrich API data with display-friendly fields
+        const enriched = {
+          ...data,
+          _id: data._id,
+          coverImage: data.image || data.coverImage || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200',
+          address: typeof data.address === 'string' ? data.address : (data.address?.formattedAddress || `${data.address?.street || ''}, ${data.address?.area || ''}, ${data.address?.city || ''}`),
+          distance: data.distance || '~2.5 km',
+          cuisine: Array.isArray(data.cuisine) ? data.cuisine.join(', ') : (data.cuisine || 'Nigerian'),
+          deliveryFee: data.deliveryFee || 0,
+          minOrder: data.minOrder || 0,
+        };
+        setRestaurant(enriched);
+        setMenu(items);
+
+        const revs: Review[] = (data.reviews || []).map((r: any, i: number) => ({
+          id: r._id || `rev-${i}`,
+          restaurantId: data._id,
+          userName: r.user || 'Anonymous',
+          avatar: (r.user || 'A').charAt(0).toUpperCase(),
+          rating: r.rating || 5,
+          comment: r.comment || '',
+          date: r.date ? new Date(r.date).toLocaleDateString() : 'Recently',
+          helpful: 0,
+        }));
+        setRestaurantReviews(revs);
+      } catch (err) {
+        console.error('Failed to fetch restaurant:', err);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [id]);
 
   const [activeCategory, setActiveCategory] = useState('All');
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
@@ -273,7 +384,29 @@ export default function RestaurantDetailPage() {
     setModalOpen(true);
   };
 
-  const deliveryTotal = restaurant.deliveryFee;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]" style={{ backgroundColor: '#FFF8F0' }}>
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-sm font-semibold" style={{ color: '#636366' }}>Loading restaurant...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!restaurant) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]" style={{ backgroundColor: '#FFF8F0' }}>
+        <div className="text-center">
+          <p className="text-lg font-black mb-2" style={{ color: '#1C1C1E' }}>Restaurant not found</p>
+          <p className="text-sm" style={{ color: '#636366' }}>The restaurant you're looking for doesn't exist.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const deliveryTotal = restaurant.deliveryFee || 0;
   const total = subtotal + deliveryTotal;
 
   return (

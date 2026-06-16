@@ -125,6 +125,19 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// GET restaurant menu items (embedded)
+router.get('/:id/menu', async (req, res) => {
+  try {
+    const restaurant = await Restaurant.findById(req.params.id).select('menu');
+    if (!restaurant) {
+      return res.status(404).json({ message: 'Restaurant not found' });
+    }
+    res.json({ items: restaurant.menu || [], total: (restaurant.menu || []).length });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 router.post('/', authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {

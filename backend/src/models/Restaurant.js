@@ -74,6 +74,8 @@ const menuItemSchema = new mongoose.Schema({
   },
   allowPayOnDelivery: { type: Boolean, default: true },
   podMinQuantity: { type: Number, default: 1 },
+  popular: { type: Boolean, default: false },
+  calories: { type: String, default: '' },
 });
 
 const reviewSchema = new mongoose.Schema({
