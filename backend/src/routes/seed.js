@@ -7,27 +7,27 @@ const User = require('../models/User');
 const SubscriptionPlan = require('../models/SubscriptionPlan');
 
 const menuData = {
-  'mamacass@vibechops.ng': [
+  'Mama Cass Kitchen': [
     { name: 'Jollof Rice & Chicken', description: 'Smoky party jollof rice with fried chicken and plantain', price: 3500, category: 'Rice', popular: true, calories: '650 cal', image: 'https://images.unsplash.com/photo-1574484284002-952d92456975?w=400', customizationOptions: [{ name: 'Protein', type: 'single', required: true, options: [{ name: 'Fried Chicken', price: 0 }, { name: 'Grilled Chicken', price: 200 }, { name: 'Beef', price: 300 }, { name: 'Turkey', price: 400 }] }] },
     { name: 'Egusi Soup + Swallow', description: 'Rich egusi soup with assorted meat and swallow of choice', price: 3000, category: 'Swallow', calories: '580 cal', image: 'https://images.unsplash.com/photo-1574484284002-952d92456975?w=400', customizationOptions: [{ name: 'Swallow Choice', type: 'single', required: true, options: [{ name: 'Eba', price: 0 }, { name: 'Fufu', price: 0 }, { name: 'Pounded Yam', price: 200 }] }] },
     { name: 'Catfish Pepper Soup', description: 'Spicy catfish pepper soup with special herbs', price: 4500, category: 'Soups', calories: '320 cal', image: 'https://images.unsplash.com/photo-1574484284002-952d92456975?w=400' },
   ],
-  'abujagrill@vibechops.ng': [
+  'Abuja Grill House': [
     { name: 'Suya Platter', description: 'Premium suya with fresh vegetables and spices', price: 5000, category: 'Grills', popular: true, calories: '480 cal', image: 'https://images.unsplash.com/photo-1529042410759-befb1204b468?w=400', customizationOptions: [{ name: 'Meat Type', type: 'single', required: true, options: [{ name: 'Beef', price: 0 }, { name: 'Chicken', price: 0 }, { name: 'Ram', price: 500 }] }] },
     { name: 'Grilled Chicken', description: 'Full grilled chicken with peppered sauce', price: 6500, category: 'Grills', calories: '720 cal', image: 'https://images.unsplash.com/photo-1529042410759-befb1204b468?w=400' },
     { name: 'Jollof Rice', description: 'Nigerian party jollof rice', price: 2500, category: 'Rice', calories: '550 cal', image: 'https://images.unsplash.com/photo-1574484284002-952d92456975?w=400' },
   ],
-  'kanosuya@vibechops.ng': [
+  'Kano Suya Express': [
     { name: 'Northern Suya', description: 'Authentic Kano-style suya with traditional spices', price: 3000, category: 'Grills', popular: true, calories: '380 cal', image: 'https://images.unsplash.com/photo-1529042410759-befb1204b468?w=400' },
     { name: 'Tuwo Shinkafa', description: 'Northern rice pudding with miyan kuka soup', price: 2000, category: 'Swallow', calories: '450 cal', image: 'https://images.unsplash.com/photo-1574484284002-952d92456975?w=400' },
     { name: 'Masa', description: 'Traditional Hausa rice cakes', price: 1500, category: 'Snacks', calories: '280 cal', image: 'https://images.unsplash.com/photo-1574484284002-952d92456975?w=400' },
   ],
-  'kanurikitchen@vibechops.ng': [
+  'Kanuri Kitchen': [
     { name: 'Kanuri Meat Stew', description: 'Rich traditional Kanuri beef stew with spices', price: 3500, category: 'Soups', popular: true, calories: '420 cal', image: 'https://images.unsplash.com/photo-1574484284002-952d92456975?w=400' },
     { name: 'Ngalakh', description: 'Traditional northern millet porridge', price: 1500, category: 'Breakfast', calories: '320 cal', image: 'https://images.unsplash.com/photo-1574484284002-952d92456975?w=400' },
     { name: 'Grilled Fish', description: 'Fresh tilapia grilled with local spices', price: 4000, category: 'Grills', calories: '380 cal', image: 'https://images.unsplash.com/photo-1529042410759-befb1204b468?w=400' },
   ],
-  'phseafood@vibechops.ng': [
+  'Port Harcourt Seafood': [
     { name: 'Banga Soup + Starch', description: 'Delta-style palm nut soup with starch', price: 4500, category: 'Soups', popular: true, calories: '490 cal', image: 'https://images.unsplash.com/photo-1574484284002-952d92456975?w=400' },
     { name: 'Pepper Soup Fish', description: 'Fresh river fish in spicy pepper soup', price: 5000, category: 'Soups', calories: '350 cal', image: 'https://images.unsplash.com/photo-1574484284002-952d92456975?w=400' },
     { name: 'Seafood Fried Rice', description: 'Fried rice with mixed seafood and vegetables', price: 5500, category: 'Rice', calories: '620 cal', image: 'https://images.unsplash.com/photo-1574484284002-952d92456975?w=400' },
@@ -194,7 +194,7 @@ router.post('/restaurants', async (req, res) => {
         { upsert: true, new: true }
       );
       // Attach menu items for this restaurant
-      const items = menuData[inserted.email] || [];
+      const items = menuData[inserted.name] || [];
       if (items.length > 0) {
         await Restaurant.findByIdAndUpdate(inserted._id, { $set: { menu: items } });
       }
