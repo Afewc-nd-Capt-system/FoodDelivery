@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useMemo, Suspense } from 'react';
+import { useState, useMemo, Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Search, SlidersHorizontal, Star, Clock, X, ChevronDown, MapPin } from 'lucide-react';
 import Image from 'next/image';
-import { restaurants } from '@/data/mockData';
 
 function SkeletonCard() {
   return (
@@ -31,15 +30,16 @@ const SORT_OPTIONS = [
 ];
 const QUICK_FILTERS = ['All', 'Rice', 'Swallow', 'Grills', 'Fast Food', 'Soups', 'Premium', 'Budget'];
 
-function RestaurantCard({ restaurant, onClick }: { restaurant: typeof restaurants[0]; onClick: () => void }) {
+function RestaurantCard({ restaurant, onClick }: { restaurant: any; onClick: () => void }) {
   const [hovered, setHovered] = useState(false);
 
   return (
     <div
+      onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className="rounded-3xl overflow-hidden bg-white"
-      style={{
+      style={{ cursor: 'pointer',
         boxShadow: hovered
           ? '0 24px 48px rgba(232,98,26,0.14), 0 6px 16px rgba(0,0,0,0.06)'
           : '0 4px 16px rgba(0,0,0,0.06)',
@@ -48,17 +48,21 @@ function RestaurantCard({ restaurant, onClick }: { restaurant: typeof restaurant
       }}
     >
       <div className="relative h-48 overflow-hidden">
-        <Image
-          src={restaurant.image}
-          alt={restaurant.name}
-          width={384}
-          height={192}
-          className="w-full h-full object-cover"
-          style={{
-            transform: hovered ? 'scale(1.07)' : 'scale(1)',
-            transition: 'transform 0.5s ease',
-          }}
-        />
+        {restaurant.image ? (
+          <Image
+            src={restaurant.image}
+            alt={restaurant.name}
+            width={384}
+            height={192}
+            className="w-full h-full object-cover"
+            style={{
+              transform: hovered ? 'scale(1.07)' : 'scale(1)',
+              transition: 'transform 0.5s ease',
+            }}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-5xl" style={{ background: 'linear-gradient(135deg, #E8621A, #BE3A2A)' }}>🍽️</div>
+        )}
         <div
           className="absolute inset-0"
           style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.1) 50%, transparent 100%)' }}
@@ -79,7 +83,7 @@ function RestaurantCard({ restaurant, onClick }: { restaurant: typeof restaurant
             {restaurant.discount}
           </div>
         )}
-        {!restaurant.isOpen && (
+        {restaurant.isOpen === false && (
           <div className="absolute inset-0 bg-black/55 flex items-center justify-center">
             <span className="px-4 py-2 bg-white/95 rounded-2xl text-sm font-bold text-gray-700">
               Closed Now
@@ -88,7 +92,7 @@ function RestaurantCard({ restaurant, onClick }: { restaurant: typeof restaurant
         )}
         <div className="absolute bottom-3 left-3 flex items-center gap-1">
           <MapPin size={11} className="text-white/70" />
-          <span className="text-xs text-white/80 font-medium">{restaurant.distance}</span>
+          <span className="text-xs text-white/80 font-medium">{restaurant.distance || ''}</span>
         </div>
       </div>
 
@@ -101,24 +105,25 @@ function RestaurantCard({ restaurant, onClick }: { restaurant: typeof restaurant
           >
             <Star size={11} fill="#E8621A" stroke="none" />
             <span className="text-xs font-black" style={{ color: '#E8621A' }}>{restaurant.rating}</span>
-            <span className="text-[10px]" style={{ color: '#A0A0A0' }}>({restaurant.reviewCount})</span>
+            {restaurant.reviewCount != null && <span className="text-[10px]" style={{ color: '#A0A0A0' }}>({restaurant.reviewCount})</span>}
           </div>
         </div>
-        <p className="text-xs mb-3 font-medium" style={{ color: '#A0A0A0' }}>{restaurant.cuisine}</p>
+        <p className="text-xs mb-3 font-medium" style={{ color: '#A0A0A0' }}>{restaurant.cuisine || restaurant.categories?.[0] || ''}</p>
         <div className="flex items-center gap-3 text-xs" style={{ color: '#636366' }}>
           <div className="flex items-center gap-1">
             <Clock size={11} />
-            <span className="font-medium">{restaurant.deliveryTime}</span>
+            <span className="font-medium">{restaurant.deliveryTime || ''}</span>
           </div>
-          <span className="text-gray-300">•</span>
-          <span className="font-medium">{restaurant.priceRange}</span>
+          {restaurant.priceRange && <><span className="text-gray-300">•</span>
+          <span className="font-medium">{restaurant.priceRange}</span></>}
           <span className="text-gray-300">•</span>
           <span className="font-semibold text-green-600">
-            {restaurant.deliveryFee === 0 ? 'Free delivery' : `₦${restaurant.deliveryFee}`}
+            {restaurant.deliveryFee === 0 ? 'Free delivery' : `₦${restaurant.deliveryFee || 0}`}
           </span>
         </div>
+        {restaurant.categories && restaurant.categories.length > 0 && (
         <div className="flex gap-1.5 mt-3 flex-wrap">
-          {restaurant.categories.slice(0, 3).map(cat => (
+          {restaurant.categories.slice(0, 3).map((cat: string) => (
             <span
               key={cat}
               className="px-2 py-0.5 rounded-lg text-[11px] font-semibold"
@@ -128,8 +133,9 @@ function RestaurantCard({ restaurant, onClick }: { restaurant: typeof restaurant
             </span>
           ))}
         </div>
+        )}
         <button
-          onClick={onClick}
+          onClick={(e) => { e.stopPropagation(); onClick(); }}
           className="w-full mt-3 py-2.5 rounded-xl text-white text-sm font-bold transition-all duration-200 hover:scale-105 active:scale-95"
           style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}
         >
@@ -150,17 +156,35 @@ function RestaurantsPageContent() {
   const [maxDelivery, setMaxDelivery] = useState(60);
   const [selectedCuisine, setSelectedCuisine] = useState('All');
   const [showFilters, setShowFilters] = useState(false);
-  const [loading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [priceRange, setPriceRange] = useState<string[]>([]);
   const [quickFilter, setQuickFilter] = useState('All');
+  const [restaurants, setRestaurants] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchRestaurants = async () => {
+      try {
+        const res = await fetch(
+          'https://vibechops.onrender.com/api/v2/restaurants?limit=50'
+        );
+        const data = await res.json();
+        setRestaurants(data.restaurants || []);
+      } catch (err) {
+        console.error('Failed to fetch restaurants:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRestaurants();
+  }, []);
 
   const filtered = useMemo(() => {
     let result = restaurants.filter(r => {
       if (
         search &&
         !r.name.toLowerCase().includes(search.toLowerCase()) &&
-        !r.cuisine.toLowerCase().includes(search.toLowerCase()) &&
-        !r.categories.some(c => c.toLowerCase().includes(search.toLowerCase()))
+        !r.cuisine?.toLowerCase().includes(search.toLowerCase()) &&
+        !(r.categories || []).some((c: string) => c.toLowerCase().includes(search.toLowerCase()))
       ) return false;
       if (r.rating < minRating) return false;
       if (selectedCuisine !== 'All' && r.cuisine !== selectedCuisine) return false;
@@ -168,10 +192,10 @@ function RestaurantsPageContent() {
       return true;
     });
 
-    if (sortBy === 'rating') result = [...result].sort((a, b) => b.rating - a.rating);
-    if (sortBy === 'price_low') result = [...result].sort((a, b) => a.priceRange.length - b.priceRange.length);
+    if (sortBy === 'rating') result = [...result].sort((a: any, b: any) => b.rating - a.rating);
+    if (sortBy === 'price_low') result = [...result].sort((a: any, b: any) => (a.priceRange?.length || 0) - (b.priceRange?.length || 0));
     return result;
-  }, [search, minRating, selectedCuisine, priceRange, sortBy]);
+  }, [search, minRating, selectedCuisine, priceRange, sortBy, restaurants]);
 
   const activeFilterCount = [minRating > 0, selectedCuisine !== 'All', priceRange.length > 0].filter(Boolean).length;
 
@@ -429,11 +453,11 @@ function RestaurantsPageContent() {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-                {filtered.map(restaurant => (
+                {filtered.map((restaurant: any) => (
                   <RestaurantCard
-                    key={restaurant.id}
+                    key={restaurant._id}
                     restaurant={restaurant}
-                    onClick={() => router.push(`/restaurant/${restaurant.id}`)}
+                    onClick={() => router.push(`/restaurant/${restaurant._id}`)}
                   />
                 ))}
               </div>

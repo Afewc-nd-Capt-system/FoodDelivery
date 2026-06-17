@@ -4,7 +4,6 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, MapPin, ChevronRight, Star, Clock, Zap, Shield, ArrowRight, Flame, TrendingUp, ChevronLeft, Loader2, Heart, RefreshCw, Gift } from 'lucide-react';
 import Image from 'next/image';
-import { restaurants, vendors } from '@/data/mockData';
 import { useLocation } from '@/context/LocationContext';
 import { useAuth } from '@/context/AuthContext';
 
@@ -138,7 +137,7 @@ function SkeletonRestaurantCard() {
   );
 }
 
-function VendorCard({ vendor, onClick }: { vendor: typeof vendors[0]; onClick: () => void }) {
+function VendorCard({ vendor, onClick }: { vendor: any; onClick: () => void }) {
   const [hovered, setHovered] = useState(false);
   return (
     <div onClick={onClick} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
@@ -146,59 +145,59 @@ function VendorCard({ vendor, onClick }: { vendor: typeof vendors[0]; onClick: (
       style={{ boxShadow: hovered ? '0 24px 48px rgba(232,98,26,0.18), 0 8px 16px rgba(0,0,0,0.06)' : '0 4px 20px rgba(0,0,0,0.07)', transform: hovered ? 'translateY(-6px) scale(1.01)' : 'translateY(0) scale(1)', transition: 'all 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}
     >
       <div className="relative h-44 overflow-hidden">
-        <Image src={vendor.image} alt={vendor.name} width={288} height={176} className="w-full h-full object-cover" style={{ transform: hovered ? 'scale(1.07)' : 'scale(1)', transition: 'transform 0.5s ease' }} />
+        {vendor.image ? <Image src={vendor.image} alt={vendor.name} width={288} height={176} className="w-full h-full object-cover" style={{ transform: hovered ? 'scale(1.07)' : 'scale(1)', transition: 'transform 0.5s ease' }} /> : <div className="w-full h-full flex items-center justify-center text-5xl" style={{ background: 'linear-gradient(135deg, #E8621A, #BE3A2A)' }}>🥘</div>}
         <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.1) 50%, transparent 100%)' }} />
         {vendor.promoted && <div className="absolute top-3 left-3 px-2.5 py-1 rounded-lg text-[11px] font-black tracking-wide text-white" style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}>FEATURED</div>}
         {vendor.discount && <div className="absolute top-3 right-3 px-2.5 py-1 rounded-lg text-[11px] font-black text-white" style={{ background: 'linear-gradient(135deg, #BE3A2A, #8B2520)' }}>{vendor.discount}</div>}
-        {!vendor.isOpen && <div className="absolute inset-0 bg-black/55 flex items-center justify-center"><span className="px-4 py-2 bg-white/95 rounded-2xl text-sm font-bold text-gray-700 shadow-lg">Closed Now</span></div>}
-        <div className="absolute bottom-3 left-3 flex items-center gap-1.5"><MapPin size={11} className="text-white/80" /><span className="text-xs text-white/80 font-medium">{vendor.distance}</span></div>
+        {vendor.isOpen === false && <div className="absolute inset-0 bg-black/55 flex items-center justify-center"><span className="px-4 py-2 bg-white/95 rounded-2xl text-sm font-bold text-gray-700 shadow-lg">Closed Now</span></div>}
+        <div className="absolute bottom-3 left-3 flex items-center gap-1.5"><MapPin size={11} className="text-white/80" /><span className="text-xs text-white/80 font-medium">{vendor.distance || ''}</span></div>
       </div>
       <div className="p-4">
         <div className="flex items-start justify-between mb-1.5">
           <h3 className="font-black text-sm leading-snug" style={{ color: '#1C1C1E' }}>{vendor.name}</h3>
-          <div className="flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-lg ml-2" style={{ backgroundColor: '#FFF1E8' }}><Star size={11} fill="#E8621A" stroke="none" /><span className="text-xs font-black" style={{ color: '#E8621A' }}>{vendor.rating}</span></div>
+          {vendor.rating && <div className="flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-lg ml-2" style={{ backgroundColor: '#FFF1E8' }}><Star size={11} fill="#E8621A" stroke="none" /><span className="text-xs font-black" style={{ color: '#E8621A' }}>{vendor.rating}</span></div>}
         </div>
-        <p className="text-xs mb-3 font-medium" style={{ color: '#A0A0A0' }}>{vendor.cuisine}</p>
+        <p className="text-xs mb-3 font-medium" style={{ color: '#A0A0A0' }}>{vendor.cuisine || vendor.categories?.[0] || ''}</p>
         <div className="flex items-center gap-3 text-xs" style={{ color: '#636366' }}>
-          <div className="flex items-center gap-1"><Clock size={11} /><span className="font-medium">{vendor.deliveryTime}</span></div>
-          <span className="text-gray-300">•</span><span className="font-medium">{vendor.priceRange}</span>
-          <span className="text-gray-300">•</span><span className="font-medium text-green-600">{vendor.deliveryFee === 0 ? 'Free' : `₦${vendor.deliveryFee}`} delivery</span>
+          <div className="flex items-center gap-1"><Clock size={11} /><span className="font-medium">{vendor.deliveryTime || ''}</span></div>
+          {vendor.priceRange && <><span className="text-gray-300">•</span><span className="font-medium">{vendor.priceRange}</span></>}
+          <span className="text-gray-300">•</span><span className="font-medium text-green-600">{vendor.deliveryFee === 0 ? 'Free' : `₦${vendor.deliveryFee || 0}`} delivery</span>
         </div>
-        <div className="flex gap-1.5 mt-3 flex-wrap">{vendor.categories.slice(0, 3).map(cat => (<span key={cat} className="px-2 py-0.5 rounded-lg text-[11px] font-semibold" style={{ backgroundColor: '#FFF1E8', color: '#E8621A' }}>{cat}</span>))}</div>
-        <div className="mt-3 text-xs" style={{ color: '#636366' }}><span className="font-medium">Cooking Days: </span><span>{vendor.cookingDays.join(', ')}</span></div>
+        {vendor.categories && vendor.categories.length > 0 && <div className="flex gap-1.5 mt-3 flex-wrap">{vendor.categories.slice(0, 3).map((cat: string) => (<span key={cat} className="px-2 py-0.5 rounded-lg text-[11px] font-semibold" style={{ backgroundColor: '#FFF1E8', color: '#E8621A' }}>{cat}</span>))}</div>}
+        {vendor.cookingDays && vendor.cookingDays.length > 0 && <div className="mt-3 text-xs" style={{ color: '#636366' }}><span className="font-medium">Cooking Days: </span><span>{vendor.cookingDays.join(', ')}</span></div>}
       </div>
     </div>
   );
 }
 
-function RestaurantCard({ restaurant, onClick }: { restaurant: typeof restaurants[0]; onClick: () => void }) {
+function RestaurantCard({ restaurant, onClick }: { restaurant: any; onClick: () => void }) {
   const [hovered, setHovered] = useState(false);
   return (
-    <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+    <div onClick={onClick} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       className="rounded-3xl overflow-hidden bg-white shrink-0 w-72 select-none"
-      style={{ boxShadow: hovered ? '0 24px 48px rgba(232,98,26,0.18), 0 8px 16px rgba(0,0,0,0.06)' : '0 4px 20px rgba(0,0,0,0.07)', transform: hovered ? 'translateY(-6px) scale(1.01)' : 'translateY(0) scale(1)', transition: 'all 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}
+      style={{ cursor: 'pointer', boxShadow: hovered ? '0 24px 48px rgba(232,98,26,0.18), 0 8px 16px rgba(0,0,0,0.06)' : '0 4px 20px rgba(0,0,0,0.07)', transform: hovered ? 'translateY(-6px) scale(1.01)' : 'translateY(0) scale(1)', transition: 'all 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}
     >
       <div className="relative h-44 overflow-hidden">
-        <Image src={restaurant.image} alt={restaurant.name} width={288} height={176} className="w-full h-full object-cover" style={{ transform: hovered ? 'scale(1.07)' : 'scale(1)', transition: 'transform 0.5s ease' }} />
+        {restaurant.image ? <Image src={restaurant.image} alt={restaurant.name} width={288} height={176} className="w-full h-full object-cover" style={{ transform: hovered ? 'scale(1.07)' : 'scale(1)', transition: 'transform 0.5s ease' }} /> : <div className="w-full h-full flex items-center justify-center text-5xl" style={{ background: 'linear-gradient(135deg, #E8621A, #BE3A2A)' }}>🍽️</div>}
         <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.1) 50%, transparent 100%)' }} />
         {restaurant.promoted && <div className="absolute top-3 left-3 px-2.5 py-1 rounded-lg text-[11px] font-black tracking-wide text-white" style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}>FEATURED</div>}
         {restaurant.discount && <div className="absolute top-3 right-3 px-2.5 py-1 rounded-lg text-[11px] font-black text-white" style={{ background: 'linear-gradient(135deg, #BE3A2A, #8B2520)' }}>{restaurant.discount}</div>}
-        {!restaurant.isOpen && <div className="absolute inset-0 bg-black/55 flex items-center justify-center"><span className="px-4 py-2 bg-white/95 rounded-2xl text-sm font-bold text-gray-700 shadow-lg">Closed Now</span></div>}
-        <div className="absolute bottom-3 left-3 flex items-center gap-1.5"><MapPin size={11} className="text-white/80" /><span className="text-xs text-white/80 font-medium">{restaurant.distance}</span></div>
+        {restaurant.isOpen === false && <div className="absolute inset-0 bg-black/55 flex items-center justify-center"><span className="px-4 py-2 bg-white/95 rounded-2xl text-sm font-bold text-gray-700 shadow-lg">Closed Now</span></div>}
+        <div className="absolute bottom-3 left-3 flex items-center gap-1.5"><MapPin size={11} className="text-white/80" /><span className="text-xs text-white/80 font-medium">{restaurant.distance || ''}</span></div>
       </div>
       <div className="p-4">
         <div className="flex items-start justify-between mb-1.5">
           <h3 className="font-black text-sm leading-snug" style={{ color: '#1C1C1E' }}>{restaurant.name}</h3>
-          <div className="flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-lg ml-2" style={{ backgroundColor: '#FFF1E8' }}><Star size={11} fill="#E8621A" stroke="none" /><span className="text-xs font-black" style={{ color: '#E8621A' }}>{restaurant.rating}</span></div>
+          {restaurant.rating && <div className="flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-lg ml-2" style={{ backgroundColor: '#FFF1E8' }}><Star size={11} fill="#E8621A" stroke="none" /><span className="text-xs font-black" style={{ color: '#E8621A' }}>{restaurant.rating}</span></div>}
         </div>
-        <p className="text-xs mb-3 font-medium" style={{ color: '#A0A0A0' }}>{restaurant.cuisine}</p>
+        <p className="text-xs mb-3 font-medium" style={{ color: '#A0A0A0' }}>{restaurant.cuisine || restaurant.categories?.[0] || ''}</p>
         <div className="flex items-center gap-3 text-xs" style={{ color: '#636366' }}>
-          <div className="flex items-center gap-1"><Clock size={11} /><span className="font-medium">{restaurant.deliveryTime}</span></div>
-          <span className="text-gray-300">•</span><span className="font-medium">{restaurant.priceRange}</span>
-          <span className="text-gray-300">•</span><span className="font-medium text-green-600">{restaurant.deliveryFee === 0 ? 'Free' : `₦${restaurant.deliveryFee}`} delivery</span>
+          <div className="flex items-center gap-1"><Clock size={11} /><span className="font-medium">{restaurant.deliveryTime || ''}</span></div>
+          {restaurant.priceRange && <><span className="text-gray-300">•</span><span className="font-medium">{restaurant.priceRange}</span></>}
+          <span className="text-gray-300">•</span><span className="font-medium text-green-600">{restaurant.deliveryFee === 0 ? 'Free' : `₦${restaurant.deliveryFee || 0}`} delivery</span>
         </div>
-        <div className="flex gap-1.5 mt-3 flex-wrap">{restaurant.categories.slice(0, 3).map(cat => (<span key={cat} className="px-2 py-0.5 rounded-lg text-[11px] font-semibold" style={{ backgroundColor: '#FFF1E8', color: '#E8621A' }}>{cat}</span>))}</div>
-        <button onClick={onClick} className="w-full mt-3 py-2.5 rounded-xl text-white text-sm font-bold transition-all duration-200 hover:scale-105 active:scale-95" style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}>View Menu</button>
+        {restaurant.categories && restaurant.categories.length > 0 && <div className="flex gap-1.5 mt-3 flex-wrap">{restaurant.categories.slice(0, 3).map((cat: string) => (<span key={cat} className="px-2 py-0.5 rounded-lg text-[11px] font-semibold" style={{ backgroundColor: '#FFF1E8', color: '#E8621A' }}>{cat}</span>))}</div>}
+        <button onClick={(e) => { e.stopPropagation(); onClick(); }} className="w-full mt-3 py-2.5 rounded-xl text-white text-sm font-bold transition-all duration-200 hover:scale-105 active:scale-95" style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}>View Menu</button>
       </div>
     </div>
   );
@@ -242,8 +241,25 @@ export default function HomePage() {
     router.push(url);
   };
 
-  const openRestaurants = restaurants.filter(r => r.isOpen);
-  const openVendors = vendors.filter(v => v.isOpen);
+  const [featuredRestaurants, setFeaturedRestaurants] = useState<any[]>([]);
+  const [allVendors, setAllVendors] = useState<any[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      fetch('https://vibechops.onrender.com/api/v2/restaurants?limit=50').then(r => r.json()),
+      fetch('https://vibechops.onrender.com/api/v2/vendors?limit=50').then(r => r.json()),
+    ])
+      .then(([restData, vendData]) => {
+        setFeaturedRestaurants(restData.restaurants || []);
+        setAllVendors(vendData.vendors || []);
+      })
+      .catch(err => console.error('Failed to fetch homepage data:', err))
+      .finally(() => setLoadingData(false));
+  }, []);
+
+  const openRestaurants = featuredRestaurants.filter((r: any) => r.isOpen);
+  const openVendors = allVendors.filter((v: any) => v.isOpen);
 
   // ── LOGGED IN VIEW ──────────────────────
   if (user) {
@@ -377,23 +393,23 @@ export default function HomePage() {
           </div>
         </div>
         <div ref={carouselRef} onScroll={handleScroll} className="flex gap-4 overflow-x-auto pb-4" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-          {restaurants.map(r => (<RestaurantCard key={r.id} restaurant={r} onClick={() => router.push(`/restaurant/${r.id}`)} />))}
+          {featuredRestaurants.map((r: any) => (<RestaurantCard key={r._id} restaurant={r} onClick={() => router.push(`/restaurant/${r._id}`)} />))}
         </div>
       </section>
 
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-12">
         <div className="flex items-center justify-between mb-6"><div><h2 className="text-2xl font-black" style={{ color: '#1C1C1E' }}>Featured Vendors</h2><p className="text-sm mt-0.5" style={{ color: '#A0A0A0' }}>Top-rated home cooks and caterers near you</p></div><button onClick={() => router.push('/vendors')} className="flex items-center gap-1 text-sm font-bold" style={{ color: '#E8621A' }}>View all <ChevronRight size={16} /></button></div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">{vendors.slice(0, 4).map(v => (<VendorCard key={v.id} vendor={v} onClick={() => router.push(`/vendors/${v.id}`)} />))}</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">{allVendors.slice(0, 4).map((v: any) => (<VendorCard key={v._id} vendor={v} onClick={() => router.push(`/vendors/${v._id}`)} />))}</div>
       </section>
 
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-12">
         <div className="flex items-center justify-between mb-6"><div><h2 className="text-2xl font-black" style={{ color: '#1C1C1E' }}>Open Vendors</h2><p className="text-sm mt-0.5" style={{ color: '#A0A0A0' }}><span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 inline-block animate-pulse" />{openVendors.length} vendors ready to cook</span></p></div></div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">{openVendors.map(v => (<VendorCard key={v.id} vendor={v} onClick={() => router.push(`/vendors/${v.id}`)} />))}</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">{openVendors.map((v: any) => (<VendorCard key={v._id} vendor={v} onClick={() => router.push(`/vendors/${v._id}`)} />))}</div>
       </section>
 
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-14">
         <div className="flex items-center justify-between mb-6"><div><h2 className="text-2xl font-black" style={{ color: '#1C1C1E' }}>Open Now</h2><p className="text-sm mt-0.5" style={{ color: '#A0A0A0' }}><span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 inline-block animate-pulse" />{openRestaurants.length} restaurants ready to deliver</span></p></div></div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">{openRestaurants.map(r => (<RestaurantCard key={r.id} restaurant={r} onClick={() => router.push(`/restaurant/${r.id}`)} />))}</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">{openRestaurants.map((r: any) => (<RestaurantCard key={r._id} restaurant={r} onClick={() => router.push(`/restaurant/${r._id}`)} />))}</div>
       </section>
 
       <section style={{ backgroundColor: '#1C1C1E' }} className="py-18">

@@ -1,24 +1,43 @@
 'use client';
 
-import { useState } from 'react';
-import { Search, Filter, Star, Clock, MapPin } from 'lucide-react';
-import { vendors } from '@/data/mockData';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Search } from 'lucide-react';
 import VendorCard from '@/components/VendorCard';
 
 export default function VendorsPage() {
+  const router = useRouter();
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [vendors, setVendors] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const categories = Array.from(new Set(vendors.flatMap(v => v.categories)));
+  useEffect(() => {
+    const fetchVendors = async () => {
+      try {
+        const res = await fetch('https://vibechops.onrender.com/api/v2/vendors?limit=50');
+        const data = await res.json();
+        setVendors(data.vendors || []);
+      } catch (err) {
+        console.error('Failed to fetch vendors:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchVendors();
+  }, []);
 
-  const filteredVendors = vendors.filter(vendor => {
-    const matchesSearch = vendor.name.toLowerCase().includes(search.toLowerCase()) ||
-                         vendor.cuisine.toLowerCase().includes(search.toLowerCase());
-    const matchesCategory = !selectedCategory || vendor.categories.includes(selectedCategory);
+  const categories = Array.from(new Set(vendors.flatMap((v: any) => v.categories || [])));
+
+  const filteredVendors = vendors.filter((vendor: any) => {
+    const matchesSearch = !search ||
+      (vendor.name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (vendor.cuisine || '').toLowerCase().includes(search.toLowerCase());
+    const matchesCategory = !selectedCategory || (vendor.categories || []).includes(selectedCategory);
     return matchesSearch && matchesCategory;
   });
 
-  const openVendors = filteredVendors.filter(v => v.isOpen);
+  const openVendors = filteredVendors.filter((v: any) => v.isOpen);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -52,7 +71,7 @@ export default function VendorsPage() {
           >
             All
           </button>
-          {categories.map(category => (
+          {categories.map((category: string) => (
             <button
               key={category}
               onClick={() => setSelectedCategory(category)}
@@ -68,6 +87,20 @@ export default function VendorsPage() {
         </div>
       </div>
 
+      {loading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="rounded-xl overflow-hidden bg-white animate-pulse">
+              <div className="h-48 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200" />
+              <div className="p-4 space-y-3">
+                <div className="h-4 bg-gray-200 rounded-full w-3/4" />
+                <div className="h-3 bg-gray-100 rounded-full w-1/2" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <>
       {/* Open Vendors Section */}
       <div className="mb-12">
         <div className="flex items-center justify-between mb-6">
@@ -75,8 +108,8 @@ export default function VendorsPage() {
           <span className="text-sm text-gray-500">{openVendors.length} vendors available</span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {openVendors.map(vendor => (
-            <VendorCard key={vendor.id} vendor={vendor} />
+          {openVendors.map((vendor: any) => (
+            <VendorCard key={vendor._id} vendor={vendor} onClick={() => router.push(`/vendors/${vendor._id}`)} />
           ))}
         </div>
       </div>
@@ -85,11 +118,13 @@ export default function VendorsPage() {
       <div>
         <h2 className="text-2xl font-bold mb-6">All Vendors</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredVendors.map(vendor => (
-            <VendorCard key={vendor.id} vendor={vendor} />
+          {filteredVendors.map((vendor: any) => (
+            <VendorCard key={vendor._id} vendor={vendor} onClick={() => router.push(`/vendors/${vendor._id}`)} />
           ))}
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

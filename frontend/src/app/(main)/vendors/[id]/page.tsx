@@ -1,13 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Star, Clock, MapPin, ArrowLeft, Heart, Share2, ShoppingCart } from 'lucide-react';
-import { vendors, vendorMenuItems } from '@/data/mockData';
+import { Star, Clock, MapPin, ArrowLeft, Heart, Share2 } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
-import type { VendorMenuItem } from '@/data/mockData';
 
 function formatDate(dateStr: string | undefined) {
   if (!dateStr) return 'Next available cooking day';
@@ -17,7 +15,7 @@ function formatDate(dateStr: string | undefined) {
   });
 }
 
-function formatCutoffTime(item: VendorMenuItem) {
+function formatCutoffTime(item: any) {
   if (!item.availableDate || !item.cutoffHours) return 'Day before';
   const cutoff = new Date(item.availableDate);
   cutoff.setHours(cutoff.getHours() - item.cutoffHours);
@@ -31,11 +29,11 @@ function formatCutoffTime(item: VendorMenuItem) {
 function PreOrderModal({
   item, vendorName, onClose, onAddToCart, onOrderNow,
 }: {
-  item: VendorMenuItem;
+  item: any;
   vendorName: string;
   onClose: () => void;
-  onAddToCart: (item: VendorMenuItem) => void;
-  onOrderNow: (item: VendorMenuItem) => void;
+  onAddToCart: (item: any) => void;
+  onOrderNow: (item: any) => void;
 }) {
   const [qty, setQty] = useState(1);
   const [specialInstructions, setSpecialInstructions] = useState('');
@@ -214,12 +212,29 @@ export default function VendorDetailPage() {
   const { addItem, items, updateQuantity } = useCart();
   const vendorId = params.id as string;
 
-  const vendor = vendors.find(v => v.id === vendorId);
-  const menu = vendorMenuItems.filter(item => item.vendorId === vendorId);
-
-  const [selectedItem, setSelectedItem] = useState<VendorMenuItem | null>(null);
+  const [vendor, setVendor] = useState<any>(null);
+  const [menu, setMenu] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedItem, setSelectedItem] = useState<any>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [toast, setToast] = useState('');
+
+  useEffect(() => {
+    const fetchVendor = async () => {
+      try {
+        const res = await fetch(`https://vibechops.onrender.com/api/v2/vendors/${vendorId}`);
+        const data = await res.json();
+        const v = data.vendor || data;
+        setVendor(v);
+        setMenu(v.menuItems || v.items || []);
+      } catch (err) {
+        console.error('Failed to fetch vendor:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchVendor();
+  }, [vendorId]);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -228,9 +243,9 @@ export default function VendorDetailPage() {
 
   const getItemQty = (itemId: string) => items.find(i => i.id === itemId)?.quantity || 0;
 
-  const handleAddToCart = (item: VendorMenuItem) => {
+  const handleAddToCart = (item: any) => {
     const enriched = {
-      id: item.id,
+      id: item._id || item.id,
       name: item.name,
       price: item.price,
       image: item.image,
@@ -244,9 +259,9 @@ export default function VendorDetailPage() {
     showToast('Added to cart!');
   };
 
-  const handleOrderNow = (item: VendorMenuItem) => {
+  const handleOrderNow = (item: any) => {
     const enriched = {
-      id: item.id,
+      id: item._id || item.id,
       name: item.name,
       price: item.price,
       image: item.image,
@@ -259,6 +274,19 @@ export default function VendorDetailPage() {
     setModalOpen(false);
     router.push('/cart');
   };
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="text-center">
+          <div className="animate-pulse space-y-4">
+            <div className="h-64 bg-gray-200 rounded-3xl" />
+            <div className="h-8 bg-gray-200 rounded-full w-1/3 mx-auto" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!vendor) {
     return (
@@ -374,7 +402,7 @@ export default function VendorDetailPage() {
               <div>
                 <h3 className="font-semibold text-lg mb-2">Cooking Schedule</h3>
                 <div className="flex flex-wrap gap-2">
-                  {vendor.cookingDays.map(day => (
+                  {(vendor.cookingDays || []).map((day: string) => (
                     <span key={day} className="px-3 py-1 bg-gray-100 rounded-full text-sm font-medium">{day}</span>
                   ))}
                 </div>
@@ -395,7 +423,7 @@ export default function VendorDetailPage() {
               </div>
               <div>
                 <h3 className="font-semibold text-lg mb-2">Minimum Order</h3>
-                <p className="text-gray-600">₦{vendor.minOrder.toLocaleString()}</p>
+                <p className="text-gray-600">₦{(vendor.minOrder || 0).toLocaleString()}</p>
               </div>
             </div>
           </div>
@@ -405,14 +433,15 @@ export default function VendorDetailPage() {
         <div className="mb-8">
           <h2 className="text-2xl font-bold mb-6">Menu</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {menu.map(item => {
-              const qty = getItemQty(item.id);
-              const slotsLeft = item.maxPreOrders! - (item.currentPreOrders || 0);
+            {menu.map((item: any) => {
+              const itemId = item._id || item.id;
+              const qty = getItemQty(itemId);
+              const slotsLeft = (item.maxPreOrders || 0) - (item.currentPreOrders || 0);
               const isFullyBooked = slotsLeft <= 0;
 
               return (
                 <div
-                  key={item.id}
+                  key={itemId}
                   className="bg-white rounded-2xl p-4 transition-all hover:shadow-md"
                   style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
                 >
@@ -459,7 +488,7 @@ export default function VendorDetailPage() {
                         {qty > 0 ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <button
-                              onClick={() => updateQuantity(item.id, qty - 1)}
+                              onClick={() => updateQuantity(itemId, qty - 1)}
                               className="w-7 h-7 rounded-lg flex items-center justify-center border-2"
                               style={{ borderColor: '#E8621A', color: '#E8621A' }}
                             >−</button>

@@ -1,19 +1,49 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import Image from 'next/image';
-import { mockVendors, mockVendorMenuItems } from '@/lib/mockData';
-import { Star, MapPin, Clock, Plus, Minus, ShoppingCart, ChevronLeft, Calendar } from 'lucide-react';
+import { Star, MapPin, Clock, Plus, Minus, ChevronLeft, Calendar } from 'lucide-react';
 
 export default function VendorDetailPage() {
   const params = useParams();
-  const vendor = mockVendors.find(v => v.id === params.id);
+  const vendorId = params.id as string;
+  const [vendor, setVendor] = useState<any>(null);
+  const [menu, setMenu] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState<{id: string; name: string; price: number; quantity: number}[]>([]);
+
+  useEffect(() => {
+    const fetchVendor = async () => {
+      try {
+        const res = await fetch(`https://vibechops.onrender.com/api/v2/vendors/${vendorId}`);
+        const data = await res.json();
+        const v = data.vendor || data;
+        setVendor(v);
+        setMenu(v.menuItems || v.items || []);
+      } catch (err) {
+        console.error('Failed to fetch vendor:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchVendor();
+  }, [vendorId]);
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-16 text-center">
+        <div className="animate-pulse space-y-4">
+          <div className="h-32 bg-gray-200 rounded-3xl" />
+          <div className="h-8 bg-gray-200 rounded-full w-1/3 mx-auto" />
+        </div>
+      </div>
+    );
+  }
 
   if (!vendor) {
     return (
@@ -26,12 +56,13 @@ export default function VendorDetailPage() {
     );
   }
 
-  const addToCart = (item: typeof mockVendorMenuItems[0]) => {
-    const existing = cart.find(ci => ci.id === item.id);
+  const addToCart = (item: any) => {
+    const itemId = item._id || item.id;
+    const existing = cart.find(ci => ci.id === itemId);
     if (existing) {
-      setCart(cart.map(ci => ci.id === item.id ? {...ci, quantity: ci.quantity + 1} : ci));
+      setCart(cart.map(ci => ci.id === itemId ? {...ci, quantity: ci.quantity + 1} : ci));
     } else {
-      setCart([...cart, {id: item.id, name: item.name, price: item.price, quantity: 1}]);
+      setCart([...cart, {id: itemId, name: item.name, price: item.price, quantity: 1}]);
     }
   };
 
@@ -50,25 +81,26 @@ export default function VendorDetailPage() {
       <div className="bg-white rounded-3xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.07)] mb-8">
         <div className="flex items-center gap-6">
           <div className="w-24 h-24 rounded-full bg-gradient-to-r from-[#E8621A] to-[#BE3A2A] flex items-center justify-center text-white font-bold text-3xl">
-            {vendor.avatar}
+            {vendor.name?.charAt(0) || 'V'}
           </div>
           <div className="flex-1">
             <h1 className="text-2xl font-black text-[#1C1C1E] mb-2">{vendor.name}</h1>
-            <p className="text-[#636366] mb-2">{vendor.bio}</p>
+            <p className="text-[#636366] mb-2">{vendor.bio || vendor.cuisine || ''}</p>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-1">
                 <Star className="w-4 h-4 fill-[#E8621A] text-[#E8621A]" />
                 <span className="font-bold text-[#E8621A]">{vendor.rating}</span>
-                <span className="text-sm text-[#A0A0A0]">({vendor.reviewCount} reviews)</span>
+                {vendor.reviewCount != null && <span className="text-sm text-[#A0A0A0]">({vendor.reviewCount} reviews)</span>}
               </div>
               <span className="flex items-center gap-1 text-sm text-[#636366]">
-                <MapPin className="w-3 h-3" /> {vendor.location}
+                <MapPin className="w-3 h-3" /> {vendor.location || vendor.address || ''}
               </span>
             </div>
           </div>
         </div>
 
         {/* Cooking Schedule */}
+        {vendor.cookingDays && vendor.cookingDays.length > 0 && (
         <div className="mt-6 pt-6 border-t border-[#F0EAE0]">
           <h3 className="font-bold mb-3">Cooking Schedule</h3>
           <div className="grid grid-cols-7 gap-2">
@@ -86,14 +118,17 @@ export default function VendorDetailPage() {
             ))}
           </div>
         </div>
+        )}
 
         <div className="flex items-center gap-4 mt-4">
+          {vendor.cookingDays && vendor.cookingDays.length > 0 && (
           <Badge className="bg-[#FFF1E8] text-[#E8621A]">
             <Calendar className="w-3 h-3 mr-1" />
             Next available: {vendor.cookingDays[0]}
           </Badge>
+          )}
           <span className="text-sm text-[#636366]">
-            {vendor.currentOrders}/{vendor.maxOrdersPerDay} slots filled
+            {vendor.currentOrders || 0}/{vendor.maxOrdersPerDay || 10} slots filled
           </span>
         </div>
       </div>
@@ -101,35 +136,37 @@ export default function VendorDetailPage() {
       {/* Pre-order Menu */}
       <h2 className="text-xl font-black text-[#1C1C1E] mb-4">Pre-order Menu</h2>
       <div className="space-y-4 mb-8">
-        {mockVendorMenuItems.filter(item => item.vendorId === vendor.id).map((item) => (
-          <Card key={item.id} className="p-4 hover:shadow-[0_4px_20px_rgba(0,0,0,0.07)] transition-all">
+        {menu.map((item: any) => {
+          const itemId = item._id || item.id;
+          return (
+          <Card key={itemId} className="p-4 hover:shadow-[0_4px_20px_rgba(0,0,0,0.07)] transition-all">
             <div className="flex items-center justify-between">
               <div className="flex-1">
                 <h3 className="font-bold text-sm text-[#1C1C1E]">{item.name}</h3>
                 <p className="text-xs text-[#636366] mt-1">{item.description}</p>
                 <div className="flex items-center gap-3 mt-2">
-                  <span className="font-black text-[#E8621A]">₦{item.price.toLocaleString()}</span>
+                  <span className="font-black text-[#E8621A]">₦{item.price?.toLocaleString()}</span>
                   <span className="text-xs text-[#A0A0A0]">
-                    {item.currentOrders}/{item.maxOrders} ordered
+                    {item.currentOrders || 0}/{item.maxOrders || item.maxPreOrders || 10} ordered
                   </span>
                 </div>
               </div>
-              {cart.find(ci => ci.id === item.id) ? (
+              {cart.find(ci => ci.id === itemId) ? (
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
-                      const existing = cart.find(ci => ci.id === item.id);
+                      const existing = cart.find(ci => ci.id === itemId);
                       if (existing && existing.quantity > 1) {
-                        setCart(cart.map(ci => ci.id === item.id ? {...ci, quantity: ci.quantity - 1} : ci));
+                        setCart(cart.map(ci => ci.id === itemId ? {...ci, quantity: ci.quantity - 1} : ci));
                       } else {
-                        setCart(cart.filter(ci => ci.id !== item.id));
+                        setCart(cart.filter(ci => ci.id !== itemId));
                       }
                     }}
                     className="w-8 h-8 rounded-xl border border-[#E8621A] text-[#E8621A] flex items-center justify-center"
                   >
                     <Minus className="w-3 h-3" />
                   </button>
-                  <span className="font-bold w-4 text-center">{cart.find(ci => ci.id === item.id)?.quantity}</span>
+                  <span className="font-bold w-4 text-center">{cart.find(ci => ci.id === itemId)?.quantity}</span>
                   <button
                     onClick={() => addToCart(item)}
                     className="w-8 h-8 rounded-xl bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white flex items-center justify-center hover:scale-105"
@@ -147,7 +184,8 @@ export default function VendorDetailPage() {
               )}
             </div>
           </Card>
-        ))}
+          );
+        })}
       </div>
 
       {/* Cart Summary */}
