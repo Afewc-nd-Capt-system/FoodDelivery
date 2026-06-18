@@ -118,7 +118,7 @@ function RestaurantCard({ restaurant, onClick }: { restaurant: any; onClick: () 
           <span className="font-medium">{restaurant.priceRange}</span></>}
           <span className="text-gray-300">•</span>
           <span className="font-semibold text-green-600">
-            {restaurant.deliveryFee === 0 ? 'Free delivery' : `₦${restaurant.deliveryFee || 0}`}
+            {restaurant.deliveryFee > 0 ? `₦${restaurant.deliveryFee.toLocaleString()}` : 'Free delivery'}
           </span>
         </div>
         {restaurant.categories && restaurant.categories.length > 0 && (

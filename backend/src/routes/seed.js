@@ -190,7 +190,10 @@ router.post('/restaurants', async (req, res) => {
     for (const r of restaurantDocs) {
       const inserted = await Restaurant.findOneAndUpdate(
         { name: r.name },
-        { $set: r },
+        {
+          $setOnInsert: r,
+          $set: { image: r.image }
+        },
         { upsert: true, new: true }
       );
       // Attach menu items for this restaurant
@@ -201,10 +204,35 @@ router.post('/restaurants', async (req, res) => {
       results.push({ id: inserted._id, name: inserted.name, city: inserted.address?.city, menuItems: items.length });
     }
 
+    // Update any restaurant without an image with a fallback food image
+    const fallbackImages = [
+      'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&q=80',
+      'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&q=80',
+      'https://images.unsplash.com/photo-1512058564366-18510be2db19?w=800&q=80',
+      'https://images.unsplash.com/photo-1476224203421-9ac39bcb3327?w=800&q=80',
+      'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=800&q=80',
+      'https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=800&q=80',
+      'https://images.unsplash.com/photo-1493770348161-369560ae357d?w=800&q=80',
+    ];
+    const noImageRestaurants = await Restaurant.find({
+      $or: [
+        { image: { $exists: false } },
+        { image: null },
+        { image: '' }
+      ]
+    });
+    let fallbackCount = 0;
+    for (let i = 0; i < noImageRestaurants.length; i++) {
+      const img = fallbackImages[i % fallbackImages.length];
+      await Restaurant.findByIdAndUpdate(noImageRestaurants[i]._id, { $set: { image: img } });
+      fallbackCount++;
+    }
+
     res.status(201).json({
       message: 'Restaurants seeded successfully',
       count: results.length,
       restaurants: results,
+      fallbackImagesUpdated: fallbackCount,
     });
   } catch (error) {
     console.error('Error seeding restaurants:', error);

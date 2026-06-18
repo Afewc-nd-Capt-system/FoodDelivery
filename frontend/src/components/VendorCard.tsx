@@ -29,7 +29,7 @@ export default function VendorCard({ vendor, onClick }: VendorCardProps) {
         {vendor.image ? (
           <Image
             src={vendor.image}
-            alt={vendor.name}
+            alt={vendor.name || vendor.businessName || 'Home Kitchen'}
             fill
             className="object-cover"
           />
@@ -67,7 +67,7 @@ export default function VendorCard({ vendor, onClick }: VendorCardProps) {
 
       <div className="p-4">
         <div className="flex justify-between items-start mb-2">
-          <h3 className="font-black text-sm" style={{ color: '#1C1C1E' }}>{vendor.name}</h3>
+          <h3 className="font-black text-sm" style={{ color: '#1C1C1E' }}>{vendor.name || vendor.businessName || 'Home Kitchen'}</h3>
           {vendor.rating && (
           <div
             className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg"
@@ -95,7 +95,7 @@ export default function VendorCard({ vendor, onClick }: VendorCardProps) {
         <div className="flex items-center justify-between text-xs mb-3">
           <span className="font-medium" style={{ color: '#636366' }}>{vendor.priceRange || ''}</span>
           <span className="font-semibold text-green-600">
-            {vendor.deliveryFee === 0 ? 'Free delivery' : `₦${vendor.deliveryFee || 0} delivery`}
+            {vendor.deliveryFee > 0 ? `₦${vendor.deliveryFee.toLocaleString()} delivery` : 'Free delivery'}
           </span>
         </div>
 

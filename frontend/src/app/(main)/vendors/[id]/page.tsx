@@ -414,7 +414,7 @@ export default function VendorDetailPage() {
               <div>
                 <h3 className="font-semibold text-lg mb-2">Delivery</h3>
                 <p className="text-gray-600">
-                  {vendor.deliveryFee === 0 ? 'Free delivery' : `₦${vendor.deliveryFee} delivery`}
+                  {vendor.deliveryFee > 0 ? `₦${vendor.deliveryFee.toLocaleString()} delivery` : 'Free delivery'}
                 </p>
               </div>
               <div>

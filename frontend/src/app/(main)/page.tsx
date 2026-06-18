@@ -72,7 +72,7 @@ function NearbyRestaurantsSection({ city }: { city?: string }) {
               <p style={{ color: '#636366', fontSize: '12px', margin: '0 0 8px' }}>{r.cuisine || r.categories?.[0]}</p>
               <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: '#A0A0A0' }}>
                 <span>⏱ {r.deliveryTime || '25-40 min'}</span>
-                <span>₦{r.deliveryFee || 500} delivery</span>
+                <span>{r.deliveryFee > 0 ? `₦${r.deliveryFee.toLocaleString()} delivery` : 'Free delivery'}</span>
                 {r.rating && <span>⭐ {r.rating}</span>}
               </div>
               <button onClick={e => { e.stopPropagation(); router.push(`/restaurant/${r._id}`); }}
@@ -163,7 +163,7 @@ function VendorCard({ vendor, onClick }: { vendor: any; onClick: () => void }) {
         <div className="flex items-center gap-3 text-xs" style={{ color: '#636366' }}>
           <div className="flex items-center gap-1"><Clock size={11} /><span className="font-medium">{vendor.deliveryTime || ''}</span></div>
           {vendor.priceRange && <><span className="text-gray-300">•</span><span className="font-medium">{vendor.priceRange}</span></>}
-          <span className="text-gray-300">•</span><span className="font-medium text-green-600">{vendor.deliveryFee === 0 ? 'Free' : `₦${vendor.deliveryFee || 0}`} delivery</span>
+          <span className="text-gray-300">•</span><span className="font-medium text-green-600">{vendor.deliveryFee > 0 ? `₦${vendor.deliveryFee.toLocaleString()} delivery` : 'Free delivery'}</span>
         </div>
         {vendor.categories && vendor.categories.length > 0 && <div className="flex gap-1.5 mt-3 flex-wrap">{vendor.categories.slice(0, 3).map((cat: string) => (<span key={cat} className="px-2 py-0.5 rounded-lg text-[11px] font-semibold" style={{ backgroundColor: '#FFF1E8', color: '#E8621A' }}>{cat}</span>))}</div>}
         {vendor.cookingDays && vendor.cookingDays.length > 0 && <div className="mt-3 text-xs" style={{ color: '#636366' }}><span className="font-medium">Cooking Days: </span><span>{vendor.cookingDays.join(', ')}</span></div>}
@@ -196,7 +196,7 @@ function RestaurantCard({ restaurant, onClick }: { restaurant: any; onClick: () 
         <div className="flex items-center gap-3 text-xs" style={{ color: '#636366' }}>
           <div className="flex items-center gap-1"><Clock size={11} /><span className="font-medium">{restaurant.deliveryTime || ''}</span></div>
           {restaurant.priceRange && <><span className="text-gray-300">•</span><span className="font-medium">{restaurant.priceRange}</span></>}
-          <span className="text-gray-300">•</span><span className="font-medium text-green-600">{restaurant.deliveryFee === 0 ? 'Free' : `₦${restaurant.deliveryFee || 0}`} delivery</span>
+          <span className="text-gray-300">•</span><span className="font-medium text-green-600">{restaurant.deliveryFee > 0 ? `₦${restaurant.deliveryFee.toLocaleString()} delivery` : 'Free delivery'}</span>
         </div>
         {restaurant.categories && restaurant.categories.length > 0 && <div className="flex gap-1.5 mt-3 flex-wrap">{restaurant.categories.slice(0, 3).map((cat: string) => (<span key={cat} className="px-2 py-0.5 rounded-lg text-[11px] font-semibold" style={{ backgroundColor: '#FFF1E8', color: '#E8621A' }}>{cat}</span>))}</div>}
         <button onClick={(e) => { e.stopPropagation(); onClick(); }} className="w-full mt-3 py-2.5 rounded-xl text-white text-sm font-bold transition-all duration-200 hover:scale-105 active:scale-95" style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}>View Menu</button>
