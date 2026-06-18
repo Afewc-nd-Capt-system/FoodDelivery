@@ -188,12 +188,12 @@ router.post('/restaurants', async (req, res) => {
   try {
     const results = [];
     for (const r of restaurantDocs) {
-      const { image, ...restData } = r;
+      const { image, deliveryFee, ...restData } = r;
       const inserted = await Restaurant.findOneAndUpdate(
         { name: r.name },
         {
           $setOnInsert: restData,
-          $set: { image }
+          $set: { image, deliveryFee }
         },
         { upsert: true, new: true }
       );
