@@ -163,20 +163,29 @@ function RestaurantsPageContent() {
 
   useEffect(() => {
     const fetchRestaurants = async () => {
+      setLoading(true)
       try {
-        const res = await fetch(
-          'https://vibechops.onrender.com/api/v2/restaurants?limit=50'
-        );
-        const data = await res.json();
-        setRestaurants(data.restaurants || []);
+        const savedLocation = typeof window !== 'undefined'
+          ? JSON.parse(localStorage.getItem('userLocation') || '{}')
+          : {}
+
+        let url = 'https://vibechops.onrender.com/api/v2/restaurants?limit=50'
+
+        if (savedLocation?.city) {
+          url += `&city=${encodeURIComponent(savedLocation.city)}`
+        }
+
+        const res = await fetch(url)
+        const data = await res.json()
+        setRestaurants(data.restaurants || [])
       } catch (err) {
-        console.error('Failed to fetch restaurants:', err);
+        console.error('Failed to fetch restaurants:', err)
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
-    };
-    fetchRestaurants();
-  }, []);
+    }
+    fetchRestaurants()
+  }, [])
 
   const filtered = useMemo(() => {
     let result = restaurants.filter(r => {

@@ -32,8 +32,10 @@ function NearbyRestaurantsSection({ city }: { city?: string }) {
   const router = useRouter();
 
   useEffect(() => {
-    const q = city ? `?city=${city}` : '?limit=8';
-    fetch(`https://vibechops.onrender.com/api/v2/restaurants${q}`)
+    const url = city
+      ? `https://vibechops.onrender.com/api/v2/restaurants?city=${encodeURIComponent(city)}&limit=8`
+      : `https://vibechops.onrender.com/api/v2/restaurants?limit=8`
+    fetch(url)
       .then(r => r.json())
       .then(d => setRestaurants(d.restaurants || []))
       .catch(() => {});

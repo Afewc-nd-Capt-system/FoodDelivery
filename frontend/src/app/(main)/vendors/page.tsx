@@ -14,18 +14,29 @@ export default function VendorsPage() {
 
   useEffect(() => {
     const fetchVendors = async () => {
+      setLoading(true)
       try {
-        const res = await fetch('https://vibechops.onrender.com/api/v2/vendors?limit=50');
-        const data = await res.json();
-        setVendors(data.vendors || []);
+        const savedLocation = typeof window !== 'undefined'
+          ? JSON.parse(localStorage.getItem('userLocation') || '{}')
+          : {}
+
+        let url = 'https://vibechops.onrender.com/api/v2/vendors?limit=50'
+
+        if (savedLocation?.city) {
+          url += `&city=${encodeURIComponent(savedLocation.city)}`
+        }
+
+        const res = await fetch(url)
+        const data = await res.json()
+        setVendors(data.vendors || [])
       } catch (err) {
-        console.error('Failed to fetch vendors:', err);
+        console.error('Failed to fetch vendors:', err)
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
-    };
-    fetchVendors();
-  }, []);
+    }
+    fetchVendors()
+  }, [])
 
   const categories = Array.from(new Set(vendors.flatMap((v: any) => v.categories || [])));
 

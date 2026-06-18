@@ -46,16 +46,8 @@ router.get('/', async (req, res) => {
     } else if (state) {
       // Fallback to state-based filtering
       query['address.state'] = { $regex: state, $options: 'i' };
-    } else {
-      // No location provided - return empty array with message
-      return res.json({
-        vendors: [],
-        total: 0,
-        totalPages: 0,
-        currentPage: parseInt(page),
-        message: 'Please enable location or select a city to see vendors'
-      });
     }
+    // No location? Return all active vendors
     
     // Apply other filters
     if (cuisine) {
