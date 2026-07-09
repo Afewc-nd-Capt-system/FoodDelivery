@@ -60,4 +60,29 @@ const sendOrderStatusUpdate = async (to, order) => {
   }
 };
 
-module.exports = { sendOrderConfirmation, sendOrderStatusUpdate };
+// Send delivery verification code to customer
+async function sendDeliveryNotification({ to, orderNumber, verificationCode, restaurantName }) {
+  try {
+    const subject = `Delivery Verification Code - Order #${orderNumber}`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #E8621A;">Your Rider Has Arrived! 🛵</h2>
+        <p>Your order from <strong>${restaurantName}</strong> is at your door.</p>
+        <p style="font-size: 14px; color: #555;">Please provide the following verification code to your rider to confirm delivery:</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <div style="display: inline-block; background: #FFF1E8; padding: 20px 40px; border-radius: 12px; font-size: 36px; font-weight: 900; letter-spacing: 8px; color: #E8621A;">
+            ${verificationCode}
+          </div>
+        </div>
+        <p style="font-size: 12px; color: #999;">If you did not order food, please ignore this email.</p>
+        <hr style="border: none; border-top: 1px solid #eee;" />
+        <p style="font-size: 12px; color: #999;">VibeChops - Discover, Explore and Eat what you love</p>
+      </div>
+    `;
+    await transporter.sendMail({ from: transporter.options.auth?.user, to, subject, html });
+  } catch (error) {
+    console.error('Failed to send delivery notification email:', error.message);
+  }
+}
+
+module.exports = { sendOrderConfirmation, sendOrderStatusUpdate, sendDeliveryNotification };

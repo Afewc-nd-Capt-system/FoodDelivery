@@ -307,8 +307,9 @@ router.post('/orders/:orderId/resend-code', async (req, res) => {
     order.deliveryConfirmation.customerVerificationCode = newCode;
     await order.save();
 
-    // Note: Email/SMS notification would be implemented here
-    // await DeliveryConfirmationService.notifyCustomer(order, newCode);
+    // Notify customer of new code
+    const orderPopulated = await Order.findById(req.params.orderId).populate('user');
+    await DeliveryConfirmationService.notifyCustomer(orderPopulated, newCode);
 
     res.json({ message: 'Verification code resent', sentAt: new Date() });
   } catch (error) {

@@ -275,16 +275,42 @@ router.post('/vendors', async (req, res) => {
             country: 'Nigeria',
           },
           payOnDeliveryConfig: { enabled: true, minOrderAmount: 0 },
+          image: `https://images.unsplash.com/photo-${['1555939594-58d7cb561ad1','1540189549336-e6e99c3679fe','1565299624946-b28f40a0ae38','1563379928-8602815af19b','1546069901-ba9599a7e63c','1504674900247-0877df9cc836'][i]}?w=800&q=80`,
         }},
         { upsert: true, new: true }
       );
       results.push({ id: inserted._id, name: inserted.businessName, email: inserted.email });
     }
 
+    // Update any vendor without a valid image with a fallback food image
+    const fallbackVendorImages = [
+      'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800&q=80',
+      'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=800&q=80',
+      'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=800&q=80',
+      'https://images.unsplash.com/photo-1563379928-8602815af19b?w=800&q=80',
+      'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&q=80',
+      'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&q=80',
+    ];
+    const noImageVendors = await Vendor.find({
+      $or: [
+        { image: { $exists: false } },
+        { image: null },
+        { image: '' },
+        { image: false }
+      ]
+    });
+    let vendorFallbackCount = 0;
+    for (let i = 0; i < noImageVendors.length; i++) {
+      const img = fallbackVendorImages[i % fallbackVendorImages.length];
+      await Vendor.findByIdAndUpdate(noImageVendors[i]._id, { $set: { image: img } });
+      vendorFallbackCount++;
+    }
+
     res.status(201).json({
       message: 'Vendors seeded successfully',
       count: results.length,
       vendors: results,
+      fallbackImagesUpdated: vendorFallbackCount,
     });
   } catch (error) {
     console.error('Error seeding vendors:', error);

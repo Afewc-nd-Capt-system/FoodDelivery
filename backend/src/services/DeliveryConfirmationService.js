@@ -2,6 +2,7 @@ const Order = require('../models/Order');
 const DeliveryPartner = require('../models/DeliveryPartner');
 const User = require('../models/User');
 const CustomerTrustService = require('./CustomerTrustService');
+const { sendDeliveryNotification } = require('../utils/email');
 
 class DeliveryConfirmationService {
   static async riderConfirmArrival(orderId, partnerId) {
@@ -21,8 +22,8 @@ class DeliveryConfirmationService {
     
     await order.save();
 
-    // Note: Email/SMS notification would be implemented here
-    // await this.notifyCustomer(order, customerCode);
+    // Notify customer via email
+    await this.notifyCustomer(order, customerCode);
 
     return { order, customerCode };
   }
@@ -31,22 +32,12 @@ class DeliveryConfirmationService {
     const user = await User.findById(order.user);
     if (!user || !user.email) return;
 
-    // Email notification would be implemented here
-    // await EmailService.sendDeliveryNotification({
-    //   to: user.email,
-    //   orderNumber: order._id,
-    //   verificationCode,
-    //   restaurantName: order.restaurantName
-    // });
-
-    // SMS notification would be implemented here
-    // if (user.phone) {
-    //   await SMSService.sendDeliveryNotification({
-    //     to: user.phone,
-    //     verificationCode,
-    //     orderNumber: order._id
-    //   });
-    // }
+    await sendDeliveryNotification({
+      to: user.email,
+      orderNumber: order._id,
+      verificationCode,
+      restaurantName: order.restaurantName
+    });
   }
 
   static async customerConfirmDelivery(orderId, verificationCode, partnerId) {

@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Star, CheckCircle, Package, Truck, ChevronLeft, Phone, MessageSquare, MapPin, ShieldCheck, Lock } from 'lucide-react';
+import { Star, CheckCircle, Package, Truck, ChevronLeft, Phone, MessageSquare, MapPin, ShieldCheck, Lock, RefreshCw } from 'lucide-react';
 
 const steps = [
   { id: 'confirmed', label: 'Order Confirmed', desc: 'Your order has been received', icon: CheckCircle },
@@ -119,20 +120,51 @@ function GoogleMap({ riderLat, riderLng, restaurantLat, restaurantLng, customerL
 }
 
 export default function OrderTrackingPage() {
+  const params = useParams();
+  const orderId = params?.id || 'ORD-8021';
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://vibechops.onrender.com/api';
+
   const [currentStep, setCurrentStep] = useState(0);
   const [eta, setEta] = useState(12);
   const [showRating, setShowRating] = useState(false);
   const [rating, setRating] = useState(0);
-  const [riderPos, setRiderPos] = useState({ x: 50, y: 150 });
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const riderIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [order, setOrder] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   
   // Delivery confirmation state
   const [riderConfirmedArrival, setRiderConfirmedArrival] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
   const [customerConfirmed, setCustomerConfirmed] = useState(false);
   const [confirmingDelivery, setConfirmingDelivery] = useState(false);
-  const [showVerificationInput, setShowVerificationInput] = useState(false);
+  const [resendingCode, setResendingCode] = useState(false);
+
+  // Fetch real order data
+  useEffect(() => {
+    const fetchOrder = async () => {
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : '';
+        const res = await fetch(`${apiBase}/v2/orders/${orderId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setOrder(data.order || data);
+          if (data.order?.deliveryConfirmation?.riderConfirmed) {
+            setRiderConfirmedArrival(true);
+          }
+          if (data.order?.deliveryConfirmation?.customerConfirmed) {
+            setCustomerConfirmed(true);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch order:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchOrder();
+  }, [orderId]);
 
   useEffect(() => {
     if (currentStep < steps.length - 1) {
@@ -177,18 +209,19 @@ export default function OrderTrackingPage() {
 
     setConfirmingDelivery(true);
     try {
-      const response = await fetch(`https://vibechops.onrender.com/api/delivery/orders/ORD-8021/confirm-customer`, {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : '';
+      const response = await fetch(`${apiBase}/delivery/orders/${orderId}/confirm-customer`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ verificationCode }),
       });
 
       if (response.ok) {
         setCustomerConfirmed(true);
-        setShowVerificationInput(false);
+        setVerificationCode('');
       } else {
         const data = await response.json();
         alert(data.message || 'Invalid verification code');
@@ -201,15 +234,58 @@ export default function OrderTrackingPage() {
     }
   };
 
-  // Simulate rider confirming arrival when on the way
-  useEffect(() => {
-    if (currentStep === 2 && !riderConfirmedArrival) {
-      setTimeout(() => {
-        setRiderConfirmedArrival(true);
-        setShowVerificationInput(true);
-      }, 5000);
+  const handleResendCode = async () => {
+    setResendingCode(true);
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : '';
+      const res = await fetch(`${apiBase}/delivery/orders/${orderId}/resend-code`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        alert('New verification code sent! Check with your rider.');
+      } else {
+        const data = await res.json();
+        alert(data.message || 'Failed to resend code');
+      }
+    } catch (err) {
+      console.error('Failed to resend code:', err);
+    } finally {
+      setResendingCode(false);
     }
-  }, [currentStep, riderConfirmedArrival]);
+  };
+
+  // Check if rider has confirmed arrival from API
+  useEffect(() => {
+    if (!order || riderConfirmedArrival || customerConfirmed) return;
+    const interval = setInterval(async () => {
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : '';
+        const res = await fetch(`${apiBase}/v2/orders/${orderId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const orderData = data.order || data;
+          if (orderData.deliveryConfirmation?.riderConfirmed && !orderData.deliveryConfirmation?.customerConfirmed) {
+            setRiderConfirmedArrival(true);
+          }
+          if (orderData.deliveryConfirmation?.customerConfirmed) {
+            setCustomerConfirmed(true);
+          }
+        }
+      } catch (err) {}
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [orderId, order, riderConfirmedArrival, customerConfirmed]);
+
+  if (loading) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#FFF8F0' }}>
+      <div className="animate-spin w-10 h-10 border-4 border-[#E8621A] border-t-transparent rounded-full" />
+    </div>
+  );
+
+  const restaurantName = order?.restaurantName || order?.restaurant?.name || 'Restaurant';
 
   return (
     <div>
@@ -217,12 +293,12 @@ export default function OrderTrackingPage() {
       <section className="bg-gradient-to-r from-[#1C1C1E] via-[#2C1810] to-[#1C1C1E] py-5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-4">
-            <Link href="/" className="text-white/80 hover:text-white">
+            <Link href="/orders" className="text-white/80 hover:text-white">
               <ChevronLeft className="w-5 h-5" />
             </Link>
             <div>
-              <h1 className="text-white font-black text-xl">Order #ORD-8021</h1>
-              <p className="text-white/60 text-sm">Spice Garden</p>
+              <h1 className="text-white font-black text-xl">Order #{typeof orderId === 'string' ? orderId.slice(-8).toUpperCase() : orderId}</h1>
+              <p className="text-white/60 text-sm">{restaurantName}</p>
             </div>
             <div className="ml-auto flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-[#16A34A] animate-pulse" />
@@ -345,14 +421,14 @@ export default function OrderTrackingPage() {
                   <p className="text-xs text-[#636366] mb-3">
                     The rider has arrived at your location. Please enter the 6-digit verification code to confirm delivery.
                   </p>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 mb-2">
                     <Input
                       type="text"
                       placeholder="Enter 6-digit code"
                       value={verificationCode}
                       onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                       maxLength={6}
-                      className="flex-1 text-center tracking-widest"
+                      className="flex-1 text-center tracking-widest text-lg"
                     />
                     <Button
                       onClick={handleConfirmDelivery}
@@ -362,6 +438,15 @@ export default function OrderTrackingPage() {
                       {confirmingDelivery ? 'Confirming...' : 'Confirm'}
                     </Button>
                   </div>
+                  <Button
+                    onClick={handleResendCode}
+                    disabled={resendingCode}
+                    variant="ghost"
+                    className="text-xs text-[#636366] hover:text-[#E8621A] w-full"
+                  >
+                    <RefreshCw className={`w-3 h-3 mr-1 ${resendingCode ? 'animate-spin' : ''}`} />
+                    {resendingCode ? 'Resending...' : 'Resend verification code'}
+                  </Button>
                 </div>
               )}
 
@@ -379,18 +464,17 @@ export default function OrderTrackingPage() {
             <Card className="p-5">
               <h3 className="font-black mb-4">Order Summary</h3>
               <div className="space-y-3">
-                {[
-                  { name: 'Butter Chicken', qty: 2, price: 7000 },
-                  { name: 'Garlic Naan', qty: 3, price: 2400 },
-                ].map((item) => (
-                  <div key={item.name} className="flex justify-between text-sm">
-                    <span>{item.qty}x {item.name}</span>
-                    <span className="font-semibold">₦{item.price.toLocaleString()}</span>
+                {(order?.items || []).length > 0 ? (order.items as any[]).map((item: any, i: number) => (
+                  <div key={i} className="flex justify-between text-sm">
+                    <span>{item.quantity || item.qty || 1}x {item.name || item.menuItemName || 'Item'}</span>
+                    <span className="font-semibold">₦{((item.price || item.totalPrice || 0) * (item.quantity || item.qty || 1)).toLocaleString()}</span>
                   </div>
-                ))}
+                )) : (
+                  <div className="text-sm text-[#636366]">Order items loading...</div>
+                )}
                 <div className="pt-3 border-t border-[#F0EAE0] flex justify-between font-black text-[#E8621A]">
                   <span>Total</span>
-                  <span>₦9,400</span>
+                  <span>₦{(order?.totalAmount || 0).toLocaleString()}</span>
                 </div>
               </div>
             </Card>

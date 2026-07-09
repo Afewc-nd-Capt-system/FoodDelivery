@@ -318,7 +318,7 @@ export default function RestaurantDetailPage() {
           minOrder: data.minOrder || 0,
         };
         setRestaurant(enriched);
-        setMenu(items);
+        setMenu((data.menu || []).map((item: any) => apiMenuToMock(item, data._id, data.name)));
 
         const revs: Review[] = (data.reviews || []).map((r: any, i: number) => ({
           id: r._id || `rev-${i}`,
