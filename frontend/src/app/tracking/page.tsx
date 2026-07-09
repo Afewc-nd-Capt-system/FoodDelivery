@@ -138,6 +138,7 @@ export default function OrderTrackingPage() {
   const [customerConfirmed, setCustomerConfirmed] = useState(false);
   const [confirmingDelivery, setConfirmingDelivery] = useState(false);
   const [resendingCode, setResendingCode] = useState(false);
+  const intervalRef = useRef<any>(null);
 
   // Fetch real order data
   useEffect(() => {
@@ -179,16 +180,8 @@ export default function OrderTrackingPage() {
       }, 4500);
     }
 
-    riderIntervalRef.current = setInterval(() => {
-      setRiderPos(prev => ({
-        x: Math.min(250, prev.x + 1.2),
-        y: Math.max(50, prev.y - 1.1),
-      }));
-    }, 180);
-
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
-      if (riderIntervalRef.current) clearInterval(riderIntervalRef.current);
     };
   }, [currentStep]);
 
