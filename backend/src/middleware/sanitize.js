@@ -23,6 +23,9 @@ const xssProtection = (req, res, next) => {
         .replace(/javascript:/gi, '')
         .replace(/on\w+\s*=/gi, '');
     }
+    if (Array.isArray(obj)) {
+      return obj.map(sanitize);
+    }
     if (typeof obj === 'object' && obj !== null) {
       const sanitized = {};
       for (const key in obj) {
