@@ -229,11 +229,70 @@ router.post('/restaurants', async (req, res) => {
       fallbackCount++;
     }
 
+    // Add generic menu items to ALL restaurants that still have empty menus
+    const genericMenu = [
+      {
+        name: 'Jollof Rice & Chicken',
+        description: 'Smoky Nigerian jollof rice with grilled chicken',
+        price: 3500,
+        category: 'Rice',
+        popular: true,
+        calories: '650 cal',
+        image: 'https://images.unsplash.com/photo-1574484284002-952d92456975?w=400',
+      },
+      {
+        name: 'Egusi Soup + Swallow',
+        description: 'Rich egusi soup with pounded yam or eba',
+        price: 3000,
+        category: 'Swallow',
+        calories: '580 cal',
+        image: 'https://images.unsplash.com/photo-1574484284002-952d92456975?w=400',
+        customizationOptions: [
+          {
+            name: 'Swallow Choice',
+            type: 'single',
+            required: true,
+            options: [
+              { name: 'Eba', price: 0 },
+              { name: 'Pounded Yam', price: 200 },
+              { name: 'Fufu', price: 0 },
+            ],
+          },
+        ],
+      },
+      {
+        name: 'Pepper Soup',
+        description: 'Spicy Nigerian pepper soup with assorted meat',
+        price: 2500,
+        category: 'Soups',
+        calories: '320 cal',
+        image: 'https://images.unsplash.com/photo-1574484284002-952d92456975?w=400',
+      },
+    ];
+
+    const restaurantsWithNoMenu = await Restaurant.find({
+      $or: [
+        { menu: { $exists: false } },
+        { menu: { $size: 0 } },
+        { menu: null },
+      ]
+    });
+
+    let genericMenuCount = 0;
+    for (const restaurant of restaurantsWithNoMenu) {
+      await Restaurant.findByIdAndUpdate(
+        restaurant._id,
+        { $set: { menu: genericMenu } }
+      );
+      genericMenuCount++;
+    }
+
     res.status(201).json({
       message: 'Restaurants seeded successfully',
       count: results.length,
       restaurants: results,
       fallbackImagesUpdated: fallbackCount,
+      genericMenuAddedTo: genericMenuCount,
     });
   } catch (error) {
     console.error('Error seeding restaurants:', error);
