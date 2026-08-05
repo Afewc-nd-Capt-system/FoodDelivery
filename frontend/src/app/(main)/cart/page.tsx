@@ -78,7 +78,7 @@ export default function CartPage() {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/v2/orders`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/orders`, {
         method: 'POST',
         headers,
         body: JSON.stringify(orderPayload),
@@ -93,7 +93,7 @@ export default function CartPage() {
 
       // If Paystack, initialize payment
       if (paymentMethod === 'paystack' || paymentMethod === 'card') {
-        const paystackRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/v2/payments/initialize`, {
+        const paystackRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/payments/initialize`, {
           method: 'POST',
           headers,
           body: JSON.stringify({

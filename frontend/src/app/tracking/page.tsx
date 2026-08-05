@@ -145,7 +145,7 @@ export default function OrderTrackingPage() {
     const fetchOrder = async () => {
       try {
         const token = typeof window !== 'undefined' ? localStorage.getItem('token') : '';
-        const res = await fetch(`${apiBase}/v2/orders/${orderId}`, {
+        const res = await fetch(`${apiBase}/orders/${orderId}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.ok) {
@@ -254,7 +254,7 @@ export default function OrderTrackingPage() {
     const interval = setInterval(async () => {
       try {
         const token = typeof window !== 'undefined' ? localStorage.getItem('token') : '';
-        const res = await fetch(`${apiBase}/v2/orders/${orderId}`, {
+        const res = await fetch(`${apiBase}/orders/${orderId}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.ok) {
