@@ -160,11 +160,14 @@ function RestaurantsPageContent() {
   const [priceRange, setPriceRange] = useState<string[]>([]);
   const [quickFilter, setQuickFilter] = useState('All');
   const [restaurants, setRestaurants] = useState<any[]>([]);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchRestaurants = async () => {
       setLoading(true)
+      setFetchError(null)
       try {
+        console.log('Fetching restaurants...')
         const savedLocation = typeof window !== 'undefined'
           ? JSON.parse(localStorage.getItem('userLocation') || '{}')
           : {}
@@ -175,11 +178,18 @@ function RestaurantsPageContent() {
           url += `&city=${encodeURIComponent(savedLocation.city)}`
         }
 
+        console.log('URL:', url)
         const res = await fetch(url)
+        console.log('Response status:', res.status)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const data = await res.json()
+        console.log('Data:', data.total, 'restaurants, count:', data.restaurants?.length)
+        if (data.error || data.message) console.error('API error:', data.error || data.message)
         setRestaurants(data.restaurants || [])
       } catch (err) {
-        console.error('Failed to fetch restaurants:', err)
+        console.error('Fetch error:', err)
+        setFetchError((err as Error).message || 'Unknown error')
+        setRestaurants([])
       } finally {
         setLoading(false)
       }
@@ -444,6 +454,26 @@ function RestaurantsPageContent() {
             {loading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
                 {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+              </div>
+            ) : fetchError ? (
+              <div className="text-center py-24">
+                <div className="text-7xl mb-5">🍽️</div>
+                <h3 className="text-xl font-black mb-2" style={{ color: '#1C1C1E' }}>
+                  No restaurants available
+                </h3>
+                <p className="text-sm mb-3" style={{ color: '#636366' }}>
+                  Could not reach the server ({fetchError})
+                </p>
+                <p className="text-sm mb-6" style={{ color: '#636366' }}>
+                  Try refreshing the page or check back later
+                </p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="px-6 py-3 rounded-2xl text-white text-sm font-bold"
+                  style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}
+                >
+                  Refresh Page
+                </button>
               </div>
             ) : filtered.length === 0 ? (
               <div className="text-center py-24">
