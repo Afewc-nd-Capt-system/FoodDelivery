@@ -1,6 +1,6 @@
 'use client'
 
-const API_BASE = 'https://vibechops.onrender.com/api/v2'
+import { API_V2 as API_BASE } from './apiBase'
 
 export async function apiCall(
   path: string,

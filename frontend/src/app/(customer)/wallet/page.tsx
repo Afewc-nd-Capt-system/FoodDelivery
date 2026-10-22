@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowUp, ArrowDown, Filter, Search } from 'lucide-react';
 import { mockWalletTransactions } from '@/lib/mockData';
+import { API_BASE } from '@/lib/apiBase';
 
 export default function WalletPage() {
   const [balance, setBalance] = useState(7500);
@@ -28,16 +29,28 @@ export default function WalletPage() {
     fetchTransactions();
   }, []);
 
+  const authHeaders = (): Record<string, string> => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
   const fetchTransactions = async () => {
     setLoading(true);
     try {
-      const API_URL = 'https://vibechops.onrender.com/api';
-      const response = await fetch(`${API_URL}/v2/wallet/transactions`, {
-        credentials: 'include',
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setTransactions(data);
+      const [walletRes, txRes] = await Promise.all([
+        fetch(`${API_BASE}/v2/wallet`, { headers: authHeaders(), credentials: 'include' }),
+        fetch(`${API_BASE}/v2/wallet/transactions`, { headers: authHeaders(), credentials: 'include' }),
+      ]);
+
+      if (walletRes.ok) {
+        const walletData = await walletRes.json();
+        setBalance(walletData?.data?.balance ?? 0);
+      }
+
+      if (txRes.ok) {
+        const txData = await txRes.json();
+        const list = Array.isArray(txData) ? txData : txData?.data;
+        setTransactions(Array.isArray(list) ? list : allTransactions);
       } else {
         setTransactions(allTransactions);
       }

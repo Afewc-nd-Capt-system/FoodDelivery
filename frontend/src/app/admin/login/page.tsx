@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { API_V2 } from '@/lib/apiBase'
 
 export default function AdminLogin() {
   const router = useRouter()
@@ -18,7 +19,7 @@ export default function AdminLogin() {
     setError('')
     try {
       const res = await fetch(
-        'https://vibechops.onrender.com/api/v2/auth/login',
+        `${API_V2}/auth/login`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

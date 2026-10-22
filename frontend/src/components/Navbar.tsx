@@ -327,6 +327,7 @@ export function Navbar() {
                           { label: '🎁 Referrals', path: '/referral' },
                           { label: '🔥 VibePass', path: '/vibepass' },
                           { label: '❤️ Favorites', path: '/favorites' },
+                          { label: '🛡️ Trust Profile', path: '/trust-profile' },
                           { label: '👤 Profile', path: '/profile' },
                         ].map(item => (
                           <button key={item.path}

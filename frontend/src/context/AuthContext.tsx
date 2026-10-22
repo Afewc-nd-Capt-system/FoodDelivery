@@ -4,7 +4,7 @@ import {
   useEffect, useCallback, type ReactNode
 } from 'react'
 
-const BACKEND = 'https://vibechops.onrender.com/api/v2'
+import { API_V2 as BACKEND } from '@/lib/apiBase'
 
 interface User {
   _id: string
