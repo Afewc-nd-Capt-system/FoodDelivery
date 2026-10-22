@@ -1,4 +1,5 @@
 'use client'
+import { API_BASE, API_V2 } from '@/lib/apiBase';
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthGuard } from '@/hooks/useAuthGuard'
@@ -83,7 +84,6 @@ export default function AdminDashboard() {
   )
 }
 
-const API_BASE = 'https://vibechops.onrender.com/api'
 
 function ErrorFallback({ tab, onRetry }: { tab: string, onRetry: () => void }) {
   return (
@@ -731,7 +731,7 @@ function AdminProfileTab({ user, token }: { user: any, token: string }) {
     setSaving(true)
     try {
       await fetch(
-        'https://vibechops.onrender.com/api/v2/users/profile',
+        `${API_V2}/users/profile`,
         {
           method: 'PUT',
           headers: {
@@ -765,7 +765,7 @@ function AdminProfileTab({ user, token }: { user: any, token: string }) {
     setPwSaving(true)
     try {
       const res = await fetch(
-        'https://vibechops.onrender.com/api/v2/auth/change-password',
+        `${API_V2}/auth/change-password`,
         {
           method: 'POST',
           headers: {

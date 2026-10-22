@@ -1,4 +1,5 @@
 'use client';
+import { API_V2 as API_URL } from '@/lib/apiBase';
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -31,7 +32,6 @@ export default function AdminUsers() {
 
   const fetchUsers = async () => {
     try {
-      const API_URL = 'https://vibechops.onrender.com/api';
       const res = await fetch(`${API_URL}/admin/users?limit=100`, {
         credentials: 'include',
       });

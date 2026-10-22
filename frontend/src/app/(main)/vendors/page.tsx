@@ -1,4 +1,5 @@
 'use client';
+import { API_V2 } from '@/lib/apiBase';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -20,7 +21,7 @@ export default function VendorsPage() {
           ? JSON.parse(localStorage.getItem('userLocation') || '{}')
           : {}
 
-        let url = 'https://vibechops.onrender.com/api/v2/vendors?limit=50'
+        let url = `${API_V2}/vendors?limit=50`
 
         if (savedLocation?.city) {
           url += `&city=${encodeURIComponent(savedLocation.city)}`

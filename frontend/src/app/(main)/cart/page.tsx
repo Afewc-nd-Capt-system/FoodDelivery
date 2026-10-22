@@ -1,4 +1,5 @@
 'use client';
+import { API_V2 } from '@/lib/apiBase';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -78,7 +79,7 @@ export default function CartPage() {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/orders`, {
+      const res = await fetch(`${API_V2}/orders`, {
         method: 'POST',
         headers,
         body: JSON.stringify(orderPayload),
@@ -93,7 +94,7 @@ export default function CartPage() {
 
       // If Paystack, initialize payment
       if (paymentMethod === 'paystack' || paymentMethod === 'card') {
-        const paystackRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/payments/initialize`, {
+        const paystackRes = await fetch(`${API_V2}/payments/initialize`, {
           method: 'POST',
           headers,
           body: JSON.stringify({

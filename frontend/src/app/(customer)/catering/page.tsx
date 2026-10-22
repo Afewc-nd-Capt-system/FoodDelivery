@@ -1,4 +1,5 @@
 'use client';
+import { API_BASE as API_URL } from '@/lib/apiBase';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -46,7 +47,6 @@ export default function CateringPage() {
 
   const fetchRequests = async () => {
     try {
-      const API_URL = 'https://vibechops.onrender.com/api';
       const response = await fetch(`${API_URL}/v2/catering`, {
         credentials: 'include',
       });
@@ -69,7 +69,6 @@ export default function CateringPage() {
 
     setLoading(true);
     try {
-      const API_URL = 'https://vibechops.onrender.com/api';
       const response = await fetch(`${API_URL}/v2/catering`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

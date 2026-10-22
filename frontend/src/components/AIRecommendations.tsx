@@ -1,4 +1,5 @@
 'use client';
+import { API_BASE as API_URL } from '@/lib/apiBase';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -23,7 +24,6 @@ export function AIRecommendations({ limit = 6 }: AIRecommendationsProps) {
   const fetchRecommendations = async () => {
     setLoading(true);
     try {
-      const API_URL = 'https://vibechops.onrender.com/api';
       const response = await fetch(`${API_URL}/v2/recommendations?limit=${limit}`, {
         credentials: 'include',
       });

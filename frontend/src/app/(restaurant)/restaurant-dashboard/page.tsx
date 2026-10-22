@@ -1,4 +1,5 @@
 'use client';
+import { API_BASE as API_URL, SOCKET_URL } from '@/lib/apiBase';
 
 import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
@@ -52,7 +53,6 @@ function RestaurantDashboardPageContent() {
 
   const fetchPromotions = async () => {
     try {
-      const API_URL = 'https://vibechops.onrender.com/api';
       const response = await fetch(`${API_URL}/v2/restaurant-promotions?restaurantId=${restaurantId}`, {
         credentials: 'include',
       });
@@ -67,7 +67,6 @@ function RestaurantDashboardPageContent() {
 
   const fetchAnalytics = async () => {
     try {
-      const API_URL = 'https://vibechops.onrender.com/api';
       const response = await fetch(`${API_URL}/v2/analytics/dashboard?restaurantId=${restaurantId}&period=${period}`, {
         credentials: 'include',
       });
@@ -95,7 +94,7 @@ function RestaurantDashboardPageContent() {
     let socket: any = null;
 
     import('socket.io-client').then(({ io }) => {
-      socket = io('https://vibechops.onrender.com', {
+      socket = io(SOCKET_URL, {
         auth: { token },
         transports: ['polling', 'websocket'],
       });

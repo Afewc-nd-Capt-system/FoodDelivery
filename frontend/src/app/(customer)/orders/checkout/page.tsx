@@ -1,4 +1,5 @@
 'use client';
+import { API_V2 } from '@/lib/apiBase';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -47,7 +48,7 @@ export default function CheckoutPage() {
       if (items.length === 0) return;
 
       try {
-        const response = await fetch(`https://vibechops.onrender.com/api/orders/check-pod-eligibility`, {
+        const response = await fetch(`${API_V2}/orders/check-pod-eligibility`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

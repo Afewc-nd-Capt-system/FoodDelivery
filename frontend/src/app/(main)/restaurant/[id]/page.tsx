@@ -1,4 +1,5 @@
 'use client';
+import { API_V2 as API } from '@/lib/apiBase';
 
 import { useState, useMemo, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -299,7 +300,6 @@ export default function RestaurantDetailPage() {
 
   useEffect(() => {
     if (!id) return;
-    const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
     (async () => {
       try {
         const res = await fetch(`${API}/restaurants/${id}`);

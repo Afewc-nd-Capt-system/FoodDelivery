@@ -1,10 +1,10 @@
 'use client'
+import { SOCKET_URL } from '@/lib/apiBase';
 import {
   createContext, useContext, useEffect,
   useState, type ReactNode
 } from 'react'
 
-const SOCKET_URL = 'https://vibechops.onrender.com'
 
 const SocketContext = createContext<any>(null)
 

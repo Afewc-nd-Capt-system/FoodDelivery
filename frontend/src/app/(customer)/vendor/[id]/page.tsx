@@ -1,4 +1,5 @@
 'use client';
+import { API_V2 } from '@/lib/apiBase';
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
@@ -20,7 +21,7 @@ export default function VendorDetailPage() {
   useEffect(() => {
     const fetchVendor = async () => {
       try {
-        const res = await fetch(`https://vibechops.onrender.com/api/v2/vendors/${vendorId}`);
+        const res = await fetch(`${API_V2}/vendors/${vendorId}`);
         const data = await res.json();
         const v = data.vendor || data;
         setVendor(v);

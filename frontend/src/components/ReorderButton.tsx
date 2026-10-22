@@ -1,4 +1,5 @@
 'use client';
+import { API_BASE as API_URL } from '@/lib/apiBase';
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,6 @@ export function ReorderButton({ orderId, onSuccess }: ReorderButtonProps) {
 
     setLoading(true);
     try {
-      const API_URL = 'https://vibechops.onrender.com/api';
       const response = await fetch(`${API_URL}/v2/reorder/${orderId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

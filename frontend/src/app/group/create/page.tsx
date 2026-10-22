@@ -1,4 +1,5 @@
 'use client';
+import { API_BASE as API_URL } from '@/lib/apiBase';
 
 import { useState } from 'react';
 import Link from 'next/link';
@@ -49,7 +50,6 @@ export default function GroupOrderCreatePage() {
   const handleCreate = async () => {
     setLoading(true);
     try {
-      const API_URL = 'https://vibechops.onrender.com/api';
       const response = await fetch(`${API_URL}/v2/group-orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

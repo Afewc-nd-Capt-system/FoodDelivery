@@ -1,4 +1,5 @@
 'use client';
+import { API_BASE as API_URL } from '@/lib/apiBase';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -17,7 +18,6 @@ export default function ReservationsPage() {
   const fetchReservations = async () => {
     setLoading(true);
     try {
-      const API_URL = 'https://vibechops.onrender.com/api';
       const response = await fetch(`${API_URL}/v2/reservations`, {
         credentials: 'include',
       });

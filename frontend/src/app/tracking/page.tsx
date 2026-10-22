@@ -1,4 +1,5 @@
 'use client';
+import { API_V2 as apiBase } from '@/lib/apiBase';
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
@@ -122,7 +123,6 @@ function GoogleMap({ riderLat, riderLng, restaurantLat, restaurantLng, customerL
 export default function OrderTrackingPage() {
   const params = useParams();
   const orderId = params?.id || 'ORD-8021';
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://vibechops.onrender.com/api';
 
   const [currentStep, setCurrentStep] = useState(0);
   const [eta, setEta] = useState(12);

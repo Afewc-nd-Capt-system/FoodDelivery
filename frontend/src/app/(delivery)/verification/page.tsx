@@ -1,4 +1,5 @@
 'use client';
+import { API_V2 as API_URL } from '@/lib/apiBase';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -22,7 +23,6 @@ export default function DriverVerificationPage() {
 
   const fetchVerificationStatus = async () => {
     try {
-      const API_URL = 'https://vibechops.onrender.com/api';
       const response = await fetch(`${API_URL}/delivery/verification/status`, {
         credentials: 'include',
       });
@@ -37,7 +37,6 @@ export default function DriverVerificationPage() {
 
   const fetchDocuments = async () => {
     try {
-      const API_URL = 'https://vibechops.onrender.com/api';
       const response = await fetch(`${API_URL}/delivery/verification/documents`, {
         credentials: 'include',
       });
@@ -57,7 +56,6 @@ export default function DriverVerificationPage() {
       formData.append('file', file);
       formData.append('documentType', documentType);
 
-      const API_URL = 'https://vibechops.onrender.com/api';
       const response = await fetch(`${API_URL}/delivery/verification/upload`, {
         method: 'POST',
         credentials: 'include',

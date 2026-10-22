@@ -1,4 +1,5 @@
 'use client'
+import { API_V2 } from '@/lib/apiBase';
 import { useState } from 'react'
 
 export default function ContactPage() {
@@ -12,7 +13,7 @@ export default function ContactPage() {
   const handleSubmit = async () => {
     setLoading(true)
     try {
-      await fetch('https://vibechops.onrender.com/api/v2/contact', {
+      await fetch(`${API_V2}/contact`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)

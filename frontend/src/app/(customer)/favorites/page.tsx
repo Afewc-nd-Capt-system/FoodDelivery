@@ -1,4 +1,5 @@
 'use client';
+import { API_V2 as API_URL } from '@/lib/apiBase';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -18,7 +19,6 @@ export default function FavoritesPage() {
   const fetchFavorites = async () => {
     setLoading(true);
     try {
-      const API_URL = 'https://vibechops.onrender.com/api';
       const response = await fetch(`${API_URL}/auth/favorites`, {
         credentials: 'include',
       });
@@ -35,7 +35,6 @@ export default function FavoritesPage() {
 
   const removeFavorite = async (restaurantId: string) => {
     try {
-      const API_URL = 'https://vibechops.onrender.com/api';
       await fetch(`${API_URL}/auth/favorites/${restaurantId}`, {
         method: 'DELETE',
         credentials: 'include',

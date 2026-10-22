@@ -1,4 +1,5 @@
 'use client';
+import { API_V2 as API_URL } from '@/lib/apiBase';
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -75,7 +76,6 @@ export default function ProfilePage() {
     setSuccess('');
 
     try {
-      const API_URL = 'https://vibechops.onrender.com/api';
       const res = await fetch(`${API_URL}/auth/profile`, {
         method: 'PUT',
         headers: {

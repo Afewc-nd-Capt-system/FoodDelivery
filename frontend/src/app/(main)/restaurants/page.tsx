@@ -1,4 +1,5 @@
 'use client';
+import { API_V2 } from '@/lib/apiBase';
 
 import { useState, useMemo, Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -172,7 +173,7 @@ function RestaurantsPageContent() {
           ? JSON.parse(localStorage.getItem('userLocation') || '{}')
           : {}
 
-        let url = 'https://vibechops.onrender.com/api/v2/restaurants?limit=50'
+        let url = `${API_V2}/restaurants?limit=50`
 
         if (savedLocation?.city) {
           url += `&city=${encodeURIComponent(savedLocation.city)}`

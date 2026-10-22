@@ -1,4 +1,5 @@
 'use client';
+import { API_V2, SOCKET_URL } from '@/lib/apiBase';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -77,7 +78,7 @@ export default function DeliveryDashboardPage() {
     let socket: any = null;
 
     import('socket.io-client').then(({ io }) => {
-      socket = io('https://vibechops.onrender.com', {
+      socket = io(SOCKET_URL, {
         auth: { token },
         transports: ['polling', 'websocket'],
       });
@@ -137,7 +138,7 @@ export default function DeliveryDashboardPage() {
   const handleConfirmArrival = async (orderId: string) => {
     setConfirmingArrival(orderId);
     try {
-      const response = await fetch(`https://vibechops.onrender.com/api/delivery/orders/${orderId}/confirm-arrival`, {
+      const response = await fetch(`${API_V2}/delivery/orders/${orderId}/confirm-arrival`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -457,7 +458,7 @@ function RiderOrdersTab({ onOrdersChange }: { onOrdersChange: React.Dispatch<Rea
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        const res = await fetch('https://vibechops.onrender.com/api/v2/delivery/orders/available', {
+        const res = await fetch(`${API_V2}/delivery/orders/available`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         if (res.ok) {
@@ -475,7 +476,7 @@ function RiderOrdersTab({ onOrdersChange }: { onOrdersChange: React.Dispatch<Rea
 
   const handleAccept = async (orderId: string) => {
     try {
-      const res = await fetch(`https://vibechops.onrender.com/api/v2/delivery/orders/${orderId}/accept`, {
+      const res = await fetch(`${API_V2}/delivery/orders/${orderId}/accept`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       })
@@ -559,7 +560,7 @@ function RiderEarningsTab() {
     setLoading(true)
     const fetchEarnings = async () => {
       try {
-        const res = await fetch(`https://vibechops.onrender.com/api/v2/riders/earnings?period=${period}`, {
+        const res = await fetch(`${API_V2}/riders/earnings?period=${period}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         if (res.ok) {
@@ -675,7 +676,7 @@ function RiderHistoryTab() {
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const res = await fetch('https://vibechops.onrender.com/api/v2/riders/deliveries/completed', {
+        const res = await fetch(`${API_V2}/riders/deliveries/completed`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         if (res.ok) {

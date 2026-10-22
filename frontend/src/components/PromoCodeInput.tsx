@@ -1,4 +1,5 @@
 'use client';
+import { API_V2 as API_URL } from '@/lib/apiBase';
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -29,7 +30,6 @@ export function PromoCodeInput({ onApply, onRemove, appliedCode, discount, resta
     setSuccess(false);
 
     try {
-      const API_URL = 'https://vibechops.onrender.com/api';
       const response = await fetch(`${API_URL}/promo-codes/validate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

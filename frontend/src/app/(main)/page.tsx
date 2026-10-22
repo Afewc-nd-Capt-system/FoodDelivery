@@ -1,4 +1,5 @@
 'use client';
+import { API_V2 } from '@/lib/apiBase';
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -33,8 +34,8 @@ function NearbyRestaurantsSection({ city }: { city?: string }) {
 
   useEffect(() => {
     const url = city
-      ? `https://vibechops.onrender.com/api/v2/restaurants?city=${encodeURIComponent(city)}&limit=8`
-      : `https://vibechops.onrender.com/api/v2/restaurants?limit=8`
+      ? `${API_V2}/restaurants?city=${encodeURIComponent(city)}&limit=8`
+      : `${API_V2}/restaurants?limit=8`
     fetch(url)
       .then(r => r.json())
       .then(d => setRestaurants(d.restaurants || []))
@@ -93,7 +94,7 @@ function RecentOrdersSection({ token }: { token: string }) {
 
   useEffect(() => {
     if (!token) return;
-    fetch('https://vibechops.onrender.com/api/v2/orders?limit=3', { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API_V2}/orders?limit=3`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(d => setOrders(d.orders || []))
       .catch(() => {});
@@ -249,8 +250,8 @@ export default function HomePage() {
 
   useEffect(() => {
     Promise.all([
-      fetch('https://vibechops.onrender.com/api/v2/restaurants?limit=50').then(r => r.json()),
-      fetch('https://vibechops.onrender.com/api/v2/vendors?limit=50').then(r => r.json()),
+      fetch(`${API_V2}/restaurants?limit=50`).then(r => r.json()),
+      fetch(`${API_V2}/vendors?limit=50`).then(r => r.json()),
     ])
       .then(([restData, vendData]) => {
         setFeaturedRestaurants(restData.restaurants || []);

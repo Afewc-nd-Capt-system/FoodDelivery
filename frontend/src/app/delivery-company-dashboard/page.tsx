@@ -1,4 +1,5 @@
 'use client'
+import { SOCKET_URL } from '@/lib/apiBase';
 import { useState, useEffect } from 'react'
 import { useAuthGuard } from '@/hooks/useAuthGuard'
 import {
@@ -21,7 +22,7 @@ export default function DeliveryCompanyDashboardPage() {
     let socket: any = null
 
     import('socket.io-client').then(({ io }) => {
-      socket = io('https://vibechops.onrender.com', {
+      socket = io(SOCKET_URL, {
         auth: { token },
         transports: ['polling', 'websocket'],
       })

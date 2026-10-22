@@ -1,4 +1,5 @@
 'use client';
+import { API_V2 as API_URL } from '@/lib/apiBase';
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -198,7 +199,6 @@ export default function RestaurantDetailPage() {
     setSubmittingReview(true);
     setReviewError('');
     try {
-      const API_URL = 'https://vibechops.onrender.com/api';
       const res = await fetch(`${API_URL}/restaurants/${params.id}/reviews`, {
         method: 'POST',
         headers: {
