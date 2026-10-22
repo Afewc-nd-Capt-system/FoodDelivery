@@ -62,12 +62,15 @@ router.get('/earnings', authMiddleware, async (req, res) => {
     }
 
     const rider = await resolveRider(req);
-    if (!rider) {
+    // A valid delivery_rider account may not have a DeliveryPartner profile yet.
+    // It still has zero earnings, so return an empty summary instead of a 404.
+    const riderId = rider?._id || (req.user.role === 'delivery_rider' ? req.user.id : null);
+    if (!riderId) {
       return res.status(404).json({ message: 'Rider not found' });
     }
 
     const orders = await Order.find({
-      deliveryPartner: rider._id,
+      deliveryPartner: riderId,
       status: { $in: ['delivered', 'completed'] },
       updatedAt: { $gte: startDate }
     }).select('deliveryFee totalAmount createdAt updatedAt');
