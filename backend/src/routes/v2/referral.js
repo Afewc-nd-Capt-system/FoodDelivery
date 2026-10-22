@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const authMiddleware = require('../../middleware/auth');
 const User = require('../../models/User');
 const Referral = require('../../models/Referral');
@@ -251,6 +252,7 @@ router.post('/complete-first-order', authMiddleware, async (req, res) => {
     referral.refereeFirstOrderId = orderId;
     referral.refereeDiscountApplied = config?.referralDiscountValue || 100;
     referral.status = 'completed';
+    referral.rewardValue = config?.referralPointsReward || 100;
     referral.rewardClaimed = true;
     referral.rewardClaimedAt = new Date();
     await referral.save();
@@ -343,8 +345,10 @@ router.get('/my-referrals', authMiddleware, async (req, res) => {
 
 router.get('/my-rewards', authMiddleware, async (req, res) => {
   try {
+    const userId = new mongoose.Types.ObjectId(req.user.id);
+
     const stats = await Referral.aggregate([
-      { $match: { referrer: req.user.id, status: 'completed', deletedAt: null } },
+      { $match: { referrer: userId, status: 'completed', deletedAt: null } },
       {
         $group: {
           _id: null,
@@ -355,7 +359,7 @@ router.get('/my-rewards', authMiddleware, async (req, res) => {
     ]);
 
     const pointsEarned = await LoyaltyPoints.aggregate([
-      { $match: { user: req.user.id, type: 'referral', deletedAt: null } },
+      { $match: { user: userId, type: 'referral', deletedAt: null } },
       { $group: { _id: null, total: { $sum: '$points' } } }
     ]);
 

@@ -7,20 +7,23 @@ const { deliveryRiderGuard, customerGuard } = require('../../middleware/routeGua
 const DeliveryConfirmationService = require('../../services/DeliveryConfirmationService');
 const router = express.Router();
 
+// Rider tokens may belong to a DeliveryPartner account (legacy rider login) or a
+// User with the delivery_rider role (web dashboard login). Orders store the
+// DeliveryPartner id, so resolve both cases to that id.
+async function resolvePartnerId(req) {
+  if (req.user.role === 'delivery') return req.user.id;
+
+  if (req.user.email) {
+    const partner = await DeliveryPartner.findOne({ email: req.user.email }).select('_id');
+    if (partner) return partner._id.toString();
+  }
+
+  return req.user.id;
+}
+
 // Helper: Generate OTP
 function generateOTP() {
   return Math.floor(1000 + Math.random() * 9000).toString();
-}
-
-// Helper: Store OTP in Redis
-async function storeOTP(orderId, otp) {
-  const redis = require('redis');
-  const client = redis.createClient({
-    url: process.env.REDIS_URL || 'redis://localhost:6379'
-  });
-  await client.connect();
-  await client.setEx(`order_otp_${orderId}`, 600, otp); // 10 minutes TTL
-  await client.disconnect();
 }
 
 // PATCH /api/v2/delivery/orders/:id/accept
@@ -33,7 +36,7 @@ router.patch('/orders/:id/accept', authMiddleware, async (req, res) => {
 
     // Auth: delivery company only
     const company = await DeliveryCompany.findOne({ owner: req.user.id });
-    if (!company || order.deliveryCompany.toString() !== company._id.toString()) {
+    if (!company || order.deliveryCompany?.toString() !== company._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to accept this delivery' });
     }
 
@@ -62,7 +65,7 @@ router.patch('/orders/:id/decline', authMiddleware, async (req, res) => {
 
     // Auth: delivery company only
     const company = await DeliveryCompany.findOne({ owner: req.user.id });
-    if (!company || order.deliveryCompany.toString() !== company._id.toString()) {
+    if (!company || order.deliveryCompany?.toString() !== company._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to decline this delivery' });
     }
 
@@ -94,7 +97,7 @@ router.post('/orders/:id/assign-rider', authMiddleware, async (req, res) => {
 
     // Auth: delivery company only
     const company = await DeliveryCompany.findOne({ owner: req.user.id });
-    if (!company || order.deliveryCompany.toString() !== company._id.toString()) {
+    if (!company || order.deliveryCompany?.toString() !== company._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to assign rider' });
     }
 
@@ -130,7 +133,8 @@ router.patch('/orders/:id/picked-up', authMiddleware, async (req, res) => {
     }
 
     // Auth: assigned rider only
-    if (order.deliveryPartner.toString() !== req.user.id) {
+    const partnerId = await resolvePartnerId(req);
+    if (order.deliveryPartner?.toString() !== partnerId) {
       return res.status(403).json({ message: 'Not authorized to confirm pickup' });
     }
 
@@ -158,7 +162,8 @@ router.patch('/orders/:id/delivered', authMiddleware, async (req, res) => {
     }
 
     // Auth: assigned rider only
-    if (order.deliveryPartner.toString() !== req.user.id) {
+    const partnerId = await resolvePartnerId(req);
+    if (order.deliveryPartner?.toString() !== partnerId) {
       return res.status(403).json({ message: 'Not authorized to confirm delivery' });
     }
 
@@ -166,8 +171,8 @@ router.patch('/orders/:id/delivered', authMiddleware, async (req, res) => {
     order.otp = generateOTP();
     await order.save();
 
-    // Store OTP in Redis with 10min TTL
-    await storeOTP(order._id, order.otp);
+    // The OTP is persisted on the order; customer completion uses the
+    // deliveryConfirmation code flow, so no Redis round-trip is required here.
 
     // Send OTP to customer via email (Nodemailer)
     // TODO: Implement email sending
@@ -187,9 +192,10 @@ router.patch('/orders/:id/delivered', authMiddleware, async (req, res) => {
 // POST /api/v2/delivery/orders/:id/confirm-arrival - Rider confirms arrival, generates customer verification code
 router.post('/orders/:id/confirm-arrival', authMiddleware, deliveryRiderGuard, async (req, res) => {
   try {
+    const partnerId = await resolvePartnerId(req);
     const result = await DeliveryConfirmationService.riderConfirmArrival(
       req.params.id,
-      req.user.id
+      partnerId
     );
     res.json({
       order: result.order,

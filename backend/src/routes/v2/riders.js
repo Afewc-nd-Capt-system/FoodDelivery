@@ -3,6 +3,16 @@ const DeliveryPartner = require('../../models/DeliveryPartner');
 const authMiddleware = require('../../middleware/auth');
 const router = express.Router();
 
+// Resolve the DeliveryPartner record for a rider token. Web riders authenticate
+// as Users (role delivery_rider), while legacy rider tokens already carry the
+// DeliveryPartner id.
+async function resolveRider(req) {
+  if (req.user.role === 'delivery') {
+    return DeliveryPartner.findById(req.user.id);
+  }
+  return DeliveryPartner.findOne({ email: req.user.email });
+}
+
 // PATCH /api/v2/riders/availability
 router.patch('/availability', authMiddleware, async (req, res) => {
   try {
@@ -12,7 +22,7 @@ router.patch('/availability', authMiddleware, async (req, res) => {
       return res.status(400).json({ message: 'isOnline must be a boolean' });
     }
 
-    const rider = await DeliveryPartner.findById(req.user.id);
+    const rider = await resolveRider(req);
     if (!rider) {
       return res.status(404).json({ message: 'Rider not found' });
     }
@@ -23,7 +33,7 @@ router.patch('/availability', authMiddleware, async (req, res) => {
     // Emit availability_change to delivery company room
     const io = req.app.get('io');
     if (io) {
-      io.of('/tracking').to(`delivery_company_${rider.deliveryCompany}`).emit('rider_availability', {
+      io.of('/tracking').to(`delivery_company_${rider.company}`).emit('rider_availability', {
         riderId: rider._id,
         isOnline,
       });
@@ -51,9 +61,14 @@ router.get('/earnings', authMiddleware, async (req, res) => {
       startDate.setDate(now.getDate() - 30);
     }
 
+    const rider = await resolveRider(req);
+    if (!rider) {
+      return res.status(404).json({ message: 'Rider not found' });
+    }
+
     const orders = await Order.find({
-      deliveryPartner: req.user.id,
-      status: 'completed',
+      deliveryPartner: rider._id,
+      status: { $in: ['delivered', 'completed'] },
       updatedAt: { $gte: startDate }
     }).select('deliveryFee totalAmount createdAt updatedAt');
 
@@ -78,10 +93,15 @@ router.get('/earnings', authMiddleware, async (req, res) => {
 // GET /api/v2/riders/deliveries/completed
 router.get('/deliveries/completed', authMiddleware, async (req, res) => {
   try {
+    const rider = await resolveRider(req);
+    if (!rider) {
+      return res.json({ deliveries: [] });
+    }
+
     const Order = require('../../models/Order');
     const orders = await Order.find({
-      deliveryPartner: req.user.id,
-      status: 'completed'
+      deliveryPartner: rider._id,
+      status: { $in: ['delivered', 'completed'] }
     })
       .populate('restaurant', 'name')
       .sort({ updatedAt: -1 })
@@ -96,10 +116,15 @@ router.get('/deliveries/completed', authMiddleware, async (req, res) => {
 // GET /api/v2/riders/active-delivery
 router.get('/active-delivery', authMiddleware, async (req, res) => {
   try {
+    const rider = await resolveRider(req);
+    if (!rider) {
+      return res.json({ delivery: null });
+    }
+
     const Order = require('../../models/Order');
     const active = await Order.findOne({
-      deliveryPartner: req.user.id,
-      status: { $in: ['assigned', 'picked_up', 'out_for_delivery'] }
+      deliveryPartner: rider._id,
+      status: { $in: ['assigned', 'picked_up', 'out_for_delivery', 'out-for-delivery'] }
     }).populate('restaurant', 'name address phone');
 
     res.json({ delivery: active });

@@ -393,3 +393,56 @@ NEXT_PUBLIC_API_URL=http://localhost:5000/api
 **Commit:** `8f21b05` — `feat: admin restaurants and companies management pages`
 
 ### 💾 SESSION END: June 10, 2026
+
+---
+
+### ✅ SESSION (October 22, 2026) — Verification & Fix Pass
+
+**Environment**
+- MongoDB running locally; backend started on `:5000`; frontend build passes (`next build`, 65 routes).
+- Demo/admin passwords in the DB did not match the documented credentials (`admin123!`/unknown). Reset both through the `User` model so `Admin123!` and `Demo123!` work again.
+
+**Bugs fixed**
+- **Wallet privilege escalation**: `POST /api/v2/wallet/credit` let any logged-in user credit their own wallet arbitrarily. Now admin-only, and supports `userId` for support credits. Top-up verification now rejects references belonging to another user and already-processed references.
+- **Delivery lifecycle routes unreachable**: the router was mounted at `/api/v2/delivery/orders` while its paths already start with `/orders` (double prefix). Mounted at `/api/v2/delivery` instead; documented endpoints now resolve.
+- **Rider auth/role mismatch**: web riders log in as `User` (`delivery_rider`) but orders store a `DeliveryPartner` id. Added email-based partner resolution in `delivery-orders.js` and `riders.js`; `deliveryRiderGuard` now accepts `delivery` and `delivery_rider`.
+- **Rider legacy API unmounted**: `routes/delivery.js` (login, register, available/current orders, earnings) was dead code. Mounted at `/api/v2/delivery`.
+- **Order status enum out of sync**: statuses used in code (`accepted`, `ready`, `awaiting_pickup`, `assigned`, `picked_up`, `out_for_delivery`, `completed`, ...) were rejected by validation. Enum widened.
+- **Delivery confirmation type mismatch**: `customerConfirmDelivery` compared an ObjectId to a string, so every valid code failed with "Not authorized". Fixed.
+- **Referral rewards invisible**: `/referral/my-rewards` used string ids in aggregation `$match` (never matches ObjectId). Fixed, and `rewardValue` is now recorded when a referral completes.
+- **Redis spam**: BullMQ email queue retried forever when `REDIS_URL` was unset. Email queue is now skipped with a single log line.
+- **Frontend API layer**: `lib/api.ts` called `/api/v2/v2/...` for ~66 helpers (profile/checkout/search silently fell back to zeros), sent no bearer token, and hard-coded the Render host. It now reads `NEXT_PUBLIC_API_URL`, appends `/v2` once, and sends `Authorization`. Same for `lib/apiClient.ts`, `AuthContext`, and all six login pages. Added `lib/apiBase.ts` as the single source of truth.
+- **Wallet page**: read the raw response instead of `{ data }` and never loaded the balance; now loads wallet + transactions with auth.
+- **Rider earnings page**: replaced mock data with `/v2/riders/earnings` + `/v2/riders/deliveries/completed`, added CSV export and a working back link. Fixed `riders.js` queries (partner resolution, delivered status, `company` field).
+- **Navbar**: added the missing `/trust-profile` link.
+
+**Migrations**
+- Added `backend/src/migrations/` with an idempotent runner (journal in `migrations` collection) and three migrations: `deletedAt` backfill, `referralCode` backfill, legacy `out_for_delivery` normalisation.
+- Commands: `npm run migrate`, `npm run migrate:list`.
+
+**Test rider**
+- `npm run seed:rider` creates demo fleet `VibeChops Demo Fleet` + rider `rider@vibechops.com` / `Rider123!` (login via `POST /api/v2/auth/login`).
+
+**Verified end-to-end on localhost**
+| Flow | Result |
+|---|---|
+| Rider login → available orders | 200 |
+| `confirm-arrival` (rider) | 200, 6-digit code stored |
+| `confirm-customer` (customer, correct code) | 200, order `delivered`, cash marked paid |
+| `confirm-customer` (wrong code) | 400 "Invalid verification code" |
+| `resend-code` after confirmation | 400 "Delivery already confirmed" |
+| Wallet credit as customer | 403 |
+| Wallet credit as admin → deduct → transactions | 200 / 200 / 200 |
+| Referral validate-code (valid/invalid) | 200 / 404 |
+| Referral track-signup → complete-first-order | 200 / 200, referrer +100 points |
+| `my-rewards` | totalReferrals 1, points 100 |
+| Rider earnings / completed deliveries | 200 |
+
+**Still blocked**
+- Paystack flows (wallet top-up, VibePass subscribe) return `Invalid key`: `PAYSTACK_SECRET_KEY` in `backend/.env` is a placeholder `sk_test_...`. Replace with a real test key from the Paystack dashboard to finish TODO 2 and 3.
+- `DeliveryCompany.owner` does not exist on the model, but `delivery-orders.js` authorizes via `DeliveryCompany.findOne({ owner })`; company-scoped accept/assign/decline therefore cannot succeed. Needs a design decision (add `owner` + set it on registration, or use a `company` claim in the JWT).
+
+**Remaining known gaps**
+- Many frontend pages still hard-code `https://vibechops.onrender.com/api` (restaurants, admin dashboards, vendor/restaurant dashboards, checkout POD, favorites, reservations, group create, tracking, sockets). They work in production but ignore local env; migrate them to `lib/apiBase.ts`.
+- Customer `/orders` page is still mock data; checkout wallet/loyalty calls now hit the right URLs but UI flows need a browser pass.
+- Rider self-registration (`routes/delivery.js /register`) does not set the now-required company fields.

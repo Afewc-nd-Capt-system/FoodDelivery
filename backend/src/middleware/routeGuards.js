@@ -21,6 +21,6 @@ module.exports = {
   restaurantGuard: roleGuard(['restaurant']),
   vendorGuard: roleGuard(['vendor']),
   deliveryCompanyGuard: roleGuard(['delivery_company']),
-  deliveryRiderGuard: roleGuard(['delivery_rider']),
+  deliveryRiderGuard: roleGuard(['delivery_rider', 'delivery']),
   adminGuard: roleGuard(['admin'])
 };

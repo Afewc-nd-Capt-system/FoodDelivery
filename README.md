@@ -73,6 +73,9 @@ npm run seed:delivery      # Delivery pricing config
 npm run seed:admin        # Admin account
 npm run seed:demo         # Sample data
 npm run seed              # Original seed data
+npm run seed:permissions  # 21 system permissions
+npm run seed:rider        # Demo fleet + rider (rider@vibechops.com / Rider123!)
+npm run migrate           # Apply pending migrations (idempotent)
 ```
 
 ## Features Implemented

@@ -185,6 +185,10 @@ app.use('/api/v2/admin', adminRoutes);
 app.use('/api/v2/payments', paymentRoutes);
 app.use('/api/v2/promo-codes', require('./routes/promoCodes'));
 app.use('/api/v2/delivery', require('./routes/v2/delivery'));
+// Rider delivery lifecycle (accept, pickup, arrival, confirm)
+app.use('/api/v2/delivery', authMiddleware, require('./routes/v2/delivery-orders'));
+// Rider auth + available/current orders + earnings (legacy rider API, still used by the web app)
+app.use('/api/v2/delivery', require('./routes/delivery'));
 app.use('/api/v2/vendors', require('./routes/vendors'));
 app.use('/api/v2/uploads', authMiddleware, require('./routes/uploads'));
 app.use('/api/v2/delivery-company', require('./routes/delivery-company'));
@@ -210,7 +214,6 @@ app.use('/api/v2/reservations', require('./routes/v2/reservations'));
 app.use('/api/v2/catering', authMiddleware, require('./routes/v2/catering'));
 app.use('/api/v2/disputes', authMiddleware, require('./routes/v2/disputes'));
 app.use('/api/v2/admin/disputes', authMiddleware, require('./routes/v2/admin-disputes'));
-app.use('/api/v2/delivery/orders', authMiddleware, require('./routes/v2/delivery-orders'));
 app.use('/api/v2/riders', authMiddleware, require('./routes/v2/riders'));
 app.use('/api/v2/earnings', authMiddleware, require('./routes/v2/earnings'));
 app.use('/api/v2/admin/approvals', authMiddleware, require('./routes/v2/admin-approvals'));

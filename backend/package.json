@@ -12,6 +12,9 @@
     "seed:admin": "node src/seed/createAdmin.js",
     "seed:demo": "node src/seed/demoData.js",
     "seed:permissions": "node src/seed/permissions.js",
+    "seed:rider": "node src/seed/testRider.js",
+    "migrate": "node src/migrations/run.js",
+    "migrate:list": "node src/migrations/run.js --list",
     "test": "jest --testPathPattern=tests",
     "security-audit": "npm audit --audit-level=high"
   },

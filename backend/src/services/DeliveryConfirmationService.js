@@ -44,7 +44,8 @@ class DeliveryConfirmationService {
     const order = await Order.findById(orderId);
     if (!order) throw new Error('Order not found');
 
-    if (order.deliveryPartner?.toString() !== partnerId) {
+    // partnerId may be an ObjectId (from the order) or a string (from a token)
+    if (!partnerId || order.deliveryPartner?.toString() !== partnerId.toString()) {
       throw new Error('Not authorized for this order');
     }
 

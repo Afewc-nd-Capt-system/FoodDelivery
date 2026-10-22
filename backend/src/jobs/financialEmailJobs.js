@@ -34,6 +34,11 @@ let emailQueue = null
 let emailWorker = null
 
 async function initializeEmailQueue() {
+  if (!process.env.REDIS_URL) {
+    console.log('Email queue disabled (REDIS_URL not configured)')
+    return null
+  }
+
   try {
     emailQueue = new Queue('financial-emails', { connection })
 

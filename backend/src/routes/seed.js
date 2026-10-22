@@ -6,6 +6,18 @@ const Vendor = require('../models/Vendor');
 const User = require('../models/User');
 const SubscriptionPlan = require('../models/SubscriptionPlan');
 
+// Seed routes create privileged accounts and can wipe data, so every mutating
+// route requires the seed key. Only the read-only status endpoint stays public.
+const SEED_KEY = process.env.SEED_KEY || 'VibeChops@Seed2026!';
+
+router.use((req, res, next) => {
+  if (req.method === 'GET' && req.path === '/status') return next();
+  if (req.headers['x-seed-key'] !== SEED_KEY) {
+    return res.status(403).json({ error: 'Invalid seed key' });
+  }
+  next();
+});
+
 const menuData = {
   'Mama Cass Kitchen': [
     { name: 'Jollof Rice & Chicken', description: 'Smoky party jollof rice with fried chicken and plantain', price: 3500, category: 'Rice', popular: true, calories: '650 cal', image: 'https://images.unsplash.com/photo-1574484284002-952d92456975?w=400', customizationOptions: [{ name: 'Protein', type: 'single', required: true, options: [{ name: 'Fried Chicken', price: 0 }, { name: 'Grilled Chicken', price: 200 }, { name: 'Beef', price: 300 }, { name: 'Turkey', price: 400 }] }] },
@@ -490,7 +502,7 @@ router.post('/all', async (req, res) => {
     try {
       const restaurantResponse = await fetch(`${req.protocol}://${req.get('host')}/api/v2/seed/restaurants`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-seed-key': SEED_KEY },
       });
       results.restaurants = await restaurantResponse.json();
     } catch (error) {
@@ -500,7 +512,7 @@ router.post('/all', async (req, res) => {
     try {
       const vendorResponse = await fetch(`${req.protocol}://${req.get('host')}/api/v2/seed/vendors`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-seed-key': SEED_KEY },
       });
       results.vendors = await vendorResponse.json();
     } catch (error) {
@@ -510,7 +522,7 @@ router.post('/all', async (req, res) => {
     try {
       const userResponse = await fetch(`${req.protocol}://${req.get('host')}/api/v2/seed/users`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-seed-key': SEED_KEY },
       });
       results.users = await userResponse.json();
     } catch (error) {
@@ -573,18 +585,13 @@ router.delete('/clear', async (req, res) => {
 
 // GET /api/v2/seed/init - Run full seed with auth guard
 router.get('/init', async (req, res) => {
-  const seedKey = req.headers['x-seed-key'];
-  if (seedKey !== 'VibeChops@Seed2026!') {
-    return res.status(403).json({ error: 'Invalid seed key' });
-  }
-
   try {
     const results = {};
 
     try {
       const restaurantResponse = await fetch(`${req.protocol}://${req.get('host')}/api/v2/seed/restaurants`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-seed-key': SEED_KEY },
       });
       results.restaurants = await restaurantResponse.json();
     } catch (error) {
@@ -594,7 +601,7 @@ router.get('/init', async (req, res) => {
     try {
       const vendorResponse = await fetch(`${req.protocol}://${req.get('host')}/api/v2/seed/vendors`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-seed-key': SEED_KEY },
       });
       results.vendors = await vendorResponse.json();
     } catch (error) {
@@ -604,7 +611,7 @@ router.get('/init', async (req, res) => {
     try {
       const userResponse = await fetch(`${req.protocol}://${req.get('host')}/api/v2/seed/users`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-seed-key': SEED_KEY },
       });
       results.users = await userResponse.json();
     } catch (error) {
