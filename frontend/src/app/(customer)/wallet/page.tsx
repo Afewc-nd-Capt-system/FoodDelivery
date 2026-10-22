@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowUp, ArrowDown, Filter, Search } from 'lucide-react';
 import { mockWalletTransactions } from '@/lib/mockData';
-import { API_BASE } from '@/lib/apiBase';
+import { API_V2 } from '@/lib/apiBase';
 
 export default function WalletPage() {
   const [balance, setBalance] = useState(7500);
@@ -38,8 +38,8 @@ export default function WalletPage() {
     setLoading(true);
     try {
       const [walletRes, txRes] = await Promise.all([
-        fetch(`${API_BASE}/v2/wallet`, { headers: authHeaders(), credentials: 'include' }),
-        fetch(`${API_BASE}/v2/wallet/transactions`, { headers: authHeaders(), credentials: 'include' }),
+        fetch(`${API_V2}/wallet`, { headers: authHeaders(), credentials: 'include' }),
+        fetch(`${API_V2}/wallet/transactions`, { headers: authHeaders(), credentials: 'include' }),
       ]);
 
       if (walletRes.ok) {
