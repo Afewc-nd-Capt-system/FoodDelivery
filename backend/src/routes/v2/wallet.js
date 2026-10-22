@@ -5,6 +5,7 @@ const User = require('../../models/User');
 const Wallet = require('../../models/Wallet');
 const WalletTransaction = require('../../models/WalletTransaction');
 const axios = require('axios');
+const { adminGuard } = require('../../middleware/routeGuards');
 
 const router = express.Router();
 
@@ -143,6 +144,16 @@ router.post('/topup/verify', authMiddleware, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Payment not successful' });
     }
 
+    const metadataUserId = transactionData.metadata?.userId;
+    if (metadataUserId && metadataUserId.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Payment does not belong to this account' });
+    }
+
+    const alreadyProcessed = await WalletTransaction.findOne({ paymentReference: reference });
+    if (alreadyProcessed) {
+      return res.status(400).json({ success: false, message: 'Payment already processed' });
+    }
+
     const amount = transactionData.amount / 100;
 
     let wallet = await Wallet.findOne({ user: req.user.id, deletedAt: null });
@@ -231,18 +242,20 @@ router.post('/deduct', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/credit', authMiddleware, async (req, res) => {
+// Admin-only: arbitrary credits must never be self-service
+router.post('/credit', authMiddleware, adminGuard, async (req, res) => {
   try {
-    const { amount, description, orderId, reference } = req.body;
+    const { amount, description, orderId, reference, userId } = req.body;
+    const targetUserId = userId || req.user.id;
 
     if (!amount || amount <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid amount' });
     }
 
-    let wallet = await Wallet.findOne({ user: req.user.id, deletedAt: null });
+    let wallet = await Wallet.findOne({ user: targetUserId, deletedAt: null });
     if (!wallet) {
       wallet = await Wallet.create({
-        user: req.user.id,
+        user: targetUserId,
         balance: 0,
         currency: 'NGN',
         isActive: true
@@ -254,7 +267,7 @@ router.post('/credit', authMiddleware, async (req, res) => {
 
     const transaction = new WalletTransaction({
       wallet: wallet._id,
-      user: req.user.id,
+      user: targetUserId,
       type: 'credit',
       amount: amount,
       description: description || 'Wallet credit',
