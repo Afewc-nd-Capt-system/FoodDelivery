@@ -17,6 +17,11 @@ const deliveryCompanySchema = new mongoose.Schema({
     unique: true,
     lowercase: true
   },
+  owner: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    index: true
+  },
   phone: {
     type: String,
     required: true

@@ -102,7 +102,7 @@ router.post('/orders/:id/assign-rider', authMiddleware, async (req, res) => {
     }
 
     // Verify rider belongs to this delivery company
-    const rider = await DeliveryPartner.findOne({ _id: riderId, deliveryCompany: company._id });
+    const rider = await DeliveryPartner.findOne({ _id: riderId, company: company._id });
     if (!rider) {
       return res.status(404).json({ message: 'Rider not found or not part of this company' });
     }

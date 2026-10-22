@@ -1,4 +1,5 @@
 const express = require('express');
+const jwt = require('jsonwebtoken');
 const DeliveryCompany = require('../models/DeliveryCompany');
 const DeliveryPartner = require('../models/DeliveryPartner');
 const DeliveryCompanyService = require('../services/DeliveryCompanyService');
@@ -6,6 +7,22 @@ const authMiddleware = require('../middleware/auth');
 const { deliveryCompanyGuard, adminGuard } = require('../middleware/routeGuards');
 
 const router = express.Router();
+
+// Registration is public, but an authenticated user may create the company.
+// Read the token manually so a missing token does not block self-registration.
+function getAuthenticatedUserId(req) {
+  if (req.user?.id) return req.user.id;
+
+  const token = req.cookies?.token || req.header('Authorization')?.replace('Bearer ', '');
+  if (!token || !process.env.JWT_SECRET) return null;
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    return decoded.id || decoded._id || null;
+  } catch {
+    return null;
+  }
+}
 
 // Public registration endpoint
 router.post('/register', async (req, res) => {
@@ -23,7 +40,10 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    const company = await DeliveryCompanyService.registerCompany(req.body);
+    const company = await DeliveryCompanyService.registerCompany({
+      ...req.body,
+      owner: getAuthenticatedUserId(req) || undefined
+    });
 
     res.status(201).json({
       company: {

@@ -7,6 +7,7 @@ const DeliveryCompany = require('../models/DeliveryCompany');
 const RIDER_EMAIL = 'rider@vibechops.com';
 const RIDER_PASSWORD = 'Rider123!';
 const COMPANY_EMAIL = 'fleet@vibechops.com';
+const COMPANY_PASSWORD = 'Fleet123!';
 
 /**
  * Creates a demo delivery company + rider account so the rider delivery flow
@@ -32,6 +33,28 @@ const seedTestRider = async () => {
       console.log('Delivery company created:', company.companyName);
     } else {
       console.log('Delivery company already exists:', company.companyName);
+    }
+
+    let companyUser = await User.findOne({ email: COMPANY_EMAIL });
+    if (!companyUser) {
+      companyUser = await User.create({
+        name: 'VibeChops Demo Fleet',
+        email: COMPANY_EMAIL,
+        password: COMPANY_PASSWORD,
+        phone: '+2348000000003',
+        role: 'delivery_company',
+        isVerified: true,
+        isActive: true,
+      });
+      console.log('Delivery company user created');
+    } else {
+      console.log('Delivery company user already exists');
+    }
+
+    if (!company.owner || company.owner.toString() !== companyUser._id.toString()) {
+      company.owner = companyUser._id;
+      await company.save();
+      console.log('Delivery company owner linked');
     }
 
     let riderUser = await User.findOne({ email: RIDER_EMAIL });
@@ -67,6 +90,10 @@ const seedTestRider = async () => {
     } else {
       console.log('Delivery partner already exists');
     }
+
+    console.log('\nCompany login:');
+    console.log(`  Email: ${COMPANY_EMAIL}`);
+    console.log(`  Password: ${COMPANY_PASSWORD}`);
 
     console.log('\nRider login:');
     console.log(`  Email: ${RIDER_EMAIL}`);
