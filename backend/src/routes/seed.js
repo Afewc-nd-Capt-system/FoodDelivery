@@ -5,6 +5,7 @@ const Restaurant = require('../models/Restaurant');
 const Vendor = require('../models/Vendor');
 const User = require('../models/User');
 const SubscriptionPlan = require('../models/SubscriptionPlan');
+const { seedDeliveryCompany } = require('../seed/seedDeliveryCompany');
 
 // Seed routes create privileged accounts and can wipe data, so every mutating
 // route requires the seed key. Only the read-only status endpoint stays public.
@@ -483,10 +484,18 @@ router.post('/users', async (req, res) => {
     );
     results.push({ id: testDeliveryCompany._id, name: testDeliveryCompany.name, email: testDeliveryCompany.email, role: testDeliveryCompany.role });
 
+    const { company: seededDeliveryCompany } = await seedDeliveryCompany();
+
     res.status(201).json({
       message: 'Users seeded successfully',
       count: results.length,
       users: results,
+      deliveryCompany: {
+        id: seededDeliveryCompany._id,
+        companyName: seededDeliveryCompany.companyName,
+        email: seededDeliveryCompany.email,
+        owner: seededDeliveryCompany.owner,
+      },
     });
   } catch (error) {
     console.error('Error seeding users:', error.message);
