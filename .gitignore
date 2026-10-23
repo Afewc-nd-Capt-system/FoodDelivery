@@ -3,6 +3,7 @@ node_modules
 .env
 .env.*
 !.env.example
+.secrets-prod.txt
 dist
 build
 *.log
