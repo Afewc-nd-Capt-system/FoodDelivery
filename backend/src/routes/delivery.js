@@ -312,9 +312,11 @@ router.post('/orders/:orderId/resend-code', async (req, res) => {
     order.deliveryConfirmation.customerVerificationCode = newCode;
     await order.save();
 
-    // Notify customer of new code
+    // Notify customer of new code without blocking on SMTP.
     const orderPopulated = await Order.findById(req.params.orderId).populate('user');
-    await DeliveryConfirmationService.notifyCustomer(orderPopulated, newCode);
+    DeliveryConfirmationService.notifyCustomer(orderPopulated, newCode).catch((error) => {
+      console.error('[delivery] resend verification email failed:', error.message);
+    });
 
     res.json({ message: 'Verification code resent', sentAt: new Date() });
   } catch (error) {

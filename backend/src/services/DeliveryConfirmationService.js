@@ -22,8 +22,11 @@ class DeliveryConfirmationService {
     
     await order.save();
 
-    // Notify customer via email
-    await this.notifyCustomer(order, customerCode);
+    // Notify the customer without holding the rider's request open. The code is
+    // already persisted on the order; delivery must not depend on SMTP.
+    this.notifyCustomer(order, customerCode).catch((error) => {
+      console.error('[delivery] verification email failed:', error.message);
+    });
 
     return { order, customerCode };
   }

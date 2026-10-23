@@ -73,6 +73,7 @@ async function api(pathname, options = {}) {
     body: options.body === undefined
       ? undefined
       : (typeof options.body === 'string' ? options.body : JSON.stringify(options.body)),
+    signal: AbortSignal.timeout(45000),
   });
 
   const text = await response.text();
