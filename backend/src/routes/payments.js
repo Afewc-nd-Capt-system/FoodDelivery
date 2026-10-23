@@ -17,7 +17,7 @@ function getRawBody(req) {
 
 function isValidSignature(req) {
   const signature = req.headers['x-paystack-signature'];
-  if (!signature || typeof signature !== 'string') return false;
+  if (!PAYSTACK_SECRET_KEY || !signature || typeof signature !== 'string') return false;
 
   const expected = crypto
     .createHmac('sha512', PAYSTACK_SECRET_KEY)
@@ -50,10 +50,34 @@ function emitNewOrder(req, order) {
   io.of('/orders').to(roomId).emit('new_order', order);
 }
 
-async function markOrderPaid(req, order, reference) {
+function assertPaymentMatchesOrder(order, payment) {
+  const expectedAmount = Math.round(Number(order.totalAmount || 0) * 100);
+  const expectedCurrency = String(order.currency || 'NGN').toUpperCase();
+  const actualAmount = Number(payment?.amount);
+  const actualCurrency = String(payment?.currency || '').toUpperCase();
+
+  if (!Number.isInteger(actualAmount) || actualAmount !== expectedAmount
+    || actualCurrency !== expectedCurrency) {
+    const error = new Error(
+      `Payment amount/currency does not match order (expected ${expectedAmount} ${expectedCurrency})`
+    );
+    error.status = 400;
+    throw error;
+  }
+}
+
+async function markOrderPaid(req, order, reference, payment) {
   if (order.isPaid) {
     return { order, alreadyProcessed: true };
   }
+
+  if (String(order.status) === 'cancelled') {
+    const error = new Error('Order is cancelled');
+    error.status = 409;
+    throw error;
+  }
+
+  assertPaymentMatchesOrder(order, payment);
 
   order.paymentStatus = 'paid';
   order.isPaid = true;
@@ -110,20 +134,40 @@ async function verifyReference(req, reference) {
     throw error;
   }
 
-  return markOrderPaid(req, order, reference);
+  return markOrderPaid(req, order, reference, data.data);
 }
 
 router.post('/initialize', authMiddleware, async (req, res) => {
   try {
-    const { orderId, email, amount } = req.body;
+    const { orderId } = req.body;
 
-    if (!orderId || !email || !amount) {
-      return res.status(400).json({ message: 'Missing required fields' });
+    if (!orderId) {
+      return res.status(400).json({ message: 'orderId is required' });
     }
 
-    const order = await Order.findOne({ _id: orderId, user: req.user.id });
+    const order = await Order.findById(orderId);
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
+    }
+    if (String(order.user) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized to pay for this order' });
+    }
+    if (order.isPaid || order.paymentStatus === 'paid') {
+      return res.status(400).json({ message: 'Order is already paid' });
+    }
+    if (String(order.status) !== 'pending') {
+      return res.status(400).json({ message: 'Order is not awaiting payment' });
+    }
+
+    // The amount is always the server-computed order total, never req.body.amount.
+    const amount = Math.round(Number(order.totalAmount || 0) * 100);
+    if (!Number.isFinite(amount) || amount < 1) {
+      return res.status(400).json({ message: 'Order has no payable amount' });
+    }
+
+    const user = await User.findById(req.user.id).select('email');
+    if (!user?.email) {
+      return res.status(400).json({ message: 'Account email is required for payment' });
     }
 
     const response = await fetch(`${paystackBaseUrl}/transaction/initialize`, {
@@ -133,13 +177,13 @@ router.post('/initialize', authMiddleware, async (req, res) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        email,
-        amount: Math.round(amount * 100),
-        reference: `order_${orderId}_${Date.now()}`,
+        email: user.email,
+        amount,
+        reference: `order_${order._id}_${Date.now()}`,
         callback_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/orders/verify`,
         metadata: {
-          orderId,
-          userId: req.user.id.toString(),
+          orderId: String(order._id),
+          userId: String(req.user.id),
         },
       }),
     });
@@ -153,9 +197,11 @@ router.post('/initialize', authMiddleware, async (req, res) => {
     res.json({
       authorizationUrl: data.data.authorization_url,
       reference: data.data.reference,
+      amount,
+      currency: String(order.currency || 'NGN').toUpperCase(),
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   }
 });
 
@@ -206,6 +252,7 @@ router.post('/webhook', async (req, res) => {
 
     const reference = event.data?.reference;
     const orderId = event.data?.metadata?.orderId;
+    const metadataUserId = event.data?.metadata?.userId;
 
     if (!reference || !orderId) {
       return res.status(400).json({ message: 'Webhook missing reference or order metadata' });
@@ -223,16 +270,20 @@ router.post('/webhook', async (req, res) => {
       return res.status(404).json({ message: 'Order not found' });
     }
 
+    if (metadataUserId && String(metadataUserId) !== String(order.user)) {
+      return res.status(400).json({ message: 'Webhook metadata does not match order' });
+    }
+
     if (order.isPaid) {
       return res.json({ message: 'Webhook already processed' });
     }
 
-    const result = await markOrderPaid(req, order, reference);
+    const result = await markOrderPaid(req, order, reference, event.data);
     res.json({
       message: result.alreadyProcessed ? 'Webhook already processed' : 'Webhook processed',
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   }
 });
 

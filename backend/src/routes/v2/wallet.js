@@ -70,13 +70,17 @@ router.get('/transactions', authMiddleware, async (req, res) => {
 
 router.post('/topup', authMiddleware, async (req, res) => {
   try {
-    const { amount, email } = req.body;
+    const { amount } = req.body;
+    const topupAmount = Number(amount);
 
-    if (!amount || amount <= 0) {
+    if (!Number.isFinite(topupAmount) || topupAmount <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid amount' });
     }
 
     const user = await User.findById(req.user.id);
+    if (!user?.email) {
+      return res.status(400).json({ success: false, message: 'Account email is required' });
+    }
     let wallet = await Wallet.findOne({ user: req.user.id, deletedAt: null });
 
     if (!wallet) {
@@ -92,13 +96,14 @@ router.post('/topup', authMiddleware, async (req, res) => {
 
     const paystackUrl = 'https://api.paystack.co/transaction/initialize';
     const paymentData = {
-      email: email || user.email,
-      amount: amount * 100,
-      reference: reference,
-      callback_url: process.env.FRONTEND_URL + '/wallet/callback',
+      // The authenticated account's email is used; never trust a body email.
+      email: user.email,
+      amount: Math.round(topupAmount * 100),
+      reference,
+      callback_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/wallet/callback`,
       metadata: {
         wallet_topup: true,
-        userId: req.user.id,
+        userId: String(req.user.id),
         type: 'wallet_topup'
       }
     };
@@ -145,8 +150,21 @@ router.post('/topup/verify', authMiddleware, async (req, res) => {
     }
 
     const metadataUserId = transactionData.metadata?.userId;
-    if (metadataUserId && metadataUserId.toString() !== req.user.id) {
-      return res.status(403).json({ success: false, message: 'Payment does not belong to this account' });
+    const isWalletTopup = transactionData.metadata?.wallet_topup === true
+      || transactionData.metadata?.wallet_topup === 'true'
+      || transactionData.metadata?.type === 'wallet_topup';
+    if (!isWalletTopup || !metadataUserId
+      || String(metadataUserId) !== String(req.user.id)) {
+      return res.status(403).json({ success: false, message: 'Payment does not belong to this wallet top-up' });
+    }
+
+    if (String(transactionData.currency || '').toUpperCase() !== 'NGN') {
+      return res.status(400).json({ success: false, message: 'Unsupported payment currency' });
+    }
+
+    const paidKobo = Number(transactionData.amount);
+    if (!Number.isInteger(paidKobo) || paidKobo <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid payment amount' });
     }
 
     const alreadyProcessed = await WalletTransaction.findOne({ paymentReference: reference });
@@ -154,7 +172,8 @@ router.post('/topup/verify', authMiddleware, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Payment already processed' });
     }
 
-    const amount = transactionData.amount / 100;
+    // Credit exactly the amount Paystack verified, never a request-body amount.
+    const amount = paidKobo / 100;
 
     let wallet = await Wallet.findOne({ user: req.user.id, deletedAt: null });
     if (!wallet) {

@@ -80,6 +80,15 @@ async function api(pathname, options = {}) {
   return { response, status: response.status, body, text };
 }
 
+async function paystackVerify(reference) {
+  const response = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+    headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}` },
+  });
+  const body = await response.json();
+  assert(response.ok && body.status && body.data?.status === 'success', `Paystack verify failed: ${JSON.stringify(body)}`);
+  return body.data;
+}
+
 async function login(role) {
   const account = accounts[role];
   if (!account.email || !account.password) {
@@ -175,16 +184,20 @@ async function main() {
         items: [{
           menuItem: restaurant.item._id,
           name: restaurant.item.name,
-          price: Number(restaurant.item.price),
+          price: 1,
           quantity: 1,
           customizations: customization ? [{
             name: customization.group.name,
             option: customization.option.name,
-            price: customizationDelta,
+            price: 1,
           }] : [],
         }],
-        totalAmount: expectedTotal,
-        deliveryFee,
+        totalAmount: 1,
+        subtotal: 1,
+        deliveryFee: 1,
+        serviceFee: 9999,
+        discount: 9999,
+        promoDiscount: 9999,
         deliveryAddress: '12 E2E Test Street, Ikeja, Lagos',
         paymentMethod: 'card',
       },
@@ -196,7 +209,49 @@ async function main() {
 
   await requestStep('order total is server total', async () => {
     assert(Number(order.totalAmount) === expectedTotal, `order total ${order.totalAmount}, expected ${expectedTotal}`);
+    assert(Number(order.subtotal) === expectedTotal - deliveryFee, `order subtotal ${order.subtotal}, expected ${expectedTotal - deliveryFee}`);
+    assert(Number(order.deliveryFee) === deliveryFee, `order delivery fee ${order.deliveryFee}, expected ${deliveryFee}`);
     return `total=${order.totalAmount}`;
+  });
+
+  await requestStep('tampered price and totals are ignored', async () => {
+    assert(Number(order.items?.[0]?.price) === Number(restaurant.item.price),
+      `item price ${order.items?.[0]?.price}, expected ${restaurant.item.price}`);
+    assert(Number(order.promoDiscount || 0) === 0, `unexpected promo discount ${order.promoDiscount}`);
+    return 'client amounts ignored';
+  });
+
+  const otherOrder = await requestStep('create order for ownership test', async () => {
+    const result = await api('/orders', {
+      method: 'POST',
+      token: tokens.admin,
+      body: {
+        restaurantId: restaurant.found._id,
+        items: [{
+          menuItem: restaurant.item._id,
+          quantity: 1,
+          customizations: customization ? [{
+            name: customization.group.name,
+            option: customization.option.name,
+          }] : [],
+        }],
+        deliveryAddress: '99 Ownership Test Street, Lagos',
+        paymentMethod: 'card',
+      },
+    });
+    assert(result.status === 201 || result.status === 200, `ownership order returned ${result.status}: ${result.text}`);
+    assert(result.body?.order?._id, 'ownership order has no id');
+    return result.body.order;
+  });
+
+  await requestStep('cannot initialize another user\'s order', async () => {
+    const result = await api('/payments/initialize', {
+      method: 'POST',
+      token: tokens.customer,
+      body: { orderId: otherOrder._id, amount: 1 },
+    });
+    assert(result.status === 403, `expected 403, got ${result.status}: ${result.text}`);
+    return '403';
   });
 
   const payment = await requestStep('initialize payment', async () => {
@@ -208,11 +263,13 @@ async function main() {
         body: {
           orderId: order._id,
           email: users.customer.email,
-          amount: Number(order.totalAmount),
+          amount: 1,
         },
       });
       last = result;
       if (result.status === 200 && result.body?.reference) {
+        assert(Number(result.body.amount) === Math.round(expectedTotal * 100),
+          `initialize amount ${result.body.amount}, expected ${Math.round(expectedTotal * 100)}`);
         return { ...result.body, attempts: attempt };
       }
       if (result.status !== 400 || !/An error occurred/i.test(result.text)) {
@@ -223,6 +280,14 @@ async function main() {
     throw new Error(`initialize returned ${last?.status}: ${last?.text}`);
   });
 
+  await requestStep('Paystack charge uses order total', async () => {
+    const data = await paystackVerify(payment.reference);
+    assert(Number(data.amount) === Math.round(expectedTotal * 100),
+      `Paystack amount ${data.amount}, expected ${Math.round(expectedTotal * 100)}`);
+    assert(String(data.currency).toUpperCase() === 'NGN', `Paystack currency ${data.currency}`);
+    return `amount=${data.amount} currency=${data.currency}`;
+  });
+
   const webhookPayload = {
     event: 'charge.success',
     data: {
@@ -230,7 +295,7 @@ async function main() {
       status: 'success',
       amount: Math.round(Number(order.totalAmount) * 100),
       currency: 'NGN',
-      metadata: { orderId: order._id },
+      metadata: { orderId: order._id, userId: users.customer.id },
     },
   };
   const rawWebhook = JSON.stringify(webhookPayload);

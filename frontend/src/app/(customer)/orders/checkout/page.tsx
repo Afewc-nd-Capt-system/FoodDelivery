@@ -32,6 +32,7 @@ export default function CheckoutPage() {
 
   const [isVibePassMember, setIsVibePassMember] = useState(false);
   const [freeDeliveryAvailable, setFreeDeliveryAvailable] = useState(false);
+  const [serverDeliveryFee, setServerDeliveryFee] = useState(40);
 
   useEffect(() => {
     if (!user) {
@@ -56,7 +57,7 @@ export default function CheckoutPage() {
           },
           body: JSON.stringify({
             restaurantId: items[0]?.restaurantId,
-            totalAmount: items.reduce((sum, item) => sum + item.price * item.quantity, 0) + 40,
+            totalAmount: items.reduce((sum, item) => sum + item.price * item.quantity, 0) + serverDeliveryFee,
             items: items.map(item => ({
               menuItem: item.id,
               quantity: item.quantity,
@@ -77,7 +78,7 @@ export default function CheckoutPage() {
     };
 
     checkEligibility();
-  }, [items]);
+  }, [items, serverDeliveryFee]);
 
   useEffect(() => {
     const loadPaymentData = async () => {
@@ -104,6 +105,19 @@ export default function CheckoutPage() {
   }, [user]);
 
   useEffect(() => {
+    const restaurantId = items[0]?.restaurantId;
+    if (!restaurantId) return;
+    fetch(`${API_V2}/restaurants/${restaurantId}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (data && Number.isFinite(Number(data.deliveryFee))) {
+          setServerDeliveryFee(Number(data.deliveryFee));
+        }
+      })
+      .catch(() => {});
+  }, [items]);
+
+  useEffect(() => {
     const calculateLoyaltyDiscount = async () => {
       if (!useLoyalty || loyaltyPoints === 0) {
         setLoyaltyDiscount(0);
@@ -123,8 +137,8 @@ export default function CheckoutPage() {
   }, [useLoyalty, loyaltyPoints, items]);
 
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const deliveryFee = isVibePassMember && freeDeliveryAvailable ? 0 : 40;
-  const totalAfterLoyalty = subtotal - loyaltyDiscount;
+  const deliveryFee = isVibePassMember && freeDeliveryAvailable ? 0 : serverDeliveryFee;
+  const totalAfterLoyalty = subtotal - loyaltyDiscount + deliveryFee;
   const walletDeduction = useWallet ? Math.min(walletBalance, totalAfterLoyalty) : 0;
   const finalTotal = Math.max(0, totalAfterLoyalty - walletDeduction);
 
@@ -140,7 +154,7 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (useWallet && walletBalance < (subtotal - loyaltyDiscount)) {
+    if (useWallet && walletBalance < totalAfterLoyalty) {
       if (paymentMethod === 'cash') {
         setError('Insufficient wallet balance. Please add funds or choose another payment method.');
         return;
@@ -151,28 +165,19 @@ export default function CheckoutPage() {
     setError('');
 
     try {
-      let finalTotalAmount = finalTotal;
+      const finalTotalAmount = finalTotal;
 
-      if (useWallet && walletDeduction > 0) {
-        setWalletLoading(true);
-        await api.wallet.deduct(walletDeduction, 'Order payment', undefined);
-        setWalletLoading(false);
-      }
-
+      // Wallet and loyalty are debited by the server during order creation.
       const orderData: any = {
-        restaurant: items[0]?.restaurantId,
+        restaurantId: items[0]?.restaurantId,
         items: items.map(item => ({
           menuItem: item.id,
-          name: item.name,
-          price: item.price,
           quantity: item.quantity,
+          selectedOptions: item.selectedOptions,
         })),
-        totalAmount: finalTotalAmount,
         deliveryAddress: address,
         paymentMethod: finalTotalAmount === 0 ? 'wallet' : paymentMethod,
-        deliveryFee,
         walletAmountUsed: walletDeduction,
-        loyaltyDiscount: loyaltyDiscount,
         loyaltyPointsRedeemed: useLoyalty ? Math.floor(loyaltyDiscount * 100) : 0,
         isVibePassFreeDelivery: isVibePassMember && freeDeliveryAvailable,
       };

@@ -35,16 +35,37 @@ const orderSchema = new mongoose.Schema({
   restaurant: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Restaurant',
-    required: true,
+    required: false,
+  },
+  vendor: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Vendor',
+    required: false,
   },
   restaurantName: {
     type: String,
     required: true,
   },
   items: [orderItemSchema],
+  subtotal: {
+    type: Number,
+    min: 0,
+  },
+  serviceFee: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
   totalAmount: {
     type: Number,
     required: true,
+    min: 0,
+  },
+  currency: {
+    type: String,
+    default: 'NGN',
+    uppercase: true,
+    trim: true,
   },
   deliveryAddress: {
     type: String,
