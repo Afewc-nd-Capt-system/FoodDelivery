@@ -75,11 +75,12 @@ router.get('/earnings', authMiddleware, async (req, res) => {
       updatedAt: { $gte: startDate }
     }).select('deliveryFee totalAmount createdAt updatedAt');
 
-    const totalEarnings = orders.reduce((sum, o) => sum + (o.deliveryFee || 0), 0);
+    const riderShare = (order) => Math.round(Number(order.deliveryFee || 0) * 0.8);
+    const totalEarnings = orders.reduce((sum, order) => sum + riderShare(order), 0);
     const byDay = {};
     orders.forEach(o => {
       const day = new Date(o.updatedAt).toLocaleDateString('en-US', { weekday: 'short' });
-      byDay[day] = (byDay[day] || 0) + (o.deliveryFee || 0);
+      byDay[day] = (byDay[day] || 0) + riderShare(o);
     });
 
     res.json({
