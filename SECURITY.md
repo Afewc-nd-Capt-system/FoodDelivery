@@ -55,6 +55,19 @@
 - IP, userAgent, location tracking
 - Separate collection for compliance
 
+## Test Accounts
+
+- Development seed data creates `admin@vibechops.ng`, `demo@vibechops.ng`,
+  `vendor@vibechops.ng`, `restaurant@vibechops.ng`, `rider@vibechops.ng`, and
+  `delivery@vibechops.ng`. These are demonstration accounts and **must be
+  deleted or have their passwords rotated before real launch**.
+- Run `npm run accounts:rotate` from `backend/` with `MONGODB_URI` set. It
+  rotates every seeded account it finds, hashes through the normal User
+  pre-save hook, and prints each new password once. Store those values in the
+  password manager used by the operator; they are not written to the repo.
+- Do not run the rotation immediately before a production regression unless
+  `backend/.env.e2e` (untracked) is updated with the new test credentials.
+
 ## Secret Handling
 
 - No production secret is stored in this repository. `render.yaml` marks every

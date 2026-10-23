@@ -168,7 +168,12 @@ app.use('/api/v2/admin/revenue', authMiddleware, require('./routes/v2/admin-reve
 app.use('/api/v2/subscriptions', authMiddleware, require('./routes/v2/business-subscriptions'));
 app.use('/api/v2/ads', require('./routes/v2/ads'));
 app.use('/api/v2/contact', require('./routes/v2/contact'));
-app.use('/api/v2/seed', require('./routes/seed'));
+if (process.env.ENABLE_SEED === 'true' && process.env.NODE_ENV !== 'production') {
+  app.use('/api/v2/seed', require('./routes/seed'));
+  console.log('[seed] seed routes enabled (non-production only)');
+} else {
+  console.log('[seed] seed routes disabled');
+}
 
 // Health check endpoint for Render
 app.get('/health', (req, res) => {

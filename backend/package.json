@@ -13,6 +13,8 @@
     "seed:demo": "node src/seed/demoData.js",
     "seed:permissions": "node src/seed/permissions.js",
     "seed:rider": "node src/seed/testRider.js",
+    "seed:prod": "node scripts/seed-prod.js",
+    "accounts:rotate": "node scripts/rotate-accounts.js",
     "migrate": "node src/migrations/run.js",
     "migrate:list": "node src/migrations/run.js --list",
     "test": "jest --testPathPattern=tests",
