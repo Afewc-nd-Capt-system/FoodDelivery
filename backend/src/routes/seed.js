@@ -6,6 +6,8 @@ const Vendor = require('../models/Vendor');
 const User = require('../models/User');
 const SubscriptionPlan = require('../models/SubscriptionPlan');
 const { seedDeliveryCompany } = require('../seed/seedDeliveryCompany');
+const { seedRestaurantOwner } = require('../seed/seedRestaurantOwner');
+const { seedDeliveryPartner } = require('../seed/seedDeliveryPartner');
 
 // Seed routes create privileged accounts and can wipe data, so every mutating
 // route requires the seed key. Only the read-only status endpoint stays public.
@@ -454,6 +456,13 @@ router.post('/users', async (req, res) => {
     );
     results.push({ id: testRestaurant._id, name: testRestaurant.name, email: testRestaurant.email, role: testRestaurant.role });
 
+    let seededRestaurant = null;
+    try {
+      ({ restaurant: seededRestaurant } = await seedRestaurantOwner());
+    } catch (error) {
+      console.warn(`Restaurant owner link skipped: ${error.message}`);
+    }
+
     const testRider = await User.findOneAndUpdate(
       { email: 'rider@vibechops.ng' },
       { $setOnInsert: {
@@ -485,16 +494,27 @@ router.post('/users', async (req, res) => {
     results.push({ id: testDeliveryCompany._id, name: testDeliveryCompany.name, email: testDeliveryCompany.email, role: testDeliveryCompany.role });
 
     const { company: seededDeliveryCompany } = await seedDeliveryCompany();
+    const { partner: seededRiderPartner } = await seedDeliveryPartner();
 
     res.status(201).json({
       message: 'Users seeded successfully',
       count: results.length,
       users: results,
+      restaurant: seededRestaurant ? {
+        id: seededRestaurant._id,
+        name: seededRestaurant.name,
+        owner: seededRestaurant.owner,
+      } : null,
       deliveryCompany: {
         id: seededDeliveryCompany._id,
         companyName: seededDeliveryCompany.companyName,
         email: seededDeliveryCompany.email,
         owner: seededDeliveryCompany.owner,
+      },
+      riderPartner: {
+        id: seededRiderPartner._id,
+        name: seededRiderPartner.name,
+        company: seededRiderPartner.company,
       },
     });
   } catch (error) {
