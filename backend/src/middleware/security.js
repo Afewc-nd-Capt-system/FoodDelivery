@@ -73,6 +73,7 @@ function validateEnvironment() {
       'JWT_SECRET',
       'JWT_REFRESH_SECRET',
       'PAYSTACK_SECRET_KEY',
+      'REDIS_URL',
     ];
     const failures = [];
 
@@ -89,6 +90,14 @@ function validateEnvironment() {
     }
     if (/(?:localhost|127\.0\.0\.1)/i.test(mongoUri)) {
       failures.push('MONGODB_URI must not point at localhost in production');
+    }
+
+    const redisUrl = String(process.env.REDIS_URL || '').trim();
+    if (redisUrl && !/^rediss?:\/\//.test(redisUrl)) {
+      failures.push('REDIS_URL must use redis:// or rediss://');
+    }
+    if (/(?:localhost|127\.0\.0\.1)/i.test(redisUrl)) {
+      failures.push('REDIS_URL must not point at localhost in production');
     }
 
     const paystackKey = String(process.env.PAYSTACK_SECRET_KEY || '').trim();
