@@ -15,6 +15,7 @@ const envSchema = z.object({
   EMAIL_USER: z.string().optional(),
   EMAIL_PASS: z.string().optional(),
   FRONTEND_URL: z.string().url().optional(),
+  ALLOWED_ORIGINS: z.string().optional(),
   API_URL: z.string().url().optional(),
   REDIS_URL: z.string().min(1).optional(),
   HCAPTCHA_SECRET: z.string().optional(),
@@ -155,30 +156,8 @@ const securityHeaders = helmet({
   xssFilter: true
 });
 
-const corsOptions = (req, callback) => {
-  const allowedOrigins = [
-    process.env.FRONTEND_URL || 'http://localhost:3000',
-    'http://localhost:3000',
-    'http://127.0.0.1:3000'
-  ];
-
-  const origin = req.header('Origin');
-  const isAllowed = !origin || allowedOrigins.includes(origin);
-
-  if (!isAllowed) {
-    return callback(new Error('CORS policy: Origin not allowed'));
-  }
-
-  callback(null, {
-    origin: allowedOrigins.includes(origin) ? origin : false,
-    credentials: true,
-    allowedMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Paystack-Signature']
-  });
-};
-
 const sanitizationOptions = {
   replace: ''
 };
 
-module.exports = { validateEnvironment, securityHeaders, corsOptions, sanitizationOptions };
+module.exports = { validateEnvironment, securityHeaders, sanitizationOptions };

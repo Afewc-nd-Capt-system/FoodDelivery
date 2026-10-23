@@ -43,9 +43,9 @@ services:
       - key: EMAIL_PASS
         sync: false # Set in Render dashboard
       - key: FRONTEND_URL
-        value: https://vibe-chops.vercel.app
-      - key: CORS_ORIGIN
-        value: https://vibe-chops.vercel.app
+        value: https://food-delivery-app-ten-beta.vercel.app
+      - key: ALLOWED_ORIGINS
+        value: https://food-delivery-app-ten-beta.vercel.app
 
     # Build and deployment settings
     buildFilter:

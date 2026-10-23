@@ -35,9 +35,15 @@
 - X-Content-Type-Options: nosniff
 
 ### 7. CORS Hardening
-- Whitelist only
-- Credentials only for whitelisted origins
-- Allowed methods: GET, POST, PUT, PATCH, DELETE
+- Exact allowlist from `ALLOWED_ORIGINS` (comma-separated); no suffix matching
+- Production default: `https://food-delivery-app-ten-beta.vercel.app`
+- `http://localhost:3000` is added only outside production
+- Credentials only for whitelisted origins; `Vary: Origin` is set
+- Requests without an Origin (mobile/server-to-server) are allowed without
+  reflecting an origin; disallowed browser origins receive no CORS grant and
+  disallowed preflights return 403
+- To add the future custom domain, set one Render env var:
+  `ALLOWED_ORIGINS=https://new-domain.example,https://food-delivery-app-ten-beta.vercel.app`
 
 ### 8. Paystack Webhook Security
 - HMAC-SHA512 signature verification
@@ -75,6 +81,7 @@ JWT_REFRESH_SECRET=<min 32 chars>
 PAYSTACK_SECRET_KEY=<live key>
 PAYSTACK_WEBHOOK_SECRET=<webhook signing key>
 FRONTEND_URL=https://your-domain.com
+ALLOWED_ORIGINS=https://your-domain.com
 REDIS_URL=redis://localhost:6379
 HCAPTCHA_SECRET=<for CAPTCHA>
 ```
