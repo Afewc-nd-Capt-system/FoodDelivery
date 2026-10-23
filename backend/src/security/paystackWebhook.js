@@ -3,25 +3,20 @@ const axios = require('axios');
 
 class PaystackWebhookSecurity {
   constructor() {
-    this.webhookSecret = process.env.PAYSTACK_WEBHOOK_SECRET;
+    // Paystack signs webhooks with the account secret key. There is no
+    // separate webhook signing secret.
+    this.webhookSecret = process.env.PAYSTACK_SECRET_KEY;
     this.processedEvents = new Map();
     this.eventTTL = 24 * 60 * 60 * 1000;
   }
 
   verifySignature(payload, signature) {
-    if (!this.webhookSecret) {
-      console.warn('[SECURITY] No webhook secret configured - skipping signature verification');
-      return true;
-    }
-
+    if (!this.webhookSecret || !signature) return false;
     const hmac = crypto.createHmac('sha512', this.webhookSecret);
     const digest = hmac.update(payload).digest('hex');
-
-    if (digest !== signature) {
-      console.error('[SECURITY] Invalid webhook signature');
-      return false;
-    }
-    return true;
+    const actual = Buffer.from(String(signature));
+    const expected = Buffer.from(digest);
+    return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
   }
 
   isEventProcessed(eventId) {
@@ -42,7 +37,7 @@ class PaystackWebhookSecurity {
       return res.status(401).json({ success: false, message: 'Missing signature', code: 'MISSING_SIGNATURE' });
     }
 
-    const rawBody = JSON.stringify(req.body);
+    const rawBody = Buffer.isBuffer(req.rawBody) ? req.rawBody : JSON.stringify(req.body);
     if (!this.verifySignature(rawBody, signature)) {
       return res.status(401).json({ success: false, message: 'Invalid signature', code: 'INVALID_SIGNATURE' });
     }

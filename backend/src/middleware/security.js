@@ -10,7 +10,7 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(32),
   PAYSTACK_SECRET_KEY: z.string().min(1),
   PAYSTACK_PUBLIC_KEY: z.string().optional(),
-  PAYSTACK_WEBHOOK_SECRET: z.string().optional(),
+  GOOGLE_CLIENT_ID: z.string().optional(),
   EMAIL_SERVICE: z.string().optional(),
   EMAIL_USER: z.string().optional(),
   EMAIL_PASS: z.string().optional(),
@@ -119,6 +119,14 @@ function validateEnvironment() {
     }
   }
 
+  if (process.env.NODE_ENV === 'production') {
+    if (process.env.DISABLE_MFA === 'true') {
+      console.warn('[SECURITY] DISABLE_MFA is ignored in production');
+    }
+    if (process.env.ENABLE_SEED === 'true') {
+      console.warn('[SECURITY] ENABLE_SEED is ignored in production');
+    }
+  }
   console.log('[SECURITY] Environment variables validated');
 }
 

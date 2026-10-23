@@ -14,9 +14,14 @@ const generateToken = (partner) => {
     throw new Error('JWT_SECRET must be set in environment variables');
   }
   return jwt.sign(
-    { id: partner._id, email: partner.email, role: 'delivery' },
+    {
+      id: partner._id,
+      email: partner.email,
+      role: 'delivery',
+      type: 'access',
+    },
     process.env.JWT_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: '15m', issuer: 'vibechops', algorithm: 'HS256' }
   );
 };
 

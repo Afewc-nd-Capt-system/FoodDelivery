@@ -1,4 +1,4 @@
-const jwt = require('jsonwebtoken');
+const { verifyAccessToken } = require('../security/tokenService');
 
 function setupSocketIO(io) {
   // Authentication middleware for all namespaces
@@ -7,13 +7,12 @@ function setupSocketIO(io) {
     if (!token) {
       return next(new Error('Authentication required'));
     }
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      socket.user = decoded;
-      next();
-    } catch (err) {
-      next(new Error('Invalid token'));
+    const decoded = verifyAccessToken(token);
+    if (!decoded) {
+      return next(new Error('Invalid token'));
     }
+    socket.user = decoded;
+    next();
   });
 
   // /orders namespace

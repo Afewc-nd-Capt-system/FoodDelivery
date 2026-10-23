@@ -4,22 +4,19 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const authMiddleware = require('../../middleware/auth');
+const { validateDocumentMagic } = require('../../utils/upload');
 const router = express.Router();
 
-// Configure multer for file uploads
+// Verification documents are private. They are never under the public
+// /uploads static root and are served only through the admin-only route below.
+const documentsDir = path.join(__dirname, '../../../uploads/private/restaurant-docs');
+if (!fs.existsSync(documentsDir)) {
+  fs.mkdirSync(documentsDir, { recursive: true });
+}
+
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../../../uploads/restaurant-docs');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const filename = `${uuidv4()}${ext}`;
-    cb(null, filename);
-  },
+  destination: (req, file, cb) => cb(null, documentsDir),
+  filename: (req, file, cb) => cb(null, uuidv4()),
 });
 
 const fileFilter = (req, file, cb) => {
@@ -49,7 +46,7 @@ const upload = multer({
 router.post('/upload-docs', authMiddleware, upload.fields([
   { name: 'cacCertificate', maxCount: 1 },
   { name: 'governmentApproval', maxCount: 1 },
-]), async (req, res) => {
+]), validateDocumentMagic, async (req, res) => {
   try {
     const { tinNumber, rcNumber } = req.body;
 
@@ -64,8 +61,10 @@ router.post('/upload-docs', authMiddleware, upload.fields([
     const cacCertificate = req.files.cacCertificate[0];
     const governmentApproval = req.files.governmentApproval ? req.files.governmentApproval[0] : null;
 
-    const cacUrl = `/uploads/restaurant-docs/${cacCertificate.filename}`;
-    const governmentUrl = governmentApproval ? `/uploads/restaurant-docs/${governmentApproval.filename}` : null;
+    const cacUrl = `/api/v2/restaurants/docs/${cacCertificate.filename}`;
+    const governmentUrl = governmentApproval
+      ? `/api/v2/restaurants/docs/${governmentApproval.filename}`
+      : null;
 
     res.json({
       cacCertificate: {
@@ -81,6 +80,25 @@ router.post('/upload-docs', authMiddleware, upload.fields([
     });
   } catch (error) {
     res.status(400).json({ message: error.message });
+  }
+});
+
+// GET /api/v2/restaurants/docs/:filename - admin-only verification document
+router.get('/docs/:filename', authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+    const filename = path.basename(req.params.filename);
+    const filePath = path.join(documentsDir, filename);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ message: 'Document not found' });
+    }
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.sendFile(filePath);
+  } catch {
+    res.status(500).json({ message: 'Unable to retrieve document' });
   }
 });
 

@@ -5,9 +5,9 @@ const DeliveryPartner = require('../models/DeliveryPartner');
 const DeliveryCompany = require('../models/DeliveryCompany');
 
 const RIDER_EMAIL = 'rider@vibechops.com';
-const RIDER_PASSWORD = 'Rider123!';
 const COMPANY_EMAIL = 'fleet@vibechops.com';
-const COMPANY_PASSWORD = 'Fleet123!';
+const RIDER_PASSWORD = process.env.SEED_RIDER_PASSWORD;
+const COMPANY_PASSWORD = process.env.SEED_COMPANY_PASSWORD;
 
 /**
  * Creates a demo delivery company + rider account so the rider delivery flow
@@ -17,6 +17,9 @@ const COMPANY_PASSWORD = 'Fleet123!';
  */
 const seedTestRider = async () => {
   try {
+    if (!RIDER_PASSWORD || !COMPANY_PASSWORD) {
+      throw new Error('SEED_RIDER_PASSWORD and SEED_COMPANY_PASSWORD must be set');
+    }
     await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/food-delivery');
 
     let company = await DeliveryCompany.findOne({ email: COMPANY_EMAIL });
@@ -93,11 +96,11 @@ const seedTestRider = async () => {
 
     console.log('\nCompany login:');
     console.log(`  Email: ${COMPANY_EMAIL}`);
-    console.log(`  Password: ${COMPANY_PASSWORD}`);
+    console.log('  Password: use SEED_COMPANY_PASSWORD from the environment');
 
     console.log('\nRider login:');
     console.log(`  Email: ${RIDER_EMAIL}`);
-    console.log(`  Password: ${RIDER_PASSWORD}`);
+    console.log('  Password: use SEED_RIDER_PASSWORD from the environment');
   } catch (error) {
     console.error('Failed to seed test rider:', error.message);
     process.exitCode = 1;

@@ -1,6 +1,10 @@
 const rateLimit = require('express-rate-limit');
 
-const disabled = process.env.DISABLE_RATE_LIMIT === 'true';
+const production = process.env.NODE_ENV === 'production';
+if (production && process.env.DISABLE_RATE_LIMIT === 'true') {
+  console.warn('[SECURITY] DISABLE_RATE_LIMIT is ignored in production');
+}
+const disabled = !production && process.env.DISABLE_RATE_LIMIT === 'true';
 
 const authLimiter = disabled
   ? (req, res, next) => next()

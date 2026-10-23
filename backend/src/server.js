@@ -3,6 +3,7 @@ const { validateEnvironment } = require('./middleware/security');
 validateEnvironment();
 
 const express = require('express');
+const crypto = require('crypto');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -43,6 +44,9 @@ const io = new Server(server, {
 setupSocketIO(io);
 
 app.set('io', io);
+// Render terminates TLS in front of the app. Trust exactly one proxy hop so
+// rate limiters and audit logs see the real client IP, not the proxy address.
+app.set('trust proxy', 1);
 
 app.use(morgan('combined'));
 app.use(helmet({
@@ -96,6 +100,9 @@ app.use(mongoSanitize());
 app.use(xssProtection);
 app.use('/api/', apiLimiter);
 app.use(blacklistMiddleware);
+// Legacy verification documents may still exist in the public uploads
+// directory from before the private storage change. Never serve that folder.
+app.use('/uploads/restaurant-docs', (req, res) => res.status(404).end());
 app.use('/uploads', express.static('uploads'));
 
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/food-delivery', {
@@ -202,9 +209,17 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  const errorId = crypto.randomUUID();
+  console.error(`[ERROR ${errorId}]`, err.stack || err);
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(err.status || 500).json({
+      message: 'An error occurred. Please try again.',
+      errorId,
+    });
+  }
   res.status(err.status || 500).json({
     message: err.message || 'Internal server error',
+    errorId,
   });
 });
 

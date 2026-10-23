@@ -1,6 +1,6 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
 const DeliveryCompany = require('../models/DeliveryCompany');
+const { verifyAccessToken } = require('../security/tokenService');
 const DeliveryPartner = require('../models/DeliveryPartner');
 const DeliveryCompanyService = require('../services/DeliveryCompanyService');
 const authMiddleware = require('../middleware/auth');
@@ -14,14 +14,9 @@ function getAuthenticatedUserId(req) {
   if (req.user?.id) return req.user.id;
 
   const token = req.cookies?.token || req.header('Authorization')?.replace('Bearer ', '');
-  if (!token || !process.env.JWT_SECRET) return null;
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    return decoded.id || decoded._id || null;
-  } catch {
-    return null;
-  }
+  if (!token) return null;
+  const decoded = verifyAccessToken(token);
+  return decoded?.id || decoded?._id || null;
 }
 
 // Public registration endpoint

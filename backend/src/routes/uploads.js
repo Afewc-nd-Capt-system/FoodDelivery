@@ -1,11 +1,12 @@
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
 const upload = require('../utils/upload');
+const { validateImageMagic } = require('../utils/upload');
 const Restaurant = require('../models/Restaurant');
 
 const router = express.Router();
 
-router.post('/restaurant/:id', authMiddleware, upload.single('image'), async (req, res) => {
+router.post('/restaurant/:id', authMiddleware, upload.single('image'), validateImageMagic, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Admin access required' });
@@ -33,7 +34,7 @@ router.post('/restaurant/:id', authMiddleware, upload.single('image'), async (re
   }
 });
 
-router.post('/menu-item/:restaurantId/:itemId', authMiddleware, upload.single('image'), async (req, res) => {
+router.post('/menu-item/:restaurantId/:itemId', authMiddleware, upload.single('image'), validateImageMagic, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Admin access required' });

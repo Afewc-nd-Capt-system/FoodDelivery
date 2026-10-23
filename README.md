@@ -41,17 +41,20 @@ npm run dev
 ### MongoDB
 - `MONGODB_URI` (e.g., mongodb://localhost:27017/food-delivery)
 
-### Redis (Optional - graceful fallback)
-- `REDIS_URL` (e.g., redis://localhost:6379)
+### Redis
+- `REDIS_URL` (required in production; used for refresh-token rotation and
+  limiter state)
 
 ### JWT (Required - min 32 chars each)
 - `JWT_SECRET`
 - `JWT_REFRESH_SECRET`
 
 ### Paystack
-- `PAYSTACK_SECRET_KEY`
+- `PAYSTACK_SECRET_KEY` (also verifies webhook HMAC signatures)
 - `PAYSTACK_PUBLIC_KEY`
-- `PAYSTACK_WEBHOOK_SECRET`
+
+### Social login (optional)
+- `GOOGLE_CLIENT_ID` (social login returns 501 until this is configured)
 
 ### Email (Optional)
 - `EMAIL_SERVICE` (e.g., gmail)
@@ -74,7 +77,7 @@ npm run seed:admin        # Admin account
 npm run seed:demo         # Sample data
 npm run seed              # Original seed data
 npm run seed:permissions  # 21 system permissions
-npm run seed:rider        # Demo fleet + rider (rider@vibechops.com / Rider123!)
+npm run seed:rider        # Demo fleet + rider (requires SEED_*_PASSWORD)
 npm run migrate           # Apply pending migrations (idempotent)
 ```
 

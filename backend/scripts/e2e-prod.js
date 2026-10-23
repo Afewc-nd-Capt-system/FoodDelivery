@@ -151,6 +151,34 @@ async function main() {
     });
   }
 
+  await requestStep('production seed routes are not mounted', async () => {
+    const result = await api('/seed/init');
+    assert(result.status === 404, `seed returned ${result.status}: ${result.text}`);
+    return '404';
+  });
+
+  await requestStep('verification documents are admin-only', async () => {
+    const customerAttempt = await api('/restaurants/docs/does-not-exist.jpg', {
+      token: tokens.customer,
+    });
+    assert(customerAttempt.status === 403, `customer docs returned ${customerAttempt.status}`);
+    const anonymousAttempt = await api('/restaurants/docs/does-not-exist.jpg');
+    assert(anonymousAttempt.status === 401, `anonymous docs returned ${anonymousAttempt.status}`);
+    const adminAttempt = await api('/restaurants/docs/does-not-exist.jpg', {
+      token: tokens.admin,
+    });
+    assert(adminAttempt.status === 404, `admin docs returned ${adminAttempt.status}`);
+    return '403/401/404';
+  });
+
+  await requestStep('legacy public verification-doc path is blocked', async () => {
+    const response = await fetch(`${BASE_URL}/uploads/restaurant-docs/does-not-exist.pdf`, {
+      headers: { Origin: ORIGIN },
+    });
+    assert(response.status === 404, `legacy docs returned ${response.status}`);
+    return '404';
+  });
+
   await requestStep('refresh token rotates and reuse revokes family', async () => {
     assert(refreshTokens.customer, 'login returned no refresh token');
     const oldRefresh = refreshTokens.customer;
@@ -200,6 +228,22 @@ async function main() {
     .find(({ option }) => Number(option.price || 0) > 0);
   const customizationDelta = customization ? Number(customization.option.price) : 0;
   const expectedTotal = Number(restaurant.item.price) + customizationDelta + deliveryFee;
+
+  await requestStep('non-image upload bytes are rejected', async () => {
+    const form = new FormData();
+    form.append('image', new Blob(['this is not an image'], { type: 'image/png' }), 'fake.png');
+    const response = await fetch(`${API}/uploads/restaurant/${restaurant.found._id}`, {
+      method: 'POST',
+      headers: {
+        Origin: ORIGIN,
+        Authorization: `Bearer ${tokens.admin}`,
+      },
+      body: form,
+    });
+    const text = await response.text();
+    assert(response.status === 400, `fake image returned ${response.status}: ${text}`);
+    return '400';
+  });
 
   const order = await requestStep('create order', async () => {
     const result = await api('/orders', {
