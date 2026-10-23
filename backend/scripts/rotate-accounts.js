@@ -18,6 +18,8 @@ const SEEDED_EMAILS = [
   'delivery@vibechops.ng',
   'admin@fooddelivery.com',
   'demo@vibechops.com',
+  'rider@vibechops.com',
+  'fleet@vibechops.com',
 ];
 
 function strongPassword() {
