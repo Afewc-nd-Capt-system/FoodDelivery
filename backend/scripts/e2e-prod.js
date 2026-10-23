@@ -121,9 +121,14 @@ async function main() {
   log(`Allowed origin under test: ${ORIGIN}`);
 
   await requestStep('health', async () => {
-    const result = await api('/health');
-    assert(result.status === 200, `health returned ${result.status}`);
-    return `uptime=${Math.round(result.body?.uptime || 0)}s`;
+    const response = await fetch(`${BASE_URL}/health`, {
+      headers: { Origin: ORIGIN },
+    });
+    const text = await response.text();
+    let body = null;
+    try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+    assert(response.status === 200, `health returned ${response.status}: ${text}`);
+    return `uptime=${Math.round(body?.uptime || 0)}s`;
   });
 
   for (const role of Object.keys(accounts)) {
@@ -195,18 +200,27 @@ async function main() {
   });
 
   const payment = await requestStep('initialize payment', async () => {
-    const result = await api('/payments/initialize', {
-      method: 'POST',
-      token: tokens.customer,
-      body: {
-        orderId: order._id,
-        email: users.customer.email,
-        amount: Number(order.totalAmount),
-      },
-    });
-    assert(result.status === 200, `initialize returned ${result.status}: ${result.text}`);
-    assert(result.body?.reference, 'initialize returned no reference');
-    return result.body;
+    let last = null;
+    for (let attempt = 1; attempt <= 6; attempt += 1) {
+      const result = await api('/payments/initialize', {
+        method: 'POST',
+        token: tokens.customer,
+        body: {
+          orderId: order._id,
+          email: users.customer.email,
+          amount: Number(order.totalAmount),
+        },
+      });
+      last = result;
+      if (result.status === 200 && result.body?.reference) {
+        return { ...result.body, attempts: attempt };
+      }
+      if (result.status !== 400 || !/An error occurred/i.test(result.text)) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10000));
+    }
+    throw new Error(`initialize returned ${last?.status}: ${last?.text}`);
   });
 
   const webhookPayload = {
