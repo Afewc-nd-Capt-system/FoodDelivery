@@ -422,7 +422,7 @@ NEXT_PUBLIC_API_URL=http://localhost:5000/api
 - Commands: `npm run migrate`, `npm run migrate:list`.
 
 **Test rider**
-- `npm run seed:rider` creates demo fleet `VibeChops Demo Fleet` + rider `rider@vibechops.com` / `Rider123!` (login via `POST /api/v2/auth/login`).
+- `npm run seed:rider` creates demo fleet `VibeChops Demo Fleet` + rider `rider@vibechops.com`; the password comes from `SEED_RIDER_PASSWORD` and `SEED_COMPANY_PASSWORD` (login via `POST /api/v2/auth/login`).
 
 **Verified end-to-end on localhost**
 | Flow | Result |
