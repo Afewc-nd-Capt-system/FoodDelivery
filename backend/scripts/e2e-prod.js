@@ -85,7 +85,9 @@ async function paystackVerify(reference) {
     headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}` },
   });
   const body = await response.json();
-  assert(response.ok && body.status && body.data?.status === 'success', `Paystack verify failed: ${JSON.stringify(body)}`);
+  // An initialized checkout is normally still "abandoned" until the customer
+  // pays. The regression needs its amount/currency, not a completed charge.
+  assert(response.ok && body.status && body.data, `Paystack verify failed: ${JSON.stringify(body)}`);
   return body.data;
 }
 
