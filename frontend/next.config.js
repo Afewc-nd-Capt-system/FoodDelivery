@@ -4,6 +4,10 @@ const nextConfig = {
     return `build-${Date.now()}`
   },
   images: {
+    // The Next image optimizer has had repeated RCE/DoS advisories in the
+    // pinned Next 14 line. Serving the original CDN URLs avoids that local
+    // optimizer surface until the framework major upgrade is scheduled.
+    unoptimized: true,
     remotePatterns: [
       { protocol: 'https', hostname: 'images.unsplash.com', pathname: '**' },
       { protocol: 'https', hostname: 'res.cloudinary.com', pathname: '**' },
@@ -46,6 +50,9 @@ const nextConfig = {
   },
   experimental: {
     optimizePackageImports: ['lucide-react'],
+    serverActions: {
+      bodySizeLimit: '1mb',
+    },
   },
 }
 

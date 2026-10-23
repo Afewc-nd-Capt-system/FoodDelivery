@@ -118,6 +118,18 @@
 - IP, userAgent, location tracking
 - Separate collection for compliance
 
+### 9a. Dependency Audit Status
+- Backend: `npm audit` reports **0 vulnerabilities** after removing the
+  dev-only `nodemon` chain and updating `axios`, `nodemailer`, `morgan`,
+  `uuid`, `file-type`, `google-auth-library` and the `qs` override.
+- Frontend: `npm audit` still reports advisories in the pinned Next.js 14 /
+  Tailwind 3 toolchain (including a Next.js critical advisory). The required
+  fixes are the Next 16 + Tailwind 4 major upgrades. Until that scheduled
+  upgrade: the Next image optimizer is disabled (`images.unoptimized: true`),
+  Server Action bodies are capped at 1 MB, and the app does not use
+  attacker-controlled rewrite destinations. Treat the framework upgrade as a
+  tracked engineering task, not a completed fix.
+
 ## Test Accounts
 
 - Development seed data creates `admin@vibechops.ng`, `demo@vibechops.ng`,

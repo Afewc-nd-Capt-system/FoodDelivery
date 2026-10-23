@@ -28,6 +28,8 @@ services:
         sync: false # Set in Render dashboard
       - key: PAYSTACK_PUBLIC_KEY
         sync: false # Set in Render dashboard
+      - key: GOOGLE_CLIENT_ID
+        sync: false # Optional; social login stays 501 until configured
       - key: SEED_KEY
         sync: false # Set in Render dashboard
       - key: ENABLE_SEED
