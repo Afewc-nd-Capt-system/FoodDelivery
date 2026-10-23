@@ -113,11 +113,13 @@ export default function CartPage() {
           }
         }
 
-        // Fallback: use Paystack inline popup
+        // Fallback: use Paystack inline popup. The public key is injected at
+        // build time; never keep a test or live key in source control.
         const PaystackPop = (window as any).PaystackPop;
-        if (PaystackPop) {
+        const paystackPublicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
+        if (PaystackPop && paystackPublicKey) {
           const handler = PaystackPop.setup({
-            key: 'pk_test_cb0238963e7d12b2e4990bdc202036ceabf34952',
+            key: paystackPublicKey,
             email: user?.email || 'guest@vibechops.com',
             amount: total * 100,
             ref: `VIBE-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -133,6 +135,8 @@ export default function CartPage() {
           handler.openIframe();
           return;
         }
+
+        throw new Error('Payment could not be initialized. Please try again.');
       }
 
       // Pay on Delivery or wallet — direct order
