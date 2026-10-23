@@ -5,7 +5,11 @@ const bcrypt = require('bcryptjs');
 
 const createAdmin = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/food-delivery');
+    if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI is required');
+    if (!process.env.SEED_ADMIN_PASSWORD || process.env.SEED_ADMIN_PASSWORD.length < 12) {
+      throw new Error('SEED_ADMIN_PASSWORD must be set to at least 12 characters');
+    }
+    await mongoose.connect(process.env.MONGODB_URI);
     console.log('Connected to MongoDB');
 
     const adminExists = await User.findOne({ email: 'admin@fooddelivery.com' });
@@ -18,7 +22,7 @@ const createAdmin = async () => {
     const admin = new User({
       name: 'Admin Master',
       email: 'admin@fooddelivery.com',
-      password: 'Admin123!',
+      password: process.env.SEED_ADMIN_PASSWORD,
       phone: '+1234567890',
       address: {
         street: '123 Admin Street',
@@ -32,7 +36,7 @@ const createAdmin = async () => {
     await admin.save();
     console.log('Admin user created successfully');
     console.log('Email: admin@fooddelivery.com');
-    console.log('Password: Admin123!');
+    console.log('Password: value from SEED_ADMIN_PASSWORD');
   } catch (error) {
     console.error('Error creating admin:', error);
   } finally {

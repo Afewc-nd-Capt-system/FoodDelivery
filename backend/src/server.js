@@ -21,7 +21,7 @@ const paymentRoutes = require('./routes/payments');
 const { authLimiter, apiLimiter } = require('./middleware/rateLimiter');
 const { blacklistMiddleware } = require('./utils/tokenBlacklist');
 const { xssProtection } = require('./middleware/sanitize');
-const { connectRedis } = require('./middleware/redis');
+const { connectRedis, getClient } = require('./middleware/redis');
 const setupSocketIO = require('./socket');
 const { initializeEmailQueue } = require('./jobs/financialEmailJobs');
 
@@ -237,6 +237,8 @@ app.get('/health', (req, res) => {
     env: process.env.NODE_ENV,
     port: process.env.PORT || 5000,
     database: 'connected', // We could add actual DB check here
+    redisConfigured: Boolean(process.env.REDIS_URL),
+    redisConnected: getClient()?.status === 'ready',
   };
   
   try {

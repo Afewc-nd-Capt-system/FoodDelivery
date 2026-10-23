@@ -24,8 +24,8 @@ npm run dev
 ```
 
 ## Default Credentials
-- **Admin**: admin@fooddelivery.com / Admin123!
-- **Demo User**: demo@vibechops.com / Demo123!
+- **Admin**: set `SEED_ADMIN_PASSWORD` locally; no credentials are committed.
+- **Demo User**: set `SEED_DEMO_PASSWORD` locally; no credentials are committed.
 
 ## Access Points
 - Frontend: http://localhost:3000

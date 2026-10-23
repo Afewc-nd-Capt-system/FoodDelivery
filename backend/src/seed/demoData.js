@@ -4,11 +4,13 @@ const User = require('../models/User');
 const Restaurant = require('../models/Restaurant');
 const Vendor = require('../models/Vendor');
 const Order = require('../models/Order');
-const bcrypt = require('bcryptjs');
-
 const seedDemoData = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/food-delivery');
+    if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI is required');
+    if (!process.env.SEED_DEMO_PASSWORD || process.env.SEED_DEMO_PASSWORD.length < 12) {
+      throw new Error('SEED_DEMO_PASSWORD must be set to at least 12 characters');
+    }
+    await mongoose.connect(process.env.MONGODB_URI);
     console.log('Connected to MongoDB');
 
     // Create demo user
@@ -17,7 +19,7 @@ const seedDemoData = async () => {
       user = new User({
         name: 'Demo User',
         email: 'demo@vibechops.com',
-        password: 'Demo123!',
+        password: process.env.SEED_DEMO_PASSWORD,
         phone: '+2348012345678',
         address: { street: '123 Demo Street', city: 'Lagos', state: 'Lagos', zipCode: '10001' },
         role: 'customer'
@@ -175,8 +177,7 @@ const seedDemoData = async () => {
     }
 
     console.log('\n=== Demo Data Seed Complete ===');
-    console.log('Demo User: demo@vibechops.com / Demo123!');
-    console.log('Admin: admin@fooddelivery.com / Admin123!');
+    console.log('Demo User: demo@vibechops.com / password from SEED_DEMO_PASSWORD');
 
     process.exit(0);
   } catch (error) {

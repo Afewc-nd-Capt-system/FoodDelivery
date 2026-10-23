@@ -1,0 +1,4 @@
+#!/bin/sh
+# Install with: git config core.hooksPath .githooks
+set -eu
+node backend/scripts/secret-scan.js

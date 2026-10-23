@@ -17,6 +17,7 @@
     "migrate:list": "node src/migrations/run.js --list",
     "test": "jest --testPathPattern=tests",
     "test:e2e": "node scripts/e2e-prod.js",
+    "security:secrets": "node scripts/secret-scan.js",
     "security-audit": "npm audit --audit-level=high"
   },
   "dependencies": {

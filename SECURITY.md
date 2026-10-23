@@ -49,6 +49,23 @@
 - IP, userAgent, location tracking
 - Separate collection for compliance
 
+## Secret Handling
+
+- No production secret is stored in this repository. `render.yaml` marks every
+  secret with `sync: false`; values are entered in the Render dashboard.
+- Generate independent random values with
+  `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`.
+  Do not reuse a JWT secret as a refresh secret or as the seed key.
+- The server refuses to start in production when `MONGODB_URI`, `JWT_SECRET`,
+  `JWT_REFRESH_SECRET`, or `PAYSTACK_SECRET_KEY` is missing or is a known
+  default. `REDIS_URL` is required for refresh-token rotation and rate-limit
+  state; configure it in Render before relying on those features.
+- Run `npm run security:secrets` before committing. The optional pre-commit
+  hook is installed with `git config core.hooksPath .githooks`.
+- Git history is intentionally not rewritten. Any credential that was ever
+  committed must be treated as compromised and rotated in the provider
+  dashboard.
+
 ## Environment Variables
 
 ```env

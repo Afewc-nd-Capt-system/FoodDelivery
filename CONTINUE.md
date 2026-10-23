@@ -266,7 +266,7 @@ npm run dev
 - MongoDB: mongodb://localhost:27017/food-delivery
 
 ### Credentials
-- Admin: admin@fooddelivery.com / Admin123!
+- Admin: set `SEED_ADMIN_PASSWORD` locally; no credentials are committed.
 - Regular user: Register via UI
 
 ### Environment Variables
@@ -275,11 +275,12 @@ npm run dev
 ```
 PORT=5000
 MONGODB_URI=mongodb://localhost:27017/food-delivery
-JWT_SECRET=super-secret-jwt-key-food-delivery-app-2026-change-in-production
-PAYSTACK_SECRET_KEY=sk_live_...
+JWT_SECRET=<set in Render dashboard>
+JWT_REFRESH_SECRET=<set in Render dashboard>
+PAYSTACK_SECRET_KEY=<set in Render dashboard>
 EMAIL_SERVICE=gmail
-EMAIL_USER=your-email@gmail.com
-EMAIL_PASS=your-app-password
+EMAIL_USER=<set in Render dashboard>
+EMAIL_PASS=<set in Render dashboard>
 API_URL=http://localhost:5000
 FRONTEND_URL=http://localhost:3000
 ```
@@ -324,7 +325,7 @@ NEXT_PUBLIC_API_URL=http://localhost:5000/api
 - `demoData.js`: Fixed restaurant/vendor `address` format (string → object), added `verificationStatus: 'approved'`
 - `demoData.js`: Fixed vendor lookup query (`{ name: ... }` → `{ businessName: ... }`)
 - `PayOnDeliveryService.checkPODEligibility()`: `allowed` returned `false` when `trustedCustomer` check was `null` (not applicable). Fixed: `v === true` → `v === true || v === null`
-- Admin password `admin123!` failed User model validation (no uppercase letter). Changed to `Admin123!`
+- The old admin password failed User model validation (no uppercase letter) and was replaced with a compliant value.
 
 **New Routes Added:**
 - `POST /api/v2/delivery/orders/:id/confirm-arrival` — Rider confirms arrival, generates customer verification code (uses `DeliveryConfirmationService`)
@@ -400,7 +401,7 @@ NEXT_PUBLIC_API_URL=http://localhost:5000/api
 
 **Environment**
 - MongoDB running locally; backend started on `:5000`; frontend build passes (`next build`, 65 routes).
-- Demo/admin passwords in the DB did not match the documented credentials (`admin123!`/unknown). Reset both through the `User` model so `Admin123!` and `Demo123!` work again.
+- Demo/admin passwords in the DB did not match the documented credentials. Both were reset through the `User` model at the time; the exposed values must not be used again.
 
 **Bugs fixed**
 - **Wallet privilege escalation**: `POST /api/v2/wallet/credit` let any logged-in user credit their own wallet arbitrarily. Now admin-only, and supports `userId` for support credits. Top-up verification now rejects references belonging to another user and already-processed references.

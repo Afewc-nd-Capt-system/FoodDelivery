@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const helmet = require('helmet');
 const { z } = require('zod');
 
@@ -15,9 +16,12 @@ const envSchema = z.object({
   EMAIL_PASS: z.string().optional(),
   FRONTEND_URL: z.string().url().optional(),
   API_URL: z.string().url().optional(),
-  REDIS_URL: z.string().optional(),
+  REDIS_URL: z.string().min(1).optional(),
   HCAPTCHA_SECRET: z.string().optional(),
   HIBP_API_KEY: z.string().optional(),
+  SEED_KEY: z.string().min(1).optional(),
+  SEED_CLEAR_TOKEN: z.string().min(1).optional(),
+  ENABLE_SEED: z.enum(['true', 'false']).default('false'),
   DISABLE_RATE_LIMIT: z.enum(['true', 'false']).default('false'),
   DISABLE_MFA: z.enum(['true', 'false']).default('false'),
   UPLOAD_DIR: z.string().default('uploads'),
@@ -25,6 +29,33 @@ const envSchema = z.object({
   DEBUG: z.enum(['true', 'false']).default('false'),
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info')
 });
+
+// Hashes of credentials that have appeared in this repository's history or
+// documentation. Keeping only hashes here prevents the denylist itself from
+// re-exposing those credentials.
+const KNOWN_DEFAULT_HASHES = new Set([
+  '70fc034b210dcf070d77e786028b693423b5b93f55938c040b1740a4dc889338',
+  'd68202774a93943f7a043d3a4b7d6e2ce1232747ddcddad7eb42fa07f590fd90',
+  '3eb3fe66b31e3b4d10fa70b5cad49c7112294af6ae4e476a1c405155d45aa121',
+  '588c55f3ce2b8569b153c5abbf13f9f74308b88a20017cc699b835cc93195d16',
+]);
+const KNOWN_DEFAULT_SECRETS = new Set([
+  'your-super-secret-jwt-key-min-32-chars-change-in-production',
+  'your-super-secret-refresh-key-min-32-chars-change-in-production',
+  'sk_test_your_key_here',
+  'sk_live_...',
+  'sk_test_...',
+  'changeme',
+  'your-secret-key',
+  'secret'
+]);
+
+function isKnownDefault(value) {
+  if (!value) return true;
+  if (KNOWN_DEFAULT_SECRETS.has(value)) return true;
+  const digest = crypto.createHash('sha256').update(value).digest('hex');
+  return KNOWN_DEFAULT_HASHES.has(digest);
+}
 
 function validateEnvironment() {
   const result = envSchema.safeParse(process.env);
@@ -35,6 +66,49 @@ function validateEnvironment() {
     });
     process.exit(1);
   }
+
+  if (process.env.NODE_ENV === 'production') {
+    const required = [
+      'MONGODB_URI',
+      'JWT_SECRET',
+      'JWT_REFRESH_SECRET',
+      'PAYSTACK_SECRET_KEY',
+    ];
+    const failures = [];
+
+    for (const key of required) {
+      const value = String(process.env[key] || '').trim();
+      if (!value || isKnownDefault(value)) {
+        failures.push(`${key} is missing or uses a known default`);
+      }
+    }
+
+    const mongoUri = String(process.env.MONGODB_URI || '');
+    if (mongoUri && !/^mongodb(\+srv)?:\/\//.test(mongoUri)) {
+      failures.push('MONGODB_URI is not a MongoDB connection string');
+    }
+    if (/(?:localhost|127\.0\.0\.1)/i.test(mongoUri)) {
+      failures.push('MONGODB_URI must not point at localhost in production');
+    }
+
+    const paystackKey = String(process.env.PAYSTACK_SECRET_KEY || '').trim();
+    if (paystackKey && !/^sk_(test|live)_[A-Za-z0-9]+$/.test(paystackKey)) {
+      failures.push('PAYSTACK_SECRET_KEY is not a valid Paystack secret key');
+    }
+
+    if (process.env.JWT_SECRET && process.env.JWT_REFRESH_SECRET
+      && process.env.JWT_SECRET === process.env.JWT_REFRESH_SECRET) {
+      failures.push('JWT_SECRET and JWT_REFRESH_SECRET must be different');
+    }
+
+    if (failures.length) {
+      console.error('Production environment validation failed:');
+      failures.forEach((failure) => console.error(`  - ${failure}`));
+      console.error('Refusing to start. Set the required values in the deployment environment.');
+      process.exit(1);
+    }
+  }
+
   console.log('[SECURITY] Environment variables validated');
 }
 

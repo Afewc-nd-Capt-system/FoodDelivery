@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const User = require('../models/User');
 const DeliveryCompany = require('../models/DeliveryCompany');
 const DeliveryPartner = require('../models/DeliveryPartner');
@@ -28,10 +29,12 @@ async function seedDeliveryPartner() {
   let created = false;
 
   if (!partner) {
+    const riderPassword = process.env.SEED_RIDER_PASSWORD
+      || crypto.randomBytes(32).toString('base64url');
     partner = await DeliveryPartner.create({
       name: user.name,
       email: RIDER_EMAIL,
-      password: 'Rider@2026!',
+      password: riderPassword,
       phone: user.phone || '+2348044444444',
       vehicleType: 'bike',
       vehicleNumber: 'LAG-001-RD',

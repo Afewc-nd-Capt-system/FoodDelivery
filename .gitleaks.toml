@@ -1,0 +1,19 @@
+# Gitleaks-compatible configuration for the VibeChops repository.
+# The repository also ships a dependency-free scanner in
+# backend/scripts/secret-scan.js for environments without gitleaks installed.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documentation and example files contain placeholders, not credentials."
+paths = [
+  '''backend/\.env\.example''',
+  '''SECURITY\.md''',
+  '''README\.md''',
+  '''backend/tests/.*''',
+]
+regexes = [
+  '''<[^>]+>''',
+  '''sk_(test|live)\.\.\.''',
+  '''sk_test_your_key_here''',
+]

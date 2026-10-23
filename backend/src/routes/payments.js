@@ -6,7 +6,7 @@ const User = require('../models/User');
 
 const router = express.Router();
 
-const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || 'sk_test_your_key_here';
+const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const paystackBaseUrl = 'https://api.paystack.co';
 
 function getRawBody(req) {

@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const Restaurant = require('../models/Restaurant');
@@ -10,12 +11,27 @@ const { seedRestaurantOwner } = require('../seed/seedRestaurantOwner');
 const { seedDeliveryPartner } = require('../seed/seedDeliveryPartner');
 
 // Seed routes create privileged accounts and can wipe data, so every mutating
-// route requires the seed key. Only the read-only status endpoint stays public.
-const SEED_KEY = process.env.SEED_KEY || 'VibeChops@Seed2026!';
+// route requires a seed key supplied by the environment. There is deliberately
+// no fallback key: a missing SEED_KEY disables all mutating seed routes.
+const SEED_KEY = process.env.SEED_KEY;
+
+function safeEqual(left, right) {
+  const a = Buffer.from(String(left || ''));
+  const b = Buffer.from(String(right || ''));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+function seedPassword(envName) {
+  const password = process.env[envName];
+  if (!password || password.length < 12) {
+    throw new Error(`${envName} must be set to a value of at least 12 characters`);
+  }
+  return bcrypt.hashSync(password, 12);
+}
 
 router.use((req, res, next) => {
   if (req.method === 'GET' && req.path === '/status') return next();
-  if (req.headers['x-seed-key'] !== SEED_KEY) {
+  if (!SEED_KEY || !safeEqual(req.headers['x-seed-key'], SEED_KEY)) {
     return res.status(403).json({ error: 'Invalid seed key' });
   }
   next();
@@ -195,9 +211,6 @@ const vendorEmails = [
   'mama.ngozi@vibechops.ng', 'chef.amaka@vibechops.ng', 'chef.segun@vibechops.ng',
   'sisi.bisi@vibechops.ng', 'mama.funke@vibechops.ng', 'aunty.ada@vibechops.ng',
 ];
-
-const hashedAdminPassword = bcrypt.hashSync('VibeChops@Admin2026!', 12);
-const hashedDemoPassword = bcrypt.hashSync('Demo@2026!', 12);
 
 router.post('/restaurants', async (req, res) => {
   try {
@@ -395,6 +408,12 @@ router.post('/vendors', async (req, res) => {
 router.post('/users', async (req, res) => {
   try {
     const results = [];
+    const hashedAdminPassword = seedPassword('SEED_ADMIN_PASSWORD');
+    const hashedDemoPassword = seedPassword('SEED_DEMO_PASSWORD');
+    const hashedVendorPassword = seedPassword('SEED_VENDOR_PASSWORD');
+    const hashedRestaurantPassword = seedPassword('SEED_RESTAURANT_PASSWORD');
+    const hashedRiderPassword = seedPassword('SEED_RIDER_PASSWORD');
+    const hashedDeliveryPassword = seedPassword('SEED_DELIVERY_PASSWORD');
 
     const admin = await User.findOneAndUpdate(
       { email: 'admin@vibechops.ng' },
@@ -431,7 +450,7 @@ router.post('/users', async (req, res) => {
       { $setOnInsert: {
         name: 'Mama Ngozi',
         email: 'vendor@vibechops.ng',
-        password: bcrypt.hashSync('Vendor@2026!', 12),
+        password: hashedVendorPassword,
         phone: '+2348022222222',
         role: 'vendor',
         isVerified: true,
@@ -446,7 +465,7 @@ router.post('/users', async (req, res) => {
       { $setOnInsert: {
         name: 'Mama Cass Kitchen',
         email: 'restaurant@vibechops.ng',
-        password: bcrypt.hashSync('Restaurant@2026!', 12),
+        password: hashedRestaurantPassword,
         phone: '+2348033333333',
         role: 'restaurant',
         isVerified: true,
@@ -468,7 +487,7 @@ router.post('/users', async (req, res) => {
       { $setOnInsert: {
         name: 'Emeka Rider',
         email: 'rider@vibechops.ng',
-        password: bcrypt.hashSync('Rider@2026!', 12),
+        password: hashedRiderPassword,
         phone: '+2348044444444',
         role: 'delivery_rider',
         isVerified: true,
@@ -483,7 +502,7 @@ router.post('/users', async (req, res) => {
       { $setOnInsert: {
         name: 'Swift Delivery Co',
         email: 'delivery@vibechops.ng',
-        password: bcrypt.hashSync('Delivery@2026!', 12),
+        password: hashedDeliveryPassword,
         phone: '+2348055555555',
         role: 'delivery_company',
         isVerified: true,
@@ -589,11 +608,12 @@ router.get('/status', async (req, res) => {
 router.delete('/clear', async (req, res) => {
   try {
     const confirmationToken = req.headers['x-confirmation-token'];
+    const expectedToken = process.env.SEED_CLEAR_TOKEN;
 
-    if (confirmationToken !== 'CLEAR_ALL_DATA_CONFIRMED') {
+    if (!expectedToken || !safeEqual(confirmationToken, expectedToken)) {
       return res.status(403).json({
         error: 'Confirmation token required',
-        message: 'Add header: X-Confirmation-Token: CLEAR_ALL_DATA_CONFIRMED',
+        message: 'Set SEED_CLEAR_TOKEN and send it as X-Confirmation-Token',
       });
     }
 
