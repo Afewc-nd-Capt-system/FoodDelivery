@@ -720,6 +720,85 @@ function AdminProfileTab({ user, token }: { user: any, token: string }) {
   const [pwError, setPwError] = useState('')
   const [pwSuccess, setPwSuccess] = useState(false)
   const [activeSection, setActiveSection] = useState('info')
+  const [mfaStatus, setMfaStatus] = useState<any>(null)
+  const [mfaSetup, setMfaSetup] = useState<any>(null)
+  const [mfaCode, setMfaCode] = useState('')
+  const [mfaPassword, setMfaPassword] = useState('')
+  const [mfaError, setMfaError] = useState('')
+  const [backupCodes, setBackupCodes] = useState<string[]>([])
+  const [mfaBusy, setMfaBusy] = useState(false)
+
+  const loadMfaStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_V2}/auth/mfa/status`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) setMfaStatus(await res.json())
+    } catch {}
+  }, [token])
+
+  useEffect(() => { loadMfaStatus() }, [loadMfaStatus])
+
+  const startMfaSetup = async () => {
+    setMfaBusy(true)
+    setMfaError('')
+    try {
+      const res = await fetch(`${API_V2}/auth/mfa/setup`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message)
+      setMfaSetup(data)
+    } catch (err: any) {
+      setMfaError(err.message || 'Unable to start MFA setup')
+    } finally { setMfaBusy(false) }
+  }
+
+  const enableMfa = async () => {
+    setMfaBusy(true)
+    setMfaError('')
+    try {
+      const res = await fetch(`${API_V2}/auth/mfa/enable`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ code: mfaCode }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message)
+      setBackupCodes(data.backupCodes || [])
+      setMfaSetup(null)
+      setMfaCode('')
+      await loadMfaStatus()
+    } catch (err: any) {
+      setMfaError(err.message || 'Unable to enable MFA')
+    } finally { setMfaBusy(false) }
+  }
+
+  const disableMfa = async () => {
+    setMfaBusy(true)
+    setMfaError('')
+    try {
+      const res = await fetch(`${API_V2}/auth/mfa/disable`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ password: mfaPassword, code: mfaCode }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message)
+      setMfaPassword('')
+      setMfaCode('')
+      await loadMfaStatus()
+    } catch (err: any) {
+      setMfaError(err.message || 'Unable to disable MFA')
+    } finally { setMfaBusy(false) }
+  }
 
   const joinDate = user?.createdAt
     ? new Date(user.createdAt).toLocaleDateString('en-GB', {
@@ -1019,6 +1098,64 @@ function AdminProfileTab({ user, token }: { user: any, token: string }) {
             {pwSaving ? 'Updating...' : 'Update Password'}
           </button>
 
+          {/* MFA enrollment */}
+          <div style={{ marginTop: '32px', padding: '20px', background: '#F8FAFC', borderRadius: '16px', border: '1px solid #E2E8F0' }}>
+            <h4 style={{ fontWeight: '700', color: '#1C1C1E', margin: '0 0 8px', fontSize: '14px' }}>
+              Two-Factor Authentication
+            </h4>
+            <p style={{ color: '#636366', fontSize: '13px', margin: '0 0 16px' }}>
+              {mfaStatus?.enabled
+                ? `Enabled. ${mfaStatus.backupCodesRemaining || 0} backup codes remaining.`
+                : 'Protect admin sign-in with an authenticator app.'}
+            </p>
+
+            {mfaError && <div style={{ color: '#D32F2F', fontSize: '13px', marginBottom: '12px' }}>{mfaError}</div>}
+
+            {backupCodes.length > 0 && (
+              <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: '12px', padding: '14px', marginBottom: '16px' }}>
+                <p style={{ fontWeight: '700', fontSize: '13px', margin: '0 0 8px' }}>Save these backup codes now. They are shown once.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontFamily: 'monospace', fontSize: '13px' }}>
+                  {backupCodes.map((code) => <span key={code}>{code}</span>)}
+                </div>
+              </div>
+            )}
+
+            {!mfaStatus?.enabled && !mfaSetup && (
+              <button onClick={startMfaSetup} disabled={mfaBusy}
+                style={{ padding: '10px 20px', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: '700', background: '#1C1C1E', color: 'white' }}>
+                {mfaBusy ? 'Preparing...' : 'Set up authenticator'}
+              </button>
+            )}
+
+            {!mfaStatus?.enabled && mfaSetup && (
+              <div>
+                {mfaSetup.qrCode && <img src={mfaSetup.qrCode} alt="MFA QR code" style={{ width: '180px', height: '180px', background: 'white', padding: '8px', borderRadius: '12px' }} />}
+                <p style={{ fontSize: '12px', color: '#636366', wordBreak: 'break-all' }}>Manual key: {mfaSetup.secret}</p>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '10px', maxWidth: '360px' }}>
+                  <input value={mfaCode} onChange={e => setMfaCode(e.target.value)} placeholder="6-digit code"
+                    style={{ flex: 1, padding: '10px 12px', border: '1.5px solid #E2E8F0', borderRadius: '10px' }} />
+                  <button onClick={enableMfa} disabled={mfaBusy || !mfaCode}
+                    style={{ padding: '10px 18px', border: 'none', borderRadius: '10px', fontWeight: '700', background: '#16A34A', color: 'white', cursor: 'pointer' }}>
+                    Verify & enable
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {mfaStatus?.enabled && (
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', maxWidth: '520px' }}>
+                <input type="password" value={mfaPassword} onChange={e => setMfaPassword(e.target.value)} placeholder="Current password"
+                  style={{ flex: 1, minWidth: '150px', padding: '10px 12px', border: '1.5px solid #E2E8F0', borderRadius: '10px' }} />
+                <input value={mfaCode} onChange={e => setMfaCode(e.target.value)} placeholder="TOTP or backup code"
+                  style={{ flex: 1, minWidth: '150px', padding: '10px 12px', border: '1.5px solid #E2E8F0', borderRadius: '10px' }} />
+                <button onClick={disableMfa} disabled={mfaBusy || !mfaCode || !mfaPassword}
+                  style={{ padding: '10px 16px', border: 'none', borderRadius: '10px', fontWeight: '700', background: '#D32F2F', color: 'white', cursor: 'pointer' }}>
+                  Disable
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* Security info */}
           <div style={{
             marginTop: '32px', padding: '20px',
@@ -1030,7 +1167,7 @@ function AdminProfileTab({ user, token }: { user: any, token: string }) {
               Security Status
             </h4>
             {[
-              { label: 'Two-Factor Auth', status: 'Enabled', ok: true },
+              { label: 'Two-Factor Auth', status: mfaStatus?.enabled ? 'Enabled' : 'Not enabled', ok: Boolean(mfaStatus?.enabled) },
               { label: 'Last login', status: 'Just now', ok: true },
               { label: 'Account status', status: 'Active', ok: true },
               { label: 'Role', status: 'Super Admin', ok: true },

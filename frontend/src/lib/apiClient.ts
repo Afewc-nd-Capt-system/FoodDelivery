@@ -1,6 +1,7 @@
 'use client'
 
 import { API_V2 as API_BASE } from './apiBase'
+import { refreshAccessToken, redirectToLogin } from './authClient'
 
 export async function apiCall(
   path: string,
@@ -21,7 +22,18 @@ export async function apiCall(
     headers['Authorization'] = `Bearer ${token}`
   }
 
-  const res = await fetch(url, { ...options, headers })
+  let res = await fetch(url, { ...options, headers })
+
+  if (res.status === 401 && !(options as any).__retried && !path.startsWith('/auth/')) {
+    const refreshed = await refreshAccessToken()
+    if (refreshed) {
+      const retryOptions = { ...options, __retried: true } as RequestInit
+      const retryHeaders = { ...headers, Authorization: `Bearer ${refreshed}` }
+      res = await fetch(url, { ...retryOptions, headers: retryHeaders })
+    } else {
+      redirectToLogin()
+    }
+  }
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ message: res.statusText }))

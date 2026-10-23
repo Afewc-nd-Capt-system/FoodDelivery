@@ -1,5 +1,5 @@
-const jwt = require('jsonwebtoken');
 const { isBlacklisted } = require('../utils/tokenBlacklist');
+const { verifyAccessToken } = require('../security/tokenService');
 
 const authMiddleware = async (req, res, next) => {
   try {
@@ -13,10 +13,10 @@ const authMiddleware = async (req, res, next) => {
       return res.status(401).json({ message: 'Token has been invalidated. Please login again.' });
     }
 
-    if (!process.env.JWT_SECRET) {
-      throw new Error('JWT_SECRET must be set in environment variables');
+    const decoded = verifyAccessToken(token);
+    if (!decoded) {
+      return res.status(401).json({ message: 'Token is not valid or has expired' });
     }
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
     next();
   } catch (error) {

@@ -5,7 +5,7 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
+    "dev": "node --watch src/server.js",
     "seed": "node src/seed/seedData.js",
     "seed:subscription": "node src/seed/subscriptionPlans.js",
     "seed:delivery": "node src/seed/deliveryConfig.js",
@@ -33,25 +33,27 @@
     "express-mongo-sanitize": "2.2.0",
     "express-rate-limit": "7.1.5",
     "express-validator": "7.0.1",
+    "file-type": "^21.3.4",
+    "google-auth-library": "^10.9.1",
     "helmet": "7.1.0",
     "ioredis": "^5.10.1",
     "jsonwebtoken": "9.0.2",
     "mongoose": "^8.23.1",
-    "morgan": "1.10.1",
+    "morgan": "^1.12.1",
     "multer": "1.4.5-lts.1",
-    "nodemailer": "^8.0.7",
+    "nodemailer": "^10.2.1",
     "otplib": "12.0.1",
     "qrcode": "1.5.3",
     "redis": "4.6.10",
     "socket.io": "4.8.3",
-    "uuid": "9.0.1",
+    "uuid": "^11.1.1",
     "winston": "3.11.0",
     "zod": "3.22.4"
   },
-  "devDependencies": {
-    "nodemon": "3.0.1"
-  },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20"
+  },
+  "overrides": {
+    "qs": "^6.16.1"
   }
 }

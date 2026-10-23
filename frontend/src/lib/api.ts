@@ -1,11 +1,12 @@
 import { API_V2 as API_URL } from './apiBase';
+import { refreshAccessToken, redirectToLogin } from './authClient';
 
 interface RequestOptions {
   method?: string;
   body?: any;
 }
 
-async function request(endpoint: string, options: RequestOptions = {}) {
+async function request(endpoint: string, options: RequestOptions = {}, retried = false): Promise<any> {
   const { method = 'GET', body } = options;
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -19,6 +20,12 @@ async function request(endpoint: string, options: RequestOptions = {}) {
     credentials: 'include',
     body: body ? JSON.stringify(body) : undefined,
   });
+
+  if (res.status === 401 && !retried && !endpoint.startsWith('/auth/')) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) return request(endpoint, options, true);
+    redirectToLogin();
+  }
 
   const data = await res.json();
 
@@ -40,7 +47,13 @@ export const api = {
     updateProfile: (data: any) =>
       request('/auth/profile', { method: 'PUT', body: data }),
     logout: () =>
-      request('/auth/logout', { method: 'POST' }),
+      request('/auth/logout', { method: 'POST', body: { refreshToken: typeof window !== 'undefined' ? localStorage.getItem('refreshToken') : undefined } }),
+    refresh: (refreshToken: string) =>
+      request('/auth/refresh', { method: 'POST', body: { refreshToken } }),
+    mfaStatus: () => request('/auth/mfa/status'),
+    mfaSetup: () => request('/auth/mfa/setup', { method: 'POST' }),
+    mfaEnable: (code: string) => request('/auth/mfa/enable', { method: 'POST', body: { code } }),
+    mfaDisable: (password: string, code: string) => request('/auth/mfa/disable', { method: 'POST', body: { password, code } }),
     forgotPassword: (email: string) =>
       request('/auth/forgot-password', { method: 'POST', body: { email } }),
     resetPassword: (token: string, password: string) =>

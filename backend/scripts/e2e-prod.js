@@ -43,6 +43,7 @@ const accounts = {
 
 const results = [];
 const tokens = {};
+const refreshTokens = {};
 const users = {};
 
 function log(message) {
@@ -108,6 +109,7 @@ async function login(role) {
   assert(cors === ORIGIN, `CORS header was ${cors || '(missing)'}, expected ${ORIGIN}`);
 
   tokens[role] = result.body.token;
+  refreshTokens[role] = result.body.refreshToken;
   users[role] = result.body.user;
   return result;
 }
@@ -148,6 +150,28 @@ async function main() {
       return `${result.body.user?.email} role=${result.body.user?.role}`;
     });
   }
+
+  await requestStep('refresh token rotates and reuse revokes family', async () => {
+    assert(refreshTokens.customer, 'login returned no refresh token');
+    const oldRefresh = refreshTokens.customer;
+    const rotated = await api('/auth/refresh', {
+      method: 'POST',
+      body: { refreshToken: oldRefresh },
+    });
+    assert(rotated.status === 200, `refresh returned ${rotated.status}: ${rotated.text}`);
+    assert(rotated.body?.token && rotated.body?.refreshToken, 'refresh returned incomplete token pair');
+
+    const reused = await api('/auth/refresh', {
+      method: 'POST',
+      body: { refreshToken: oldRefresh },
+    });
+    assert(reused.status === 401, `reused refresh token returned ${reused.status}`);
+    assert(reused.body?.code === 'REFRESH_REUSE', `expected REFRESH_REUSE, got ${reused.body?.code}`);
+
+    tokens.customer = rotated.body.token;
+    refreshTokens.customer = rotated.body.refreshToken;
+    return 'rotated; replay rejected';
+  });
 
   await requestStep('customer wallet credit is forbidden', async () => {
     const result = await api('/wallet/credit', {

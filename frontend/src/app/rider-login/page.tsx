@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { API_V2 } from '@/lib/apiBase'
+import { completeMfaIfRequired, persistAuthSession } from '@/lib/authClient'
 
 export default function RiderLogin() {
   const router = useRouter()
@@ -27,11 +28,13 @@ export default function RiderLogin() {
           body: JSON.stringify({ email, password }),
         }
       )
-      const data = await res.json()
+      let data = await res.json()
       if (!res.ok) throw new Error(data.message || 'Login failed')
+      data = await completeMfaIfRequired(data)
       if (data.user?.role !== 'delivery_rider' && data.user?.role !== 'rider') {
         throw new Error('Access denied. Rider accounts only.')
       }
+      persistAuthSession(data)
       if (typeof window !== 'undefined') {
         localStorage.setItem('token', data.token)
         localStorage.setItem('user', JSON.stringify(data.user))

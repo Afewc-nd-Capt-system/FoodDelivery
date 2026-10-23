@@ -20,9 +20,10 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const response = await api.post('/auth/login', { email, password });
-      const { token, user } = response.data;
+      const { token, refreshToken, user } = response.data;
 
       await SecureStore.setItemAsync('jwt_token', token);
+      if (refreshToken) await SecureStore.setItemAsync('refresh_token', refreshToken);
       await SecureStore.setItemAsync('user_id', user._id);
 
       router.replace('/(main)');

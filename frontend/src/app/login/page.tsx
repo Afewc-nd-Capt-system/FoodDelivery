@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { API_V2 } from '@/lib/apiBase'
+import { completeMfaIfRequired, persistAuthSession } from '@/lib/authClient'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -27,8 +28,10 @@ export default function LoginPage() {
           body: JSON.stringify({ email, password }),
         }
       )
-      const data = await res.json()
+      let data = await res.json()
       if (!res.ok) throw new Error(data.message || 'Login failed')
+      data = await completeMfaIfRequired(data)
+      persistAuthSession(data)
       if (typeof window !== 'undefined') {
         localStorage.setItem('token', data.token)
         localStorage.setItem('user', JSON.stringify(data.user))

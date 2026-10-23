@@ -5,13 +5,28 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Mail, CheckCircle } from 'lucide-react';
+import { API_V2 } from '@/lib/apiBase';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = () => {
-    setSent(true);
+  const handleSubmit = async () => {
+    if (!email) return;
+    setLoading(true);
+    try {
+      await fetch(`${API_V2}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+    } catch {
+      // The endpoint intentionally returns the same response for every address.
+    } finally {
+      setLoading(false);
+      setSent(true);
+    }
   };
 
   return (
@@ -64,9 +79,10 @@ export default function ForgotPasswordPage() {
 
               <Button
                 onClick={handleSubmit}
+                disabled={loading || !email}
                 className="w-full bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white py-4 rounded-2xl font-black hover:scale-105 active:scale-95 transition-all shadow-[0_6px_20px_rgba(232,98,26,0.35)]"
               >
-                Send Reset Link
+                {loading ? 'Sending...' : 'Send Reset Link'}
               </Button>
             </div>
 

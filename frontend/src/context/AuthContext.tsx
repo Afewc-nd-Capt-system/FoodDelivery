@@ -5,6 +5,7 @@ import {
 } from 'react'
 
 import { API_V2 as BACKEND } from '@/lib/apiBase'
+import { completeMfaIfRequired, persistAuthSession, clearAuthSession } from '@/lib/authClient'
 
 interface User {
   _id: string
@@ -57,8 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(JSON.parse(storedUser))
       }
     } catch {
-      localStorage.removeItem('token')
-      localStorage.removeItem('user')
+      clearAuthSession()
     } finally {
       setLoading(false)
     }
@@ -72,12 +72,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, email, password, phone }),
     })
-    const data = await res.json()
+    let data = await res.json()
     if (!res.ok) throw new Error(data.message || 'Registration failed')
+    data = await completeMfaIfRequired(data)
 
-    localStorage.setItem('token', data.token)
-    localStorage.setItem('user', JSON.stringify(data.user))
-    localStorage.setItem('userRole', data.user.role)
+    persistAuthSession(data)
     setToken(data.token)
     setUser(data.user)
     return data.user
@@ -91,21 +90,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     })
-    const data = await res.json()
+    let data = await res.json()
     if (!res.ok) throw new Error(data.message || 'Login failed')
+    data = await completeMfaIfRequired(data)
 
-    localStorage.setItem('token', data.token)
-    localStorage.setItem('user', JSON.stringify(data.user))
-    localStorage.setItem('userRole', data.user.role)
+    persistAuthSession(data)
     setToken(data.token)
     setUser(data.user)
     return data.user
   }, [])
 
   const logout = useCallback(() => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    localStorage.removeItem('userRole')
+    const token = localStorage.getItem('token')
+    const refreshToken = localStorage.getItem('refreshToken')
+    if (token) {
+      void fetch(`${BACKEND}/auth/logout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ refreshToken }),
+      }).catch(() => {})
+    }
+    clearAuthSession()
     setToken(null)
     setUser(null)
   }, [])

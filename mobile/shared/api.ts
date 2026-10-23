@@ -54,8 +54,11 @@ class ApiClient {
                 refreshToken,
               });
 
-              const { token } = response.data;
+              const { token, refreshToken: rotatedRefreshToken } = response.data;
               await SecureStore.setItemAsync('jwt_token', token);
+              if (rotatedRefreshToken) {
+                await SecureStore.setItemAsync('refresh_token', rotatedRefreshToken);
+              }
 
               // Retry original request with new token
               originalRequest.headers.Authorization = `Bearer ${token}`;

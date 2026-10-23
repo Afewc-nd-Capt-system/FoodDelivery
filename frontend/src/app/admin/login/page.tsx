@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { API_V2 } from '@/lib/apiBase'
+import { completeMfaIfRequired, persistAuthSession } from '@/lib/authClient'
 
 export default function AdminLogin() {
   const router = useRouter()
@@ -26,11 +27,13 @@ export default function AdminLogin() {
           body: JSON.stringify({ email, password }),
         }
       )
-      const data = await res.json()
+      let data = await res.json()
       if (!res.ok) throw new Error(data.message || 'Login failed')
+      data = await completeMfaIfRequired(data)
       if (data.user?.role !== 'admin') {
         throw new Error('Access denied. Admin accounts only.')
       }
+      persistAuthSession(data)
       if (typeof window !== 'undefined') {
         localStorage.setItem('token', data.token)
         localStorage.setItem('user', JSON.stringify(data.user))

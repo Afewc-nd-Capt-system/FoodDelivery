@@ -20,7 +20,7 @@ export default function DriverLoginScreen() {
     setLoading(true);
     try {
       const response = await api.post('/auth/login', { email, password, role: 'rider' });
-      const { token, user } = response.data;
+      const { token, refreshToken, user } = response.data;
 
       if (user.role !== 'rider') {
         Alert.alert('Error', 'This is the driver app. Please use the customer app.');
@@ -28,6 +28,7 @@ export default function DriverLoginScreen() {
       }
 
       await SecureStore.setItemAsync('jwt_token', token);
+      if (refreshToken) await SecureStore.setItemAsync('refresh_token', refreshToken);
       await SecureStore.setItemAsync('user_id', user._id);
 
       router.replace('/(main)');
