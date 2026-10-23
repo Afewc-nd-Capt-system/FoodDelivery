@@ -180,6 +180,63 @@ async function main() {
     return '404';
   });
 
+  if (
+    process.env.CLOUDINARY_CLOUD_NAME &&
+    process.env.CLOUDINARY_API_KEY &&
+    process.env.CLOUDINARY_API_SECRET
+  ) {
+    await requestStep('Cloudinary verification upload is private and admin-signed', async () => {
+      const png = Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=',
+        'base64'
+      );
+      const form = new FormData();
+      form.append('cacCertificate', new Blob([png], { type: 'image/png' }), 'cac.png');
+      form.append('tinNumber', `TIN-E2E-${Date.now()}`);
+      form.append('rcNumber', `RC-E2E-${Date.now()}`);
+
+      const upload = await fetch(`${API}/restaurants/upload-docs`, {
+        method: 'POST',
+        headers: { Origin: ORIGIN, Authorization: `Bearer ${tokens.admin}` },
+        body: form,
+        signal: AbortSignal.timeout(45000),
+      });
+      const uploadBody = await upload.json().catch(() => ({}));
+      assert(upload.status === 200, `document upload returned ${upload.status}: ${JSON.stringify(uploadBody)}`);
+      const documentUrl = uploadBody.cacCertificate?.url;
+      assert(documentUrl, 'document upload returned no URL');
+
+      const anonymous = await fetch(`${BASE_URL}${documentUrl}`, {
+        headers: { Origin: ORIGIN },
+        redirect: 'manual',
+        signal: AbortSignal.timeout(45000),
+      });
+      assert(anonymous.status === 401, `anonymous document returned ${anonymous.status}`);
+
+      const customer = await fetch(`${BASE_URL}${documentUrl}`, {
+        headers: { Origin: ORIGIN, Authorization: `Bearer ${tokens.customer}` },
+        redirect: 'manual',
+        signal: AbortSignal.timeout(45000),
+      });
+      assert(customer.status === 403, `customer document returned ${customer.status}`);
+
+      const admin = await fetch(`${BASE_URL}${documentUrl}`, {
+        headers: { Origin: ORIGIN, Authorization: `Bearer ${tokens.admin}` },
+        redirect: 'manual',
+        signal: AbortSignal.timeout(45000),
+      });
+      assert(admin.status === 302, `admin document returned ${admin.status}`);
+      const location = admin.headers.get('location') || '';
+      assert(
+        location.includes('api.cloudinary.com') && location.includes('signature=') && location.includes('expires_at='),
+        'admin redirect is not a signed, expiring Cloudinary URL'
+      );
+      return 'private; signed admin redirect';
+    });
+  } else {
+    log('SKIP  Cloudinary verification upload — CLOUDINARY_* not set');
+  }
+
   await requestStep('refresh token rotates and reuse revokes family', async () => {
     assert(refreshTokens.customer, 'login returned no refresh token');
     const oldRefresh = refreshTokens.customer;

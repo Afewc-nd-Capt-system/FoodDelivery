@@ -5,6 +5,11 @@ const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const authMiddleware = require('../../middleware/auth');
 const { validateDocumentMagic } = require('../../utils/upload');
+const {
+  storeDocument,
+  decodeReference,
+  signedCloudinaryUrl,
+} = require('../../utils/documentStorage');
 const router = express.Router();
 
 // Verification documents are private. They are never under the public
@@ -61,25 +66,25 @@ router.post('/upload-docs', authMiddleware, upload.fields([
     const cacCertificate = req.files.cacCertificate[0];
     const governmentApproval = req.files.governmentApproval ? req.files.governmentApproval[0] : null;
 
-    const cacUrl = `/api/v2/restaurants/docs/${cacCertificate.filename}`;
-    const governmentUrl = governmentApproval
-      ? `/api/v2/restaurants/docs/${governmentApproval.filename}`
+    const cacStored = await storeDocument(cacCertificate);
+    const governmentStored = governmentApproval
+      ? await storeDocument(governmentApproval)
       : null;
 
     res.json({
       cacCertificate: {
-        url: cacUrl,
+        url: cacStored.url,
         uploadedAt: new Date(),
       },
-      governmentApproval: governmentUrl ? {
-        url: governmentUrl,
+      governmentApproval: governmentStored ? {
+        url: governmentStored.url,
         uploadedAt: new Date(),
       } : null,
       tinNumber,
       rcNumber,
     });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(error.status || 400).json({ message: error.message });
   }
 });
 
@@ -89,6 +94,14 @@ router.get('/docs/:filename', authMiddleware, async (req, res) => {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Admin access required' });
     }
+
+    const cloudinaryRef = decodeReference(req.params.filename);
+    if (cloudinaryRef) {
+      res.setHeader('Cache-Control', 'private, no-store');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      return res.redirect(302, signedCloudinaryUrl(cloudinaryRef));
+    }
+
     const filename = path.basename(req.params.filename);
     const filePath = path.join(documentsDir, filename);
     if (!fs.existsSync(filePath)) {
@@ -97,7 +110,8 @@ router.get('/docs/:filename', authMiddleware, async (req, res) => {
     res.setHeader('Cache-Control', 'private, no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.sendFile(filePath);
-  } catch {
+  } catch (error) {
+    console.error('[DOCS] Unable to retrieve document:', error.message);
     res.status(500).json({ message: 'Unable to retrieve document' });
   }
 });

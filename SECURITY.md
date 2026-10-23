@@ -84,21 +84,26 @@
 - Multer writes random UUID filenames and the API validates the actual file
   bytes with `file-type`; a claimed MIME type or filename is never trusted.
   Only JPEG/PNG are accepted for images; verification documents also allow PDF.
-- Verification documents live under `uploads/private/restaurant-docs` and are
-  **not** under the public static root. They are served only by
-  `GET /api/v2/restaurants/docs/:filename`, which requires an admin access
-  token and returns `Cache-Control: private, no-store`.
+- Verification documents are stored privately. When
+  `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET`
+  are all set, `src/utils/documentStorage.js` uploads them with Cloudinary
+  `type=private` and deletes the local staging copy.
+- Admin retrieval is still `GET /api/v2/restaurants/docs/:token`; Cloudinary
+  references are decoded server-side and redirected to a signed
+  `private_download_url` that expires after five minutes. Anonymous and
+  non-admin callers are rejected before the reference is resolved. Responses
+  use `Cache-Control: private, no-store`.
+- If all three Cloudinary variables are unset, uploads fall back to
+  `uploads/private/restaurant-docs` and are served by the same admin-only
+  route. Production startup logs a loud warning when this fallback is active.
 - The legacy public `/uploads/restaurant-docs/*` path is explicitly blocked
   with 404, including files left over from before this change.
-- Uploads are capped at 5 MB. Images are re-encoded only when a processing
-  adapter is configured; the current local adapter validates and renames
-  without re-encoding. Treat all uploaded content as untrusted and keep the
-  private document path behind authorization.
-- The Render starter disk is ephemeral. The optional `S3_*` / `CLOUDINARY_*`
-  variables in `render.yaml` are the adapter point for durable/remote storage;
-  implement the adapter before relying on uploads surviving a deploy or
-  scale-to-zero restart. Until then, local disk is suitable for development
-  and short-lived demos, not for production evidence retention.
+- Uploads are capped at 5 MB. The existing magic-byte validation runs before
+  either the Cloudinary upload or local persistence. Treat all uploaded
+  content as untrusted and keep the private document path behind
+  authorization.
+- Cloudinary is the durable production option. The Render starter disk is
+  ephemeral, so local fallback is for development and short-lived demos only.
 
 ### 8b. Rate Limiting and Error Handling
 - Production ignores `DISABLE_RATE_LIMIT=true` (and `DISABLE_MFA=true` prints a

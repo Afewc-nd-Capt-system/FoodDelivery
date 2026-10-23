@@ -18,7 +18,6 @@ const nextConfig = {
       'res.cloudinary.com',
       'vibechops.onrender.com',
     ],
-    unoptimized: false,
   },
   compress: true,
   poweredByHeader: false,
