@@ -4,15 +4,31 @@ const Restaurant = require('../../models/Restaurant');
 const Vendor = require('../../models/Vendor');
 const User = require('../../models/User');
 const DeliveryCompany = require('../../models/DeliveryCompany');
-const DeliveryPartner = require('../../models/DeliveryPartner');
 const Wallet = require('../../models/Wallet');
 const WalletTransaction = require('../../models/WalletTransaction');
-const LoyaltyPoints = require('../../models/LoyaltyPoints');
-const LoyaltyConfig = require('../../models/LoyaltyConfig');
-const commissionService = require('../../services/commissionService');
 const authMiddleware = require('../../middleware/auth');
 const PayOnDeliveryService = require('../../services/PayOnDeliveryService');
+const OrderCompletionService = require('../../services/OrderCompletionService');
 const router = express.Router();
+
+// GET /api/v2/orders/restaurants/orders - restaurant owner order feed
+router.get('/restaurants/orders', authMiddleware, async (req, res) => {
+  try {
+    const restaurant = await Restaurant.findOne({ owner: req.user.id });
+    if (!restaurant) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    const orders = await Order.find({
+      restaurant: restaurant._id,
+      deletedAt: null,
+    }).sort({ createdAt: -1 });
+
+    res.json({ orders });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
 
 // POST /api/v2/orders/check-pod-eligibility
 router.post('/check-pod-eligibility', authMiddleware, async (req, res) => {
@@ -110,6 +126,8 @@ router.post('/', authMiddleware, async (req, res) => {
       return res.status(400).json({ message: `Minimum order value is ₦${minOrder}` });
     }
 
+    const resolvedPaymentMethod = paymentMethod || 'cash';
+
     // Create order
     const order = new Order({
       user: req.user.id,
@@ -119,16 +137,17 @@ router.post('/', authMiddleware, async (req, res) => {
       items,
       totalAmount,
       deliveryAddress,
-      paymentMethod: paymentMethod || 'cash',
+      paymentMethod: resolvedPaymentMethod,
       deliveryFee: deliveryFee || 40,
       status: 'pending',
     });
 
     await order.save();
 
-    // Emit new_order event to restaurant/vendor room
+    // Cash orders are actionable immediately. Online orders are announced only
+    // after the Paystack webhook/verify marks them paid.
     const io = req.app.get('io');
-    if (io) {
+    if (io && resolvedPaymentMethod === 'cash') {
       const roomId = restaurantId ? `restaurant_${restaurantId}` : `vendor_${vendorId}`;
       io.of('/orders').to(roomId).emit('new_order', order);
     }
@@ -292,7 +311,11 @@ router.post('/restaurants/orders/:id/forward-delivery', authMiddleware, async (r
     // Auto-assign delivery company if not provided
     let company = deliveryCompanyId ? await DeliveryCompany.findById(deliveryCompanyId) : null;
     if (!company) {
-      company = await DeliveryCompany.findOne({ isApproved: true });
+      company = await DeliveryCompany.findOne({
+        isActive: true,
+        'verification.status': 'verified',
+        deletedAt: null,
+      });
     }
 
     if (!company) {
@@ -468,7 +491,11 @@ router.post('/vendors/orders/:id/forward-delivery', authMiddleware, async (req, 
 
     let company = deliveryCompanyId ? await DeliveryCompany.findById(deliveryCompanyId) : null;
     if (!company) {
-      company = await DeliveryCompany.findOne({ isApproved: true });
+      company = await DeliveryCompany.findOne({
+        isActive: true,
+        'verification.status': 'verified',
+        deletedAt: null,
+      });
     }
 
     if (!company) {
@@ -510,60 +537,24 @@ router.post('/:id/confirm-delivery', authMiddleware, async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to confirm this order' });
     }
 
-    order.status = 'completed';
-    order.deliveredAt = new Date();
-    await order.save();
-
-    // Credit loyalty points
-    const loyaltyConfig = await LoyaltyConfig.findOne({ isActive: true });
-    if (loyaltyConfig) {
-      const pointsEarned = Math.floor(order.totalAmount / loyaltyConfig.pointsPerNaira);
-      if (pointsEarned > 0) {
-        let loyalty = await LoyaltyPoints.findOne({ user: order.user });
-        if (!loyalty) {
-          loyalty = new LoyaltyPoints({ user: order.user, points: 0, tier: 'bronze' });
-        }
-        loyalty.points += pointsEarned;
-        
-        // Update tier
-        if (loyalty.points >= 10000) loyalty.tier = 'platinum';
-        else if (loyalty.points >= 5000) loyalty.tier = 'gold';
-        else if (loyalty.points >= 1000) loyalty.tier = 'silver';
-        
-        await loyalty.save();
-      }
-    }
-
-    // Calculate and record commissions
-    if (order.restaurant) {
-      const commission = commissionService.calculateRestaurantCommission(order.totalAmount);
-      await commissionService.recordCommission(order._id, 'restaurant', commission);
-    }
-    if (order.vendor) {
-      const commission = commissionService.calculateVendorCommission(order.totalAmount);
-      await commissionService.recordCommission(order._id, 'vendor', commission);
-    }
-    if (order.deliveryFee) {
-      const commission = commissionService.calculateDeliveryCommission(order.deliveryFee);
-      await commissionService.recordCommission(order._id, 'delivery', commission);
-    }
+    const completed = await OrderCompletionService.completeOrder(order);
 
     // Emit order_completed to all parties
     const io = req.app.get('io');
     if (io) {
-      io.of('/orders').to(`customer_${order.user}`).emit('order_completed', order);
-      if (order.restaurant) {
-        io.of('/orders').to(`restaurant_${order.restaurant}`).emit('order_completed', order);
+      io.of('/orders').to(`customer_${completed.user}`).emit('order_completed', completed);
+      if (completed.restaurant) {
+        io.of('/orders').to(`restaurant_${completed.restaurant}`).emit('order_completed', completed);
       }
-      if (order.vendor) {
-        io.of('/orders').to(`vendor_${order.vendor}`).emit('order_completed', order);
+      if (completed.vendor) {
+        io.of('/orders').to(`vendor_${completed.vendor}`).emit('order_completed', completed);
       }
-      if (order.deliveryCompany) {
-        io.of('/orders').to(`delivery_company_${order.deliveryCompany}`).emit('order_completed', order);
+      if (completed.deliveryCompany) {
+        io.of('/orders').to(`delivery_company_${completed.deliveryCompany}`).emit('order_completed', completed);
       }
     }
 
-    res.json({ order });
+    res.json({ order: completed });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }

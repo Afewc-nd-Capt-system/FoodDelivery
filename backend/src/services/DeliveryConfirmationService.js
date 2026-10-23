@@ -1,7 +1,7 @@
 const Order = require('../models/Order');
-const DeliveryPartner = require('../models/DeliveryPartner');
 const User = require('../models/User');
 const CustomerTrustService = require('./CustomerTrustService');
+const OrderCompletionService = require('./OrderCompletionService');
 const { sendDeliveryNotification } = require('../utils/email');
 
 class DeliveryConfirmationService {
@@ -57,9 +57,13 @@ class DeliveryConfirmationService {
       throw new Error('Invalid verification code');
     }
 
+    if (order.deliveryConfirmation.customerConfirmed) {
+      return order;
+    }
+
     order.deliveryConfirmation.customerConfirmed = true;
     order.deliveryConfirmation.customerConfirmedAt = new Date();
-    
+
     // If Pay on Delivery, collect payment here
     if (order.paymentMethod === 'cash' || order.paymentMethod === 'pay_on_delivery') {
       order.deliveryConfirmation.paymentCollected = true;
@@ -68,23 +72,18 @@ class DeliveryConfirmationService {
       order.isPaid = true;
     }
 
-    order.status = 'delivered';
-    order.deliveredAt = new Date();
-    
     await order.save();
 
-    // Update partner stats
-    await DeliveryPartner.findByIdAndUpdate(partnerId, {
-      currentOrder: null,
-      $inc: { earnings: 30, totalDeliveries: 1 }
-    });
+    // Completion owns loyalty, the 18% restaurant commission, delivery
+    // commission, and rider/company earnings so every completion path agrees.
+    const completed = await OrderCompletionService.completeOrder(order, { partnerId });
 
-    // Update customer trust metrics
+    // Update customer trust metrics once per order.
     await CustomerTrustService.updateTrustMetrics(order.user, 'successful_delivery', {
       paymentMethod: order.paymentMethod
     });
 
-    return order;
+    return completed;
   }
 
   static generateVerificationCode() {
