@@ -87,7 +87,7 @@ export const api = {
     initialize: (data: { orderId: string; email: string; amount: number }) =>
       request('/payments/initialize', { method: 'POST', body: data }),
     verify: (reference: string) =>
-      request('/payments/verify/' + reference),
+      request('/payments/verify', { method: 'POST', body: { reference } }),
     checkEligibility: (restaurantId: string, totalAmount: number) =>
       request(`/payments/eligibility?restaurantId=${restaurantId}&totalAmount=${totalAmount}`),
   },
