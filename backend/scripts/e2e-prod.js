@@ -2,6 +2,7 @@
 
 const crypto = require('crypto');
 const path = require('path');
+const { authenticator } = require('otplib');
 
 require('dotenv').config({
   path: path.join(__dirname, '..', '.env.e2e'),
@@ -99,13 +100,39 @@ async function login(role) {
     throw new Error(`Missing E2E credentials for ${role}`);
   }
 
-  const result = await api('/auth/login', {
+  let result = await api('/auth/login', {
     method: 'POST',
     body: { email: account.email, password: account.password },
   });
 
-  const cors = result.response.headers.get('access-control-allow-origin');
   assert(result.status === 200, `login returned ${result.status}: ${result.text}`);
+
+  // Admin MFA returns a challenge instead of a session. The E2E admin must
+  // complete it with the same TOTP secret used when MFA was enrolled. Keep the
+  // secret in the ignored backend/.env.e2e, never in source or logs.
+  if (result.body?.mfaRequired) {
+    assert(
+      role === 'admin',
+      `MFA challenge is only supported for the admin E2E account, received ${role}`
+    );
+    const totpSecret = process.env.E2E_ADMIN_TOTP_SECRET;
+    assert(
+      totpSecret,
+      'Admin MFA is enabled but E2E_ADMIN_TOTP_SECRET is missing from backend/.env.e2e'
+    );
+    assert(result.body?.mfaToken, 'MFA challenge returned no mfaToken');
+
+    const code = authenticator.generate(totpSecret.replace(/\s+/g, '').toUpperCase());
+    const verified = await api('/auth/mfa/verify', {
+      method: 'POST',
+      body: { mfaToken: result.body.mfaToken, code },
+    });
+    assert(verified.status === 200, `MFA verify returned ${verified.status}: ${verified.text}`);
+    result = verified;
+    result.mfaVerified = true;
+  }
+
+  const cors = result.response.headers.get('access-control-allow-origin');
   assert(result.body?.token, 'login returned no token');
   assert(cors === ORIGIN, `CORS header was ${cors || '(missing)'}, expected ${ORIGIN}`);
 
@@ -148,7 +175,7 @@ async function main() {
   for (const role of Object.keys(accounts)) {
     await requestStep(`login ${role} with allowed Origin`, async () => {
       const result = await login(role);
-      return `${result.body.user?.email} role=${result.body.user?.role}`;
+      return `${result.body.user?.email} role=${result.body.user?.role}${result.mfaVerified ? ' mfa=verified' : ''}`;
     });
   }
 

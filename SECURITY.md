@@ -26,7 +26,28 @@
   verify, then one-time backup codes. Admins who have enrolled are challenged
   at every password login.
 
-### 2a. Password Reset and Social Login
+### 2a. MFA in the production E2E
+- `backend/scripts/e2e-prod.js` works with MFA both off and on. When the admin
+  login returns `{ mfaRequired: true, mfaToken }`, it reads
+  `E2E_ADMIN_TOTP_SECRET` from the untracked `backend/.env.e2e`, generates the
+  current TOTP with `otplib`, and calls `POST /auth/mfa/verify` before storing
+  the returned access and refresh tokens. The MFA-off path is unchanged.
+- To obtain the base32 secret at enrollment, authenticate as the E2E admin and
+  call `POST /api/v2/auth/mfa/setup`. The response includes
+  `{ secret, otpauth, qrCode }`; the `secret` value is the base32 seed and is
+  shown only during setup. Copy it once into `backend/.env.e2e` as
+  `E2E_ADMIN_TOTP_SECRET=<base32-secret>`, then complete
+  `POST /api/v2/auth/mfa/enable` with a current code.
+- `E2E_ADMIN_TOTP_SECRET` must never be committed, printed, pasted into chat,
+  or added to `.env.example`. It is equivalent to a password: anyone holding it
+  can satisfy the admin MFA challenge. Treat `backend/.env.e2e` as a secret
+  file and restrict its permissions.
+- If MFA is enabled and the variable is absent, the E2E fails explicitly
+  instead of silently skipping the admin checks. Rotating the TOTP secret
+  requires disabling and re-enrolling admin MFA. Prefer a dedicated E2E admin
+  over the human administrator account.
+
+### 2b. Password Reset and Social Login
 - `POST /auth/forgot-password` always returns the same `200` JSON response and
   normalizes response timing whether or not the account exists.
 - The reset link is built from `FRONTEND_URL` as
