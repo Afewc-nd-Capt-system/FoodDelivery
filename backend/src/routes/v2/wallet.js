@@ -6,6 +6,7 @@ const Wallet = require('../../models/Wallet');
 const WalletTransaction = require('../../models/WalletTransaction');
 const axios = require('axios');
 const { adminGuard } = require('../../middleware/routeGuards');
+const { frontendUrl } = require('../../config/frontend');
 
 const router = express.Router();
 
@@ -100,7 +101,7 @@ router.post('/topup', authMiddleware, async (req, res) => {
       email: user.email,
       amount: Math.round(topupAmount * 100),
       reference,
-      callback_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/wallet/callback`,
+      callback_url: frontendUrl('/wallet/callback'),
       metadata: {
         wallet_topup: true,
         userId: String(req.user.id),

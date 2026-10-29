@@ -8,6 +8,7 @@ const Wallet = require('../../models/Wallet');
 const WalletTransaction = require('../../models/WalletTransaction');
 const LoyaltyPoints = require('../../models/LoyaltyPoints');
 const Order = require('../../models/Order');
+const { frontendUrl } = require('../../config/frontend');
 
 const router = express.Router();
 
@@ -37,7 +38,7 @@ router.get('/', authMiddleware, async (req, res) => {
         referralCode: referral.referralCode,
         pendingReferrals: pendingCount,
         completedReferrals: completedCount,
-        shareUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/register?ref=${referral.referralCode}`
+        shareUrl: frontendUrl(`/register?ref=${referral.referralCode}`)
       }
     });
   } catch (error) {
@@ -77,7 +78,7 @@ router.get('/my-code', authMiddleware, async (req, res) => {
         referralCode: referral.referralCode,
         pendingReferrals: pendingCount,
         completedReferrals: completedCount,
-        shareUrl: `${process.env.FRONTEND_URL}/register?ref=${referral.referralCode}`
+        shareUrl: frontendUrl(`/register?ref=${referral.referralCode}`)
       }
     });
   } catch (error) {

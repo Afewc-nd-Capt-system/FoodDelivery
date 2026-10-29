@@ -2,6 +2,7 @@ const express = require('express');
 const authMiddleware = require('../../middleware/auth');
 const GroupOrder = require('../../models/GroupOrder');
 const Order = require('../../models/Order');
+const { frontendUrl } = require('../../config/frontend');
 
 const router = express.Router();
 
@@ -29,7 +30,7 @@ router.post('/', authMiddleware, async (req, res) => {
       success: true,
       data: {
         groupOrder,
-        shareUrl: `${process.env.FRONTEND_URL}/group/${groupOrder.shareCode}`
+        shareUrl: frontendUrl(`/group/${groupOrder.shareCode}`)
       }
     });
   } catch (error) {

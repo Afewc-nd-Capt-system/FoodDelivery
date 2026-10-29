@@ -1,4 +1,15 @@
 /** @type {import('next').NextConfig} */
+const apiProxyTarget = (process.env.API_PROXY_TARGET || 'https://vibechops.onrender.com')
+  .replace(/\/+$/, '')
+  .replace(/\/api$/i, '')
+const apiHostname = (() => {
+  try {
+    return new URL(apiProxyTarget).hostname
+  } catch {
+    return 'vibechops.onrender.com'
+  }
+})()
+
 const nextConfig = {
   generateBuildId: async () => {
     return `build-${Date.now()}`
@@ -11,12 +22,12 @@ const nextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: 'images.unsplash.com', pathname: '**' },
       { protocol: 'https', hostname: 'res.cloudinary.com', pathname: '**' },
-      { protocol: 'https', hostname: 'vibechops.onrender.com', pathname: '**' },
+      { protocol: 'https', hostname: apiHostname, pathname: '**' },
     ],
     domains: [
       'images.unsplash.com',
       'res.cloudinary.com',
-      'vibechops.onrender.com',
+      apiHostname,
     ],
   },
   compress: true,
@@ -43,7 +54,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'https://vibechops.onrender.com/api/:path*',
+        destination: `${apiProxyTarget}/api/:path*`,
       },
     ]
   },

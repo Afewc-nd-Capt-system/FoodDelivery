@@ -9,6 +9,7 @@ const Wallet = require('../../models/Wallet');
 const WalletTransaction = require('../../models/WalletTransaction');
 const AdPlacement = require('../../models/AdPlacement');
 const authMiddleware = require('../../middleware/auth');
+const { frontendUrl } = require('../../config/frontend');
 const router = express.Router();
 
 // Middleware to check if user is admin
@@ -166,7 +167,7 @@ router.patch('/vendors/:id/approve', authMiddleware, adminMiddleware, async (req
             <p>Hi ${vendorUser.name},</p>
             <p>Your vendor application has been approved.</p>
             <p>You can now login to your vendor dashboard at:</p>
-            <a href="${process.env.FRONTEND_URL}/vendor-login"
+            <a href="${frontendUrl('/vendor-login')}"
                style="background:#E8621A;color:white;padding:10px 20px;border-radius:8px;text-decoration:none">
               Login to Dashboard
             </a>

@@ -1,5 +1,6 @@
 const { Queue, Worker } = require('bullmq')
 const nodemailer = require('nodemailer')
+const { frontendUrl } = require('../config/frontend')
 
 function getRedisConnection() {
   const url = process.env.REDIS_URL || 'redis://localhost:6379'
@@ -101,7 +102,7 @@ async function sendWeeklyEarningsSummary(recipientEmail, data) {
     <p>Gross: ₦${data.gross?.toLocaleString()}</p>
     <p>Commission: ₦${data.commission?.toLocaleString()}</p>
     <p>Net Earnings: ₦${data.net?.toLocaleString()}</p>
-    <a href="${process.env.FRONTEND_URL}/restaurant/dashboard">View Dashboard</a>
+    <a href="${frontendUrl('/restaurant/dashboard')}">View Dashboard</a>
   `
   await addEmailJob('weekly-earnings', recipientEmail,
     'Your VibeChops Earnings This Week', html)
@@ -112,7 +113,7 @@ async function sendSubscriptionRenewalReminder(recipientEmail, data) {
     <h2>Your ${data.planName} subscription renews in 7 days</h2>
     <p>Renewal Date: ${data.renewalDate}</p>
     <p>Amount: ₦${data.amount?.toLocaleString()}</p>
-    <a href="${process.env.FRONTEND_URL}/restaurant/subscription">Manage Subscription</a>
+    <a href="${frontendUrl('/restaurant/subscription')}">Manage Subscription</a>
   `
   await addEmailJob('subscription-reminder', recipientEmail,
     `Your VibeChops subscription renews in 7 days`, html)
@@ -144,7 +145,7 @@ async function sendAdBudgetWarning(recipientEmail, data) {
   const html = `
     <h2>Your ad campaign budget is almost used up</h2>
     <p>Remaining: ₦${data.remaining?.toLocaleString()}</p>
-    <a href="${process.env.FRONTEND_URL}/restaurant/dashboard">Top Up Budget</a>
+    <a href="${frontendUrl('/restaurant/dashboard')}">Top Up Budget</a>
   `
   await addEmailJob('ad-budget-warning', recipientEmail,
     'Your ad campaign budget is almost used up', html)

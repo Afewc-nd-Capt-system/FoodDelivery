@@ -5,6 +5,7 @@ const User = require('../../models/User');
 const Subscription = require('../../models/Subscription');
 const SubscriptionPlan = require('../../models/SubscriptionPlan');
 const axios = require('axios');
+const { frontendUrl } = require('../../config/frontend');
 
 const router = express.Router();
 
@@ -90,7 +91,7 @@ router.post('/subscribe', authMiddleware, async (req, res) => {
       email: email || user.email,
       amount: plan.monthlyPrice * 100,
       reference: reference,
-      callback_url: process.env.FRONTEND_URL + '/subscription/callback',
+      callback_url: frontendUrl('/subscription/callback'),
       metadata: {
         subscription: true,
         userId: req.user.id,

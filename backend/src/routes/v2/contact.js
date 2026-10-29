@@ -1,6 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const nodemailer = require('nodemailer')
+const { frontendUrl } = require('../../config/frontend')
 
 const transporter = nodemailer.createTransport({
   service: process.env.EMAIL_SERVICE || 'gmail',
@@ -44,7 +45,7 @@ router.post('/', async (req, res) => {
               <td style="padding:8px;border:1px solid #ddd">${message || 'N/A'}</td></tr>
         </table>
         <p style="margin-top:20px">
-          <a href="${process.env.FRONTEND_URL}/admin/login"
+          <a href="${frontendUrl('/admin/login')}"
              style="background:#E8621A;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold">
             Review in Admin Dashboard
           </a>

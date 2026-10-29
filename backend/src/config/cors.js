@@ -1,6 +1,7 @@
 'use strict';
 
-const PRODUCTION_DEFAULT_ORIGIN = 'https://food-delivery-app-ten-beta.vercel.app';
+const { getFrontendUrl, parseOrigins } = require('./frontend');
+
 const LOCAL_DEVELOPMENT_ORIGIN = 'http://localhost:3000';
 
 function normalizeOrigin(origin) {
@@ -8,16 +9,17 @@ function normalizeOrigin(origin) {
 }
 
 function getAllowedOrigins() {
-  const configured = String(process.env.ALLOWED_ORIGINS || '')
-    .split(',')
-    .map(normalizeOrigin)
-    .filter(Boolean);
+  const configured = parseOrigins(process.env.ALLOWED_ORIGINS);
 
   if (configured.length) return [...new Set(configured)];
 
-  if (process.env.NODE_ENV === 'production') {
-    return [PRODUCTION_DEFAULT_ORIGIN];
-  }
+  // Derive the browser origin from FRONTEND_URL when ALLOWED_ORIGINS is not
+  // set. In production this also covers the intended custom domain instead of
+  // a deployment-specific Vercel hostname.
+  const frontend = normalizeOrigin(getFrontendUrl());
+  if (frontend) return [frontend];
+
+  if (process.env.NODE_ENV === 'production') return [];
 
   return [LOCAL_DEVELOPMENT_ORIGIN];
 }
@@ -74,7 +76,6 @@ function corsGuard(req, res, next) {
 }
 
 module.exports = {
-  PRODUCTION_DEFAULT_ORIGIN,
   getAllowedOrigins,
   isAllowedOrigin,
   corsOptions,

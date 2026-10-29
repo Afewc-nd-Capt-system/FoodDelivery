@@ -84,14 +84,14 @@
 
 ### 7. CORS Hardening
 - Exact allowlist from `ALLOWED_ORIGINS` (comma-separated); no suffix matching
-- Production default: `https://food-delivery-app-ten-beta.vercel.app`
+- If `ALLOWED_ORIGINS` is unset, the first `FRONTEND_URL` origin is used
 - `http://localhost:3000` is added only outside production
 - Credentials only for whitelisted origins; `Vary: Origin` is set
 - Requests without an Origin (mobile/server-to-server) are allowed without
   reflecting an origin; disallowed browser origins receive no CORS grant and
   disallowed preflights return 403
-- To add the future custom domain, set one Render env var:
-  `ALLOWED_ORIGINS=https://new-domain.example,https://food-delivery-app-ten-beta.vercel.app`
+- To add the custom domain, set:
+  `ALLOWED_ORIGINS=https://vibechops.com,https://www.vibechops.com`
 
 ### 8. Paystack Webhook Security
 - HMAC-SHA512 over the **raw request body** using `PAYSTACK_SECRET_KEY`
@@ -185,6 +185,52 @@
 - Git history is intentionally not rewritten. Any credential that was ever
   committed must be treated as compromised and rotated in the provider
   dashboard.
+
+## Domain Readiness
+
+Browser-facing links are derived from `FRONTEND_URL`, falling back to the first
+entry in `ALLOWED_ORIGINS`. This covers password-reset emails, Paystack
+`callback_url` values (orders, wallet and subscriptions), referral/group-order
+share links, vendor/restaurant email links, the CSP `connectSrc`, and the
+frontend metadata base/canonical URL. No Vercel or Render hostname is baked into
+those link paths. The API client's `NEXT_PUBLIC_API_URL` and the `apiBase`
+Render fallback are intentionally unchanged; the Next rewrite target can be
+overridden with `API_PROXY_TARGET`.
+
+Run the readiness suite from `backend/`:
+
+```bash
+npm run check:domain -- vibechops.com
+# Optional: point at a different API
+API_URL=https://vibechops.onrender.com npm run check:domain -- www.vibechops.com
+```
+
+The command exits non-zero on any failure and checks:
+
+- HTTPS `200` on `/`, `/login` and `/restaurants`.
+- `www` redirects to the apex domain (or the reverse, if www is canonical).
+- CORS preflight and actual responses allow the domain and deny an evil origin.
+- A Socket.IO polling handshake succeeds from the domain.
+- No `localhost`, `127.0.0.1`, `0.0.0.0` or `[::1]` hostnames appear in any
+  served JS chunk.
+
+Production E2E uses `E2E_ORIGIN` from the untracked `backend/.env.e2e`; it must
+be an origin only (no path) and must use HTTPS outside localhost. Set it to the
+domain under test before running `npm run test:e2e`.
+
+### Render environment changes (list only)
+
+Do not apply these until DNS and the frontend deployment are ready:
+
+| Variable | New value |
+|---|---|
+| `FRONTEND_URL` | `https://vibechops.com` |
+| `ALLOWED_ORIGINS` | `https://vibechops.com,https://www.vibechops.com` |
+
+Keep `API_URL`/the API hostname unchanged. On the frontend host (Vercel or
+otherwise), set `NEXT_PUBLIC_SITE_URL=https://vibechops.com`; optionally set
+`API_PROXY_TARGET` if the API hostname changes. `E2E_ORIGIN` belongs only in the
+untracked `backend/.env.e2e`.
 
 ## Environment Variables
 

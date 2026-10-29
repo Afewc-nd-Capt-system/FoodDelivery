@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const authMiddleware = require('../middleware/auth');
 const Order = require('../models/Order');
 const User = require('../models/User');
+const { frontendUrl } = require('../config/frontend');
 
 const router = express.Router();
 
@@ -180,7 +181,7 @@ router.post('/initialize', authMiddleware, async (req, res) => {
         email: user.email,
         amount,
         reference: `order_${order._id}_${Date.now()}`,
-        callback_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/orders/verify`,
+        callback_url: frontendUrl('/orders/verify'),
         metadata: {
           orderId: String(order._id),
           userId: String(req.user.id),

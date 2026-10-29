@@ -9,6 +9,7 @@ const { sendEmail } = require('../utils/email');
 const { addToBlacklist } = require('../utils/tokenBlacklist');
 const tokens = require('../security/tokenService');
 const mfaService = require('../security/mfaService');
+const { frontendUrl } = require('../config/frontend');
 
 const router = express.Router();
 
@@ -249,7 +250,7 @@ router.post('/forgot-password', [
       user.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
       await user.save();
 
-      const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
+      const resetUrl = frontendUrl(`/reset-password?token=${resetToken}`);
       // Fire-and-forget keeps the response timing close for existing and
       // non-existing addresses; failures are logged server-side only.
       sendEmail({

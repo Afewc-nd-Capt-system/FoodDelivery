@@ -8,9 +8,31 @@ require('dotenv').config({
   path: path.join(__dirname, '..', '.env.e2e'),
 });
 
+function normalizeE2eOrigin(value) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    throw new Error('E2E_ORIGIN must be set to an absolute URL such as https://vibechops.com');
+  }
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error(`E2E_ORIGIN is not a valid URL: ${raw}`);
+  }
+  if (url.pathname !== '/' || url.search || url.hash) {
+    throw new Error('E2E_ORIGIN must be an origin only, without a path, query or hash');
+  }
+  if (url.protocol !== 'https:' && !['localhost', '127.0.0.1'].includes(url.hostname)) {
+    throw new Error('E2E_ORIGIN must use HTTPS (HTTP is only allowed for localhost)');
+  }
+  return url.origin;
+}
+
 const BASE_URL = (process.env.BASE_URL || 'https://vibechops.onrender.com').replace(/\/+$/, '');
 const API = `${BASE_URL}/api/v2`;
-const ORIGIN = process.env.E2E_ORIGIN || 'https://food-delivery-app-ten-beta.vercel.app';
+const ORIGIN = normalizeE2eOrigin(
+  process.env.E2E_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:3000'
+);
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const RIDER_PARTNER_ID = process.env.RIDER_PARTNER_ID || '6adafa60150af7e777101440';
 const RESTAURANT_NAME = process.env.E2E_RESTAURANT_NAME || 'Mama Cass Kitchen';

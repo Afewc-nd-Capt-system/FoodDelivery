@@ -24,6 +24,7 @@ const { blacklistMiddleware } = require('./utils/tokenBlacklist');
 const { xssProtection } = require('./middleware/sanitize');
 const { connectRedis, getClient } = require('./middleware/redis');
 const { corsOptions, socketCorsOptions, corsGuard } = require('./config/cors');
+const { getFrontendUrl } = require('./config/frontend');
 const setupSocketIO = require('./socket');
 const { initializeEmailQueue } = require('./jobs/financialEmailJobs');
 
@@ -56,7 +57,7 @@ app.use(helmet({
       scriptSrc: ["'self'", "https://js.paystack.co"],
       styleSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", process.env.FRONTEND_URL || 'http://localhost:3000'],
+      connectSrc: ["'self'", getFrontendUrl()],
       fontSrc: ["'self'"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
@@ -246,5 +247,5 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-  console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+  console.log(`🌐 Frontend URL: ${getFrontendUrl()}`);
 });

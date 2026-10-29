@@ -4,6 +4,7 @@ const Restaurant = require('../../models/Restaurant');
 const Order = require('../../models/Order');
 const PromoCode = require('../../models/PromoCode');
 const authMiddleware = require('../../middleware/auth');
+const { frontendUrl } = require('../../config/frontend');
 const router = express.Router();
 
 const adminMiddleware = async (req, res, next) => {
@@ -160,7 +161,7 @@ router.patch('/vendors/:id/approve', async (req, res) => {
           from: `"VibeChops" <${process.env.EMAIL_USER}>`,
           to: vendor.email,
           subject: 'Your VibeChops vendor application is approved!',
-          html: '<h2>Congratulations ' + vendor.name + '!</h2><p>Your vendor application has been approved.</p><p><a href=\"' + process.env.FRONTEND_URL + '/vendor-login\" style=\"background:#E8621A;color:white;padding:10px 20px;border-radius:8px;text-decoration:none\">Login to Dashboard</a></p>'
+          html: '<h2>Congratulations ' + vendor.name + '!</h2><p>Your vendor application has been approved.</p><p><a href=\"' + frontendUrl('/vendor-login') + '\" style=\"background:#E8621A;color:white;padding:10px 20px;border-radius:8px;text-decoration:none\">Login to Dashboard</a></p>'
         });
       } catch (emailErr) {
         console.warn('Approval email failed:', emailErr.message);
