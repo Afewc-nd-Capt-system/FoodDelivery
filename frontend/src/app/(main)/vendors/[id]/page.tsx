@@ -26,6 +26,17 @@ function formatCutoffTime(item: any) {
   });
 }
 
+function formatAddress(address: any) {
+  if (!address) return '';
+  if (typeof address === 'string') return address;
+  return address.formattedAddress
+    || [address.street, address.area, address.city, address.state].filter(Boolean).join(', ');
+}
+
+function optionGroups(item: any) {
+  return Array.isArray(item?.customizationOptions) ? item.customizationOptions : [];
+}
+
 /* ─── Pre-order Modal ───────────────────────────────── */
 function PreOrderModal({
   item, vendorName, onClose, onAddToCart, onOrderNow,
@@ -33,15 +44,38 @@ function PreOrderModal({
   item: any;
   vendorName: string;
   onClose: () => void;
-  onAddToCart: (item: any) => void;
-  onOrderNow: (item: any) => void;
+  onAddToCart: (item: any, options: Record<string, string>, qty: number, instructions: string) => void;
+  onOrderNow: (item: any, options: Record<string, string>, qty: number, instructions: string) => void;
 }) {
   const [qty, setQty] = useState(1);
   const [specialInstructions, setSpecialInstructions] = useState('');
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
 
-  const totalPrice = item.price * qty;
-  const slotsLeft = item.maxPreOrders! - (item.currentPreOrders || 0);
+  const groups = optionGroups(item);
+  const extraCost = groups.reduce((sum: number, group: any) => {
+    const chosen = selectedOptions[group.name];
+    if (!chosen) return sum;
+    const option = (group.options || []).find((o: any) => o.name === chosen);
+    return sum + Number(option?.price || 0);
+  }, 0);
+  const totalPrice = (Number(item.price) + extraCost) * qty;
+  const slotsLeft = (item.maxPreOrders ?? item.maxOrders ?? 50)
+    - (item.currentPreOrders ?? item.ordersPlaced ?? 0);
   const isFullyBooked = slotsLeft <= 0;
+  const missingRequired = groups.filter((g: any) => g.required && !selectedOptions[g.name]);
+  const canSubmit = !isFullyBooked && missingRequired.length === 0;
+
+  const submit = (
+    handler: (item: any, options: Record<string, string>, qty: number, instructions: string) => void
+  ) => {
+    if (isFullyBooked) return;
+    if (missingRequired.length > 0) {
+      alert(`Please choose ${missingRequired.map((g: any) => g.name).join(', ')}`);
+      return;
+    }
+    handler(item, selectedOptions, qty, specialInstructions);
+    onClose();
+  };
 
   return (
     <>
@@ -132,6 +166,39 @@ function PreOrderModal({
               </div>
             )}
 
+            {groups.length > 0 && (
+              <div style={{ marginBottom: '20px' }}>
+                {groups.map((group: any) => (
+                  <div key={group.name} style={{ marginBottom: '16px' }}>
+                    <p style={{ fontWeight: 700, color: '#1C1C1E', margin: '0 0 8px', fontSize: '14px' }}>
+                      {group.name}{group.required ? ' *' : ''}
+                    </p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      {(group.options || []).map((opt: any) => {
+                        const active = selectedOptions[group.name] === opt.name;
+                        return (
+                          <button
+                            key={opt.name}
+                            type="button"
+                            onClick={() => setSelectedOptions(prev => ({ ...prev, [group.name]: opt.name }))}
+                            style={{
+                              padding: '8px 14px', borderRadius: '12px',
+                              border: `2px solid ${active ? '#E8621A' : '#E8E8E8'}`,
+                              background: active ? '#FFF1E8' : 'white',
+                              color: active ? '#E8621A' : '#636366',
+                              fontWeight: 700, fontSize: '13px', cursor: 'pointer',
+                            }}
+                          >
+                            {opt.name}{Number(opt.price) > 0 ? ` +₦${Number(opt.price).toLocaleString()}` : ''}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div style={{ marginBottom: '80px' }}>
               <label style={{ fontWeight: '700', color: '#1C1C1E', display: 'block', marginBottom: '8px', fontSize: '14px' }}>
                 Special Instructions (Optional)
@@ -179,7 +246,7 @@ function PreOrderModal({
               }}>+</button>
           </div>
           <button
-            onClick={() => { onAddToCart(item); onClose(); }}
+            onClick={() => submit(onAddToCart)}
             disabled={isFullyBooked}
             style={{
               flex: 1, padding: '14px',
@@ -190,7 +257,7 @@ function PreOrderModal({
             {isFullyBooked ? 'Fully Booked' : 'Add to Cart'}
           </button>
           <button
-            onClick={() => { onOrderNow(item); }}
+            onClick={() => submit(onOrderNow)}
             disabled={isFullyBooked}
             style={{
               flex: 1, padding: '14px', border: 'none',
@@ -226,8 +293,22 @@ export default function VendorDetailPage() {
         const res = await fetch(`${API_V2}/vendors/${vendorId}`);
         const data = await res.json();
         const v = data.vendor || data;
-        setVendor(v);
-        setMenu(v.menuItems || v.items || []);
+        setVendor({
+          ...v,
+          name: v.businessName || v.name || 'Vendor',
+          image: v.image || 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=400',
+          coverImage: v.coverImage || v.image || 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=1200',
+          cuisine: Array.isArray(v.cuisine) ? v.cuisine.join(', ') : (v.cuisine || 'Nigerian'),
+          categories: Array.isArray(v.categories)
+            ? v.categories
+            : (Array.isArray(v.cuisine) ? v.cuisine : []),
+          address: formatAddress(v.address),
+          distance: v.distance || '',
+          priceRange: v.priceRange || '₦₦',
+          deliveryFee: Number(v.deliveryFee || 0),
+          minOrder: Number(v.minOrder ?? v.minOrderForDelivery ?? 0),
+        });
+        setMenu(v.menu || v.menuItems || v.items || []);
       } catch (err) {
         console.error('Failed to fetch vendor:', err);
       } finally {
@@ -244,34 +325,46 @@ export default function VendorDetailPage() {
 
   const getItemQty = (itemId: string) => items.find(i => i.id === itemId)?.quantity || 0;
 
-  const handleAddToCart = (item: any) => {
+  const handleAddToCart = (
+    item: any,
+    options: Record<string, string> = {},
+    qty = 1,
+    instructions = '',
+  ) => {
     const enriched = {
       id: item._id || item.id,
       name: item.name,
       price: item.price,
       image: item.image,
       restaurantId: vendorId,
+      vendorId,
       restaurantName: vendor?.name || '',
       category: item.category,
       description: item.description,
     };
-    addItem(enriched);
+    for (let i = 0; i < qty; i++) addItem(enriched, options);
     setModalOpen(false);
     showToast('Added to cart!');
   };
 
-  const handleOrderNow = (item: any) => {
+  const handleOrderNow = (
+    item: any,
+    options: Record<string, string> = {},
+    qty = 1,
+    instructions = '',
+  ) => {
     const enriched = {
       id: item._id || item.id,
       name: item.name,
       price: item.price,
       image: item.image,
       restaurantId: vendorId,
+      vendorId,
       restaurantName: vendor?.name || '',
       category: item.category,
       description: item.description,
     };
-    addItem(enriched);
+    for (let i = 0; i < qty; i++) addItem(enriched, options);
     setModalOpen(false);
     router.push('/cart');
   };
@@ -437,7 +530,8 @@ export default function VendorDetailPage() {
             {menu.map((item: any) => {
               const itemId = item._id || item.id;
               const qty = getItemQty(itemId);
-              const slotsLeft = (item.maxPreOrders || 0) - (item.currentPreOrders || 0);
+              const slotsLeft = (item.maxPreOrders ?? item.maxOrders ?? 50)
+                - (item.currentPreOrders ?? item.ordersPlaced ?? 0);
               const isFullyBooked = slotsLeft <= 0;
 
               return (
@@ -449,7 +543,7 @@ export default function VendorDetailPage() {
                   <div style={{ display: 'flex', gap: '16px' }}>
                     <div className="relative w-24 h-24 rounded-2xl overflow-hidden shrink-0">
                       <Image
-                        src={item.image}
+                        src={item.image || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400'}
                         alt={item.name}
                         fill
                         className="object-cover"
@@ -495,7 +589,14 @@ export default function VendorDetailPage() {
                             >−</button>
                             <span className="font-black text-sm" style={{ color: '#1C1C1E' }}>{qty}</span>
                             <button
-                              onClick={() => handleAddToCart(item)}
+                              onClick={() => {
+                                if (optionGroups(item).length > 0) {
+                                  setSelectedItem(item);
+                                  setModalOpen(true);
+                                } else {
+                                  handleAddToCart(item);
+                                }
+                              }}
                               className="w-7 h-7 rounded-lg flex items-center justify-center text-white"
                               style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}
                             >+</button>

@@ -11,7 +11,11 @@ import { Clock, CheckCircle, Package, Truck, Home, UtensilsCrossed } from 'lucid
 interface Order {
   _id: string;
   restaurantName: string;
-  items: { name: string; quantity: number }[];
+  items: {
+    name: string;
+    quantity: number;
+    customizations?: { name?: string; option: string; price?: number }[];
+  }[];
   totalAmount: number;
   status: string;
   createdAt: string;
@@ -75,7 +79,15 @@ export default function OrdersPage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="font-bold text-sm text-[#1C1C1E]">{order.restaurantName}</h3>
-                  <p className="text-xs text-[#A0A0A0]">{order.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}</p>
+                  <p className="text-xs text-[#A0A0A0]">
+                    {order.items.map(i => {
+                      const options = (i.customizations || [])
+                        .map(c => c.option)
+                        .filter(Boolean)
+                        .join(', ');
+                      return `${i.quantity}x ${i.name}${options ? ` (${options})` : ''}`;
+                    }).join(', ')}
+                  </p>
                 </div>
                 <Badge className={getStatusColor(order.status)}>
                   {order.status.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}

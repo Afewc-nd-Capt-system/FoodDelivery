@@ -457,12 +457,30 @@ export default function OrderTrackingPage() {
             <Card className="p-5">
               <h3 className="font-black mb-4">Order Summary</h3>
               <div className="space-y-3">
-                {(order?.items || []).length > 0 ? (order.items as any[]).map((item: any, i: number) => (
-                  <div key={i} className="flex justify-between text-sm">
-                    <span>{item.quantity || item.qty || 1}x {item.name || item.menuItemName || 'Item'}</span>
-                    <span className="font-semibold">₦{((item.price || item.totalPrice || 0) * (item.quantity || item.qty || 1)).toLocaleString()}</span>
-                  </div>
-                )) : (
+                {(order?.items || []).length > 0 ? (order.items as any[]).map((item: any, i: number) => {
+                  const qty = item.quantity || item.qty || 1;
+                  const optionTotal = (item.customizations || []).reduce(
+                    (sum: number, c: any) => sum + Number(c.price || 0),
+                    0
+                  );
+                  const optionLabel = (item.customizations || [])
+                    .map((c: any) => `${c.name ? `${c.name}: ` : ''}${c.option}`)
+                    .filter(Boolean)
+                    .join(', ');
+                  return (
+                    <div key={i} className="flex justify-between gap-3 text-sm">
+                      <div>
+                        <span>{qty}x {item.name || item.menuItemName || 'Item'}</span>
+                        {optionLabel && (
+                          <p className="text-xs text-[#A0A0A0] mt-0.5">{optionLabel}</p>
+                        )}
+                      </div>
+                      <span className="font-semibold shrink-0">
+                        ₦{(((item.price || item.totalPrice || 0) + optionTotal) * qty).toLocaleString()}
+                      </span>
+                    </div>
+                  );
+                }) : (
                   <div className="text-sm text-[#636366]">Order items loading...</div>
                 )}
                 <div className="pt-3 border-t border-[#F0EAE0] flex justify-between font-black text-[#E8621A]">

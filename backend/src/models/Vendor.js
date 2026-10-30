@@ -1,5 +1,36 @@
 const mongoose = require('mongoose');
 
+const customizationOptionSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+  },
+  type: {
+    type: String,
+    enum: ['single', 'multiple', 'quantity'],
+    default: 'single',
+  },
+  required: {
+    type: Boolean,
+    default: false,
+  },
+  options: [{
+    name: String,
+    price: {
+      type: Number,
+      default: 0,
+    },
+  }],
+  min: {
+    type: Number,
+    default: 1,
+  },
+  max: {
+    type: Number,
+    default: 1,
+  },
+});
+
 const menuItemSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -40,6 +71,7 @@ const menuItemSchema = new mongoose.Schema({
   },
   allowPayOnDelivery: { type: Boolean, default: true },
   podMinQuantity: { type: Number, default: 1 },
+  customizationOptions: [customizationOptionSchema],
 });
 
 const vendorSchema = new mongoose.Schema({

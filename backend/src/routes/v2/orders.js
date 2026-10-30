@@ -43,6 +43,23 @@ router.get('/restaurants/orders', authMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/v2/orders/:id - customer's own order
+router.get('/:id', authMiddleware, async (req, res) => {
+  try {
+    const order = await Order.findOne({
+      _id: req.params.id,
+      user: req.user.id,
+      deletedAt: null,
+    });
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+    res.json({ order });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
 // POST /api/v2/orders/check-pod-eligibility
 router.post('/check-pod-eligibility', authMiddleware, async (req, res) => {
   try {

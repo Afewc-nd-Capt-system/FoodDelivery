@@ -24,36 +24,50 @@ function objectId(value) {
   return String(value);
 }
 
+// Accept the canonical `customizations` array as well as the legacy cart shape
+// `{ Protein: 'Fried Chicken' }` (also arrays of strings/objects per group).
 function normalizeCustomizations(supplied) {
-  if (supplied === undefined || supplied === null) return [];
+  if (supplied === undefined || supplied === null || supplied === '') return [];
   if (Array.isArray(supplied)) return supplied;
   if (typeof supplied === 'object') {
     return Object.entries(supplied).flatMap(([group, value]) => {
-      if (Array.isArray(value)) {
-        return value.map((item) => (typeof item === 'string'
-          ? { name: group, option: item }
-          : item));
-      }
       if (value === undefined || value === null || value === '') return [];
-      return [{ name: group, option: value }];
+      const values = Array.isArray(value) ? value : [value];
+      return values.flatMap((item) => {
+        if (item === undefined || item === null || item === '') return [];
+        if (typeof item === 'string') return [{ name: group, option: item }];
+        if (typeof item === 'object') {
+          return [{
+            name: item.name || item.group || group,
+            option: item.option || item.label || item.value || '',
+          }];
+        }
+        return [];
+      });
     });
   }
   return supplied;
 }
 
 function validateCustomizations(menuItem, supplied) {
-  const selections = new Map();
-  const customizations = [];
   const input = normalizeCustomizations(supplied);
+  const groups = menuItem.customizationOptions || [];
 
   if (!Array.isArray(input)) {
-    fail(`Customizations for ${menuItem.name} must be an array`);
+    fail(`Customizations for ${menuItem.name} must be an array or an options object`);
   }
+
+  const selections = new Map();
+  const picked = new Map();
 
   for (const selection of input) {
     const groupName = String(selection?.name || selection?.group || '').trim();
-    const optionName = String(selection?.option || selection?.label || '').trim();
-    const group = (menuItem.customizationOptions || []).find((item) => item.name === groupName);
+    const optionName = String(selection?.option || selection?.label || selection?.value || '').trim();
+    if (!groupName || !optionName) {
+      fail(`Invalid customization selection for ${menuItem.name}`);
+    }
+
+    const group = groups.find((item) => item.name === groupName);
     if (!group) {
       fail(`Invalid customization group "${groupName}" for ${menuItem.name}`);
     }
@@ -63,28 +77,47 @@ function validateCustomizations(menuItem, supplied) {
       fail(`Invalid customization "${optionName}" for ${menuItem.name}`);
     }
 
-    if (!selections.has(group.name)) selections.set(group.name, new Set());
-    const chosen = selections.get(group.name);
-    if (group.type === 'single' && chosen.size >= Math.max(1, Number(group.max || 1))) {
-      fail(`Too many selections for ${group.name} on ${menuItem.name}`);
+    if (!selections.has(group.name)) {
+      selections.set(group.name, new Set());
+      picked.set(group.name, []);
     }
+    const chosen = selections.get(group.name);
+    // Ignore duplicate selections for the same group/option instead of
+    // charging the delta twice.
+    if (chosen.has(option.name)) continue;
     chosen.add(option.name);
-    customizations.push({
+    picked.get(group.name).push({
       name: group.name,
       option: option.name,
+      // Price always comes from the database menu definition.
       price: money(option.price),
     });
   }
 
-  for (const group of menuItem.customizationOptions || []) {
+  const customizations = [];
+  for (const group of groups) {
     const chosen = selections.get(group.name);
     const count = chosen ? chosen.size : 0;
-    if (group.required && count < Math.max(1, Number(group.min || 1))) {
-      fail(`${group.name} is required for ${menuItem.name}`);
+    const isSingle = group.type === 'single';
+    const max = isSingle
+      ? 1
+      : Math.max(1, Number(group.max || (group.options || []).length || 1));
+    const min = group.required
+      ? Math.max(1, Number(group.min || 1))
+      : Math.max(0, Number(group.min || 0));
+
+    // Optional groups may be left empty even when their schema min defaults to
+    // 1; once the customer starts choosing, min still applies.
+    if (count < min && (group.required || count > 0)) {
+      fail(group.required
+        ? `${group.name} is required for ${menuItem.name}`
+        : `${group.name} requires at least ${min} selection(s) for ${menuItem.name}`);
     }
-    if (count > Math.max(1, Number(group.max || 1))) {
+    if (count > max || (isSingle && count > 1)) {
       fail(`Too many selections for ${group.name} on ${menuItem.name}`);
     }
+
+    customizations.push(...(picked.get(group.name) || []));
   }
 
   return customizations;
@@ -137,7 +170,10 @@ async function priceOrder({ restaurantId, vendorId, items, promoCode }) {
       fail(`Invalid quantity for ${menuItem.name}`);
     }
 
-    const customizations = validateCustomizations(menuItem, line.customizations);
+    const customizations = validateCustomizations(
+      menuItem,
+      line.customizations !== undefined ? line.customizations : line.selectedOptions
+    );
     const customizationTotal = customizations.reduce((sum, item) => sum + Number(item.price || 0), 0);
     const unitPrice = Number(menuItem.price) + customizationTotal;
     if (!Number.isFinite(unitPrice) || unitPrice < 0) {

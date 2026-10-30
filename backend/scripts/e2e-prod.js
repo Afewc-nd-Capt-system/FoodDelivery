@@ -336,6 +336,16 @@ async function main() {
   const customizationDelta = customization ? Number(customization.option.price) : 0;
   const expectedTotal = Number(restaurant.item.price) + customizationDelta + deliveryFee;
 
+  // Jollof Rice & Chicken is the canonical required-option item used by the
+  // cart/options contract tests below.
+  const jollof = (restaurant.found.menu || []).find(
+    (item) => item.name === 'Jollof Rice & Chicken'
+      && (item.customizationOptions || []).some((group) => group.required && (group.options || []).length)
+  );
+  const proteinGroup = jollof
+    ? (jollof.customizationOptions || []).find((group) => group.required && (group.options || []).length)
+    : null;
+
   await requestStep('non-image upload bytes are rejected', async () => {
     const form = new FormData();
     form.append('image', new Blob(['this is not an image'], { type: 'image/png' }), 'fake.png');
@@ -396,6 +406,206 @@ async function main() {
       `item price ${order.items?.[0]?.price}, expected ${restaurant.item.price}`);
     assert(Number(order.promoDiscount || 0) === 0, `unexpected promo discount ${order.promoDiscount}`);
     return 'client amounts ignored';
+  });
+
+  await requestStep('(a) each required option is priced from the menu', async () => {
+    assert(jollof, 'Jollof Rice & Chicken with a required option group not found');
+    assert(proteinGroup, 'Jollof Rice & Chicken has no required option group');
+    const totals = [];
+    for (const option of proteinGroup.options) {
+      const result = await api('/orders', {
+        method: 'POST',
+        token: tokens.customer,
+        body: {
+          restaurantId: restaurant.found._id,
+          items: [{
+            menuItem: jollof._id,
+            quantity: 1,
+            // Deliberately tampered price; the server must use the DB delta.
+            customizations: [{ name: proteinGroup.name, option: option.name, price: 99999 }],
+          }],
+          deliveryAddress: '12 E2E Test Street, Ikeja, Lagos',
+          paymentMethod: 'cash',
+        },
+      });
+      assert(result.status === 201 || result.status === 200,
+        `option ${option.name} returned ${result.status}: ${result.text}`);
+      const created = result.body.order;
+      const saved = (created.items?.[0]?.customizations || [])
+        .find((item) => item.option === option.name);
+      assert(saved, `saved order has no ${option.name} customization`);
+      assert(Number(saved.price) === Number(option.price),
+        `${option.name} saved delta ${saved.price}, expected ${option.price}`);
+      const expected = Number(jollof.price) + Number(option.price) + deliveryFee;
+      assert(Number(created.totalAmount) === expected,
+        `${option.name} total ${created.totalAmount}, expected ${expected}`);
+      totals.push(`${option.name}=${created.totalAmount}`);
+    }
+    return totals.join(', ');
+  });
+
+  await requestStep('(b) missing required option is rejected with 400', async () => {
+    assert(jollof && proteinGroup, 'required-option item not found');
+    const result = await api('/orders', {
+      method: 'POST',
+      token: tokens.customer,
+      body: {
+        restaurantId: restaurant.found._id,
+        items: [{ menuItem: jollof._id, quantity: 1 }],
+        deliveryAddress: '12 E2E Test Street, Ikeja, Lagos',
+        paymentMethod: 'cash',
+      },
+    });
+    assert(result.status === 400, `expected 400, got ${result.status}: ${result.text}`);
+    assert(/required/i.test(result.body?.message || result.text),
+      `unclear rejection: ${result.body?.message || result.text}`);
+    return result.body?.message;
+  });
+
+  await requestStep('(c) unknown option is rejected and tampered price ignored', async () => {
+    assert(jollof && proteinGroup, 'required-option item not found');
+    const unknown = await api('/orders', {
+      method: 'POST',
+      token: tokens.customer,
+      body: {
+        restaurantId: restaurant.found._id,
+        items: [{
+          menuItem: jollof._id,
+          quantity: 1,
+          customizations: [{ name: proteinGroup.name, option: 'Unicorn Meat', price: 0 }],
+        }],
+        deliveryAddress: '12 E2E Test Street, Ikeja, Lagos',
+        paymentMethod: 'cash',
+      },
+    });
+    assert(unknown.status === 400, `unknown option returned ${unknown.status}: ${unknown.text}`);
+    assert(/invalid customization/i.test(unknown.body?.message || unknown.text),
+      `unclear unknown-option rejection: ${unknown.body?.message || unknown.text}`);
+
+    const chosen = proteinGroup.options.find((option) => Number(option.price) > 0)
+      || proteinGroup.options[0];
+    const tampered = await api('/orders', {
+      method: 'POST',
+      token: tokens.customer,
+      body: {
+        restaurantId: restaurant.found._id,
+        items: [{
+          menuItem: jollof._id,
+          quantity: 1,
+          customizations: [{ name: proteinGroup.name, option: chosen.name, price: 1 }],
+        }],
+        deliveryAddress: '12 E2E Test Street, Ikeja, Lagos',
+        paymentMethod: 'cash',
+      },
+    });
+    assert(tampered.status === 201 || tampered.status === 200,
+      `tampered order returned ${tampered.status}: ${tampered.text}`);
+    const saved = (tampered.body.order.items?.[0]?.customizations || [])
+      .find((item) => item.option === chosen.name);
+    assert(saved && Number(saved.price) === Number(chosen.price),
+      `tampered price was not replaced by the DB price (${saved?.price} vs ${chosen.price})`);
+    return `unknown=400; saved=${saved.price}`;
+  });
+
+  await requestStep('(d) vendor pre-order item with options is priced', async () => {
+    const list = await api('/vendors?limit=50');
+    assert(list.status === 200, `vendors returned ${list.status}`);
+    const vendorList = list.body?.vendors || list.body?.data || list.body;
+    const vendor = Array.isArray(vendorList) ? vendorList[0] : null;
+    assert(vendor, 'no vendor available for pre-order test');
+    const originalMenu = vendor.menu || [];
+    const tempItem = {
+      name: `E2E Pre-order ${Date.now()}`,
+      description: 'Temporary E2E pre-order item',
+      price: 1000,
+      image: '',
+      category: 'E2E',
+      isAvailable: true,
+      maxOrders: 10,
+      customizationOptions: [{
+        name: 'Spice Level',
+        type: 'single',
+        required: true,
+        options: [
+          { name: 'Mild', price: 0 },
+          { name: 'Hot', price: 150 },
+        ],
+        min: 1,
+        max: 1,
+      }],
+    };
+
+    try {
+      const update = await api(`/vendors/${vendor._id}`, {
+        method: 'PUT',
+        token: tokens.admin,
+        body: { menu: [...originalMenu, tempItem] },
+      });
+      assert(update.status === 200, `vendor menu update returned ${update.status}: ${update.text}`);
+      const savedItem = (update.body.menu || []).find((item) => item.name === tempItem.name);
+      assert(savedItem, 'temporary vendor menu item was not saved');
+      const hot = (savedItem.customizationOptions?.[0]?.options || [])
+        .find((option) => option.name === 'Hot');
+      assert(hot, 'temporary vendor item lost its option group');
+
+      const result = await api('/orders', {
+        method: 'POST',
+        token: tokens.customer,
+        body: {
+          vendorId: vendor._id,
+          items: [{
+            menuItem: savedItem._id,
+            quantity: 2,
+            customizations: [{ name: 'Spice Level', option: 'Hot', price: 1 }],
+          }],
+          deliveryAddress: '12 E2E Test Street, Ikeja, Lagos',
+          paymentMethod: 'cash',
+        },
+      });
+      assert(result.status === 201 || result.status === 200,
+        `vendor order returned ${result.status}: ${result.text}`);
+      const created = result.body.order;
+      assert(created.vendor, 'vendor order is not linked to a vendor');
+      const expected = (1000 + Number(hot.price)) * 2 + 40;
+      assert(Number(created.totalAmount) === expected,
+        `vendor total ${created.totalAmount}, expected ${expected}`);
+      return `vendor=${vendor.businessName} total=${created.totalAmount}`;
+    } finally {
+      await api(`/vendors/${vendor._id}`, {
+        method: 'PUT',
+        token: tokens.admin,
+        body: { menu: originalMenu },
+      });
+    }
+  });
+
+  await requestStep('(e) quantity greater than one multiplies the option delta', async () => {
+    assert(jollof && proteinGroup, 'required-option item not found');
+    const chosen = proteinGroup.options.find((option) => Number(option.price) > 0)
+      || proteinGroup.options[0];
+    const quantity = 3;
+    const result = await api('/orders', {
+      method: 'POST',
+      token: tokens.customer,
+      body: {
+        restaurantId: restaurant.found._id,
+        items: [{
+          menuItem: jollof._id,
+          quantity,
+          customizations: [{ name: proteinGroup.name, option: chosen.name }],
+        }],
+        deliveryAddress: '12 E2E Test Street, Ikeja, Lagos',
+        paymentMethod: 'cash',
+      },
+    });
+    assert(result.status === 201 || result.status === 200,
+      `quantity order returned ${result.status}: ${result.text}`);
+    const created = result.body.order;
+    const expected = (Number(jollof.price) + Number(chosen.price)) * quantity + deliveryFee;
+    assert(Number(created.items?.[0]?.quantity) === quantity, 'quantity was not persisted');
+    assert(Number(created.totalAmount) === expected,
+      `quantity total ${created.totalAmount}, expected ${expected}`);
+    return `qty=${quantity} total=${created.totalAmount}`;
   });
 
   const otherOrder = await requestStep('create order for ownership test', async () => {

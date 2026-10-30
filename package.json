@@ -4,13 +4,16 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-  "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm run dev\""
-},
+    "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm run dev\""
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
     "concurrently": "^9.2.1"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

@@ -49,6 +49,8 @@ function RestaurantDashboardPageContent() {
   const [analytics, setAnalytics] = useState<any>(null);
   const [notificationCount, setNotificationCount] = useState(0);
   const [pendingOrders, setPendingOrders] = useState<any[]>([]);
+  const [restaurantOrders, setRestaurantOrders] = useState<any[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
   const [socketConnected, setSocketConnected] = useState(false);
 
   const fetchPromotions = async () => {
@@ -79,11 +81,29 @@ function RestaurantDashboardPageContent() {
     }
   };
 
+  const fetchOrders = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/v2/orders/restaurants/orders`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setRestaurantOrders(data.orders || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch restaurant orders:', error);
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (restaurantId) {
       fetchPromotions();
       fetchAnalytics();
     }
+    fetchOrders();
   }, [restaurantId]);
 
   // Socket.io connection for real-time orders
@@ -281,7 +301,50 @@ function RestaurantDashboardPageContent() {
           <TabsContent value="orders">
             <Card className="p-5">
               <h3 className="font-bold mb-4">Recent Orders</h3>
-              <p className="text-[#636366]">Orders management coming soon...</p>
+              {ordersLoading ? (
+                <p className="text-[#636366]">Loading orders...</p>
+              ) : restaurantOrders.length === 0 ? (
+                <p className="text-[#636366]">No orders yet.</p>
+              ) : (
+                <div className="space-y-4">
+                  {restaurantOrders.map((order: any) => (
+                    <div key={order._id} className="border border-[#F0EAE0] rounded-2xl p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <p className="font-bold text-sm">#{String(order._id).slice(-8)}</p>
+                          <p className="text-xs text-[#A0A0A0]">
+                            {order.createdAt ? new Date(order.createdAt).toLocaleString() : ''}
+                          </p>
+                        </div>
+                        <Badge className="bg-[#FFF1E8] text-[#E8621A]">
+                          {order.status || 'pending'}
+                        </Badge>
+                      </div>
+                      <div className="space-y-1 mb-2">
+                        {(order.items || []).map((item: any, idx: number) => {
+                          const optionLabel = (item.customizations || [])
+                            .map((c: any) => `${c.name ? `${c.name}: ` : ''}${c.option}`)
+                            .filter(Boolean)
+                            .join(', ');
+                          return (
+                            <div key={idx} className="text-sm">
+                              <span className="font-semibold">
+                                {item.quantity || 1}x {item.name || 'Item'}
+                              </span>
+                              {optionLabel && (
+                                <span className="block text-xs text-[#A0A0A0]">{optionLabel}</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <p className="text-right font-black text-[#E8621A]">
+                        ₦{Number(order.totalAmount || 0).toLocaleString()}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Card>
           </TabsContent>
 
