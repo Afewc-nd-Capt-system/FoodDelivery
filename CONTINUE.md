@@ -7,6 +7,33 @@
 
 ---
 
+## Launch Handover (Pre-launch fixes)
+
+- **Frontend:** Next.js **15.5.28**. **Node engine:** `>=20` (Vercel runs
+  Node 24.x; backend and root `engines.node` are `>=20`).
+- **Security advisories:** all Next.js advisories cleared. Four remaining
+  **build-time postcss** advisories (2 high + 2 moderate) are documented in
+  `SECURITY.md`; they do not affect the browser runtime.
+- **Cart/options contract:** the client sends
+  `customizations: [{ name, option }]`; the server also accepts the legacy
+  `selectedOptions` object. The server validates required/min/max/single rules
+  against the restaurant or vendor menu in MongoDB, prices every delta from the
+  DB (client prices are ignored), and persists the chosen options on each order
+  line.
+- **Order views:** customer tracking, customer orders, restaurant dashboard
+  orders tab, and rider incoming orders show the chosen options.
+- **Legacy route:** `/restaurants/[id]` redirects to `/restaurant/[id]`.
+- **Tests:**
+  - `cd backend && npm run test:e2e` — production E2E, including options
+    contract cases (a)–(e).
+  - `cd backend && BASE_URL=https://vibechops.com npm run test:smoke` —
+    six logins, admin tabs, restaurants/menu modal with a required option,
+    add to cart, Paystack redirect, and rider/vendor/restaurant dashboards.
+  - `SMOKE_API_URL` can override the direct API root; `SMOKE_BYPASS` is only
+    for protected previews.
+
+---
+
 ## PHASE 1: RETENTION & LOYALTY (✅ COMPLETED)
 
 ### New Backend Models

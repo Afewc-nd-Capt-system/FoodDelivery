@@ -58,20 +58,24 @@ export default function CartPage() {
   const handlePlaceOrder = async () => {
     setPlacing(true);
     try {
-      // Build order payload
+      // Build order payload. The server validates every option against the
+      // menu in the database and computes prices; we only send selections.
+      const firstItem = items[0];
       const orderPayload = {
         items: items.map(i => ({
           menuItem: i.id,
           name: i.name,
           quantity: i.quantity,
-          price: i.price,
-          selectedOptions: i.selectedOptions,
+          customizations: Object.entries(i.selectedOptions || {}).map(
+            ([name, option]) => ({ name, option })
+          ),
         })),
-        totalAmount: total,
         deliveryAddress: address,
         paymentMethod: paymentMethod === 'paystack' ? 'card' : paymentMethod,
-        restaurantId: items[0]?.restaurantId,
-        restaurantName: items[0]?.restaurantName || 'Restaurant',
+        ...(firstItem?.vendorId
+          ? { vendorId: firstItem.vendorId }
+          : { restaurantId: firstItem?.restaurantId }),
+        restaurantName: firstItem?.restaurantName || 'Restaurant',
       };
 
       // Call API to create order

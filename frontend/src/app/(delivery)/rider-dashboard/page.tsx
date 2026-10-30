@@ -528,6 +528,24 @@ function RiderOrdersTab({ onOrdersChange }: { onOrdersChange: React.Dispatch<Rea
                 <MapPin size={14} />
                 <span>{typeof order.pickupAddress === 'object' ? `${order.pickupAddress.street || ''}, ${order.pickupAddress.city || ''}` : order.pickupAddress || order.restaurantAddress || order.address || 'Address'}</span>
               </div>
+              {Array.isArray(order.items) && order.items.length > 0 && (
+                <div className="mb-3 rounded-xl p-3" style={{ background: '#FAFAFA' }}>
+                  {order.items.map((item: any, idx: number) => {
+                    const optionLabel = (item.customizations || [])
+                      .map((c: any) => `${c.name ? `${c.name}: ` : ''}${c.option}`)
+                      .filter(Boolean)
+                      .join(', ');
+                    return (
+                      <div key={idx} className="text-xs" style={{ color: '#1C1C1E' }}>
+                        <span className="font-semibold">{item.quantity || 1}x {item.name || 'Item'}</span>
+                        {optionLabel && (
+                          <span className="block mt-0.5" style={{ color: '#A0A0A0' }}>{optionLabel}</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               <div className="flex items-center gap-3 text-xs mb-4">
                 <span className="bg-[#F5F5F5] px-3 py-1.5 rounded-lg">{order.distance || '3.2 km'}</span>
                 <span className="bg-[#F5F5F5] px-3 py-1.5 rounded-lg">{order.estimatedTime || '15 min'}</span>

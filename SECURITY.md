@@ -1,5 +1,19 @@
 # VibeChops Security Documentation
 
+## Dependency and Runtime Baseline
+
+- Frontend: Next.js **15.5.28** (App Router). Node engine: **>=20** (production
+  Vercel project runs Node 24.x; backend `engines.node` is `>=20`).
+- `npm audit` after the upgrade reports **no Next.js advisories**. The four
+  remaining advisories are **build-time only** (`postcss` dependency tree):
+  **2 high + 2 moderate**. They are not shipped to the browser runtime and are
+  tracked until a compatible `postcss` release removes them.
+- Production smoke: `cd backend && BASE_URL=https://vibechops.com npm run test:smoke`.
+  The smoke test asserts the deployed frontend calls the direct Render API
+  (`NEXT_PUBLIC_API_URL`), not the same-origin `/api` proxy.
+- Production E2E: `cd backend && npm run test:e2e` (targets Render; includes the
+  cart/options contract checks).
+
 ## Security Features Implemented
 
 ### 1. JWT Hardening
