@@ -13,3 +13,4 @@ Thumbs.db
 !/backend/uploads/.gitkeep
 /backend/backups/
 .vercel
+backend/scripts/smoke-report.json
