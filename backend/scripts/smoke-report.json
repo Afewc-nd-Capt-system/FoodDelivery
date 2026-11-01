@@ -1,0 +1,178 @@
+{
+  "base": "https://food-delivery-app-ten-beta.vercel.app",
+  "api": "https://vibechops.onrender.com/api/v2",
+  "results": [
+    {
+      "name": "login admin",
+      "ok": true,
+      "detail": "path=/admin/login role=admin token=true"
+    },
+    {
+      "name": "login customer",
+      "ok": true,
+      "detail": "path=/login role=customer token=true"
+    },
+    {
+      "name": "login vendor",
+      "ok": true,
+      "detail": "path=/vendor-login role=vendor token=true"
+    },
+    {
+      "name": "login restaurant",
+      "ok": true,
+      "detail": "path=/restaurant-login role=restaurant token=true"
+    },
+    {
+      "name": "login rider",
+      "ok": true,
+      "detail": "path=/rider-login role=delivery_rider token=true"
+    },
+    {
+      "name": "login delivery",
+      "ok": true,
+      "detail": "path=/delivery-company-login role=delivery_company token=true"
+    },
+    {
+      "name": "admin tab Dashboard (/admin/dashboard)",
+      "ok": true,
+      "detail": "status=200 chars=478"
+    },
+    {
+      "name": "admin tab Restaurants (/admin/restaurants)",
+      "ok": true,
+      "detail": "status=200 chars=1355"
+    },
+    {
+      "name": "admin tab Companies (/admin/companies)",
+      "ok": true,
+      "detail": "status=200 chars=1355"
+    },
+    {
+      "name": "admin tab Revenue (/admin/revenue)",
+      "ok": true,
+      "detail": "status=200 chars=296"
+    },
+    {
+      "name": "admin tab Users (/users)",
+      "ok": true,
+      "detail": "status=200 chars=1355"
+    },
+    {
+      "name": "restaurants list loads",
+      "ok": true,
+      "detail": "status=200 chars=1915"
+    },
+    {
+      "name": "restaurants API returns data",
+      "ok": true,
+      "detail": "count=12"
+    },
+    {
+      "name": "restaurant with required option exists",
+      "ok": true,
+      "detail": "Mama Cass Kitchen / Jollof Rice & Chicken"
+    },
+    {
+      "name": "restaurant menu page loads",
+      "ok": true,
+      "detail": "name=Mama Cass Kitchen chars=1124"
+    },
+    {
+      "name": "menu item modal opens",
+      "ok": true,
+      "detail": "item=Jollof Rice & Chicken"
+    },
+    {
+      "name": "required menu options selected",
+      "ok": true,
+      "detail": "Protein"
+    },
+    {
+      "name": "menu modal has Add to Cart",
+      "ok": true,
+      "detail": "item=Jollof Rice & Chicken"
+    },
+    {
+      "name": "customized item added to cart",
+      "ok": true,
+      "detail": "item=Jollof Rice & Chicken"
+    },
+    {
+      "name": "cart page loads customized item",
+      "ok": true,
+      "detail": "item=Jollof Rice & Chicken option=Fried Chicken"
+    },
+    {
+      "name": "Paystack pay button present",
+      "ok": true,
+      "detail": "count=1"
+    },
+    {
+      "name": "cart initializes Paystack payment",
+      "ok": true,
+      "detail": "https://checkout.paystack.com/hbucgjh27e7ii1s"
+    },
+    {
+      "name": "cart redirects to Paystack",
+      "ok": true,
+      "detail": "https://food-delivery-app-ten-beta.vercel.app/cart"
+    },
+    {
+      "name": "rider dashboard",
+      "ok": true,
+      "detail": "chars=1067"
+    },
+    {
+      "name": "vendor dashboard",
+      "ok": true,
+      "detail": "chars=745"
+    },
+    {
+      "name": "restaurant dashboard",
+      "ok": true,
+      "detail": "chars=1014"
+    },
+    {
+      "name": "frontend calls direct Render API",
+      "ok": true,
+      "detail": "34 direct request(s) to https://vibechops.onrender.com"
+    },
+    {
+      "name": "frontend does not use /api proxy",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 401 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 401 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 401 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()"
+  ],
+  "failedRequests": [
+    "GET https://images.unsplash.com/photo-1563379928-8602815af19b?w=800&q=80 :: net::ERR_BLOCKED_BY_ORB",
+    "GET https://food-delivery-app-ten-beta.vercel.app/vendor-dashboard?_rsc=7nrxOgID70YaxCgW :: net::ERR_ABORTED",
+    "GET https://food-delivery-app-ten-beta.vercel.app/restaurant/register?_rsc=H4WO2scmmyJ1EPoM :: net::ERR_ABORTED",
+    "GET https://food-delivery-app-ten-beta.vercel.app/rider-dashboard?_rsc=SeKI8uICi0LJ-Uly :: net::ERR_ABORTED",
+    "GET https://food-delivery-app-ten-beta.vercel.app/restaurants?_rsc=WPwURgSsD3Uij2Uu :: net::ERR_ABORTED",
+    "GET https://food-delivery-app-ten-beta.vercel.app/delivery-company/register?_rsc=FKUol40YWs0kcp-4 :: net::ERR_ABORTED",
+    "GET https://food-delivery-app-ten-beta.vercel.app/admin?_rsc=xgBSul-hzHcp5mos :: net::ERR_ABORTED",
+    "GET https://food-delivery-app-ten-beta.vercel.app/restaurants?_rsc=egdzDPYjUkQVGzdn :: net::ERR_ABORTED",
+    "GET https://food-delivery-app-ten-beta.vercel.app/vendors?_rsc=egdzDPYjUkQVGzdn :: net::ERR_ABORTED",
+    "GET https://food-delivery-app-ten-beta.vercel.app/admin?_rsc=_oRvYWDhYgy23P35 :: net::ERR_ABORTED",
+    "GET https://food-delivery-app-ten-beta.vercel.app/?_rsc=8FnsSVgK56dTmMgj :: net::ERR_ABORTED",
+    "GET https://food-delivery-app-ten-beta.vercel.app/restaurants?_rsc=UwOONBlZlOMAhYe6 :: net::ERR_ABORTED",
+    "GET https://food-delivery-app-ten-beta.vercel.app/?_rsc=egdzDPYjUkQVGzdn :: net::ERR_ABORTED",
+    "GET https://food-delivery-app-ten-beta.vercel.app/vendors?_rsc=egdzDPYjUkQVGzdn :: net::ERR_ABORTED",
+    "GET https://checkout.paystack.com/hbucgjh27e7ii1s :: net::ERR_FAILED",
+    "GET https://checkout.paystack.com/hbucgjh27e7ii1s :: net::ERR_FAILED",
+    "GET https://checkout.paystack.com/hbucgjh27e7ii1s :: net::ERR_FAILED",
+    "GET https://food-delivery-app-ten-beta.vercel.app/vendor/orders?_rsc=KRVlJ9uYVjTgsLp- :: net::ERR_ABORTED"
+  ]
+}

@@ -43,6 +43,29 @@ router.get('/restaurants/orders', authMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/v2/orders/ - the signed-in customer's orders
+router.get('/', authMiddleware, async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 10, 1), 50);
+    const total = await Order.countDocuments({ user: req.user.id });
+    const orders = await Order.find({ user: req.user.id })
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .populate('restaurant', 'name');
+
+    res.json({
+      orders,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // GET /api/v2/orders/:id - customer's own order
 router.get('/:id', authMiddleware, async (req, res) => {
   try {

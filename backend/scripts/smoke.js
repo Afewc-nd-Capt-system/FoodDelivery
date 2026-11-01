@@ -345,6 +345,20 @@ async function fetchRestaurants() {
     }
   }
 
+  // ---- Customer orders page: real orders with chosen options ----
+  if (sessions.customer) {
+    try {
+      const res = await gotoPage(sessions.customer.page, BASE + '/orders');
+      const text = await bodyText(sessions.customer.page);
+      const mockVisible = /Spice Garden|Burger Barn|Dragon Palace/.test(text);
+      const ok = res && res.status() === 200 && !mockVisible
+        && (/No orders yet/.test(text) || /₦/.test(text));
+      check('customer orders page is live data', ok, `chars=${text.length}`);
+    } catch (error) {
+      check('customer orders page is live data', false, error.message);
+    }
+  }
+
   // ---- Deployment contract: direct Render API, never the same-origin proxy ----
   const directApiRequests = apiRequests.filter((url) => url.startsWith(API_ORIGIN));
   const proxyApiRequests = apiRequests.filter((url) => url.startsWith(BASE) && /\/api\/v2\//.test(url));

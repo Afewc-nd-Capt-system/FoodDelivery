@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { API_V2 } from '@/lib/apiBase';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,7 +11,8 @@ import { Clock, CheckCircle, Package, Truck, Home, UtensilsCrossed } from 'lucid
 
 interface Order {
   _id: string;
-  restaurantName: string;
+  restaurantName?: string;
+  restaurant?: { name?: string } | string;
   items: {
     name: string;
     quantity: number;
@@ -36,22 +38,42 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
-    // Mock data
-    setOrders([
-      { _id: 'ORD-8021', restaurantName: 'Spice Garden', items: [{ name: 'Butter Chicken', quantity: 2 }, { name: 'Garlic Naan', quantity: 3 }], totalAmount: 9400, status: 'delivered', createdAt: '2026-05-03', deliveryAddress: '123 Main St' },
-      { _id: 'ORD-7980', restaurantName: 'Burger Barn', items: [{ name: 'Classic Cheeseburger', quantity: 2 }], totalAmount: 7200, status: 'preparing', createdAt: '2026-05-01', deliveryAddress: '456 Oak Ave' },
-      { _id: 'ORD-7890', restaurantName: 'Dragon Palace', items: [{ name: 'Kung Pao Chicken', quantity: 1 }], totalAmount: 8800, status: 'out-for-delivery', createdAt: '2026-04-28', deliveryAddress: '789 Pine Rd' },
-    ]);
-    setLoading(false);
+    if (!user || !token) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const response = await fetch(`${API_V2}/orders?limit=10`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.message || `status ${response.status}`);
+        if (!cancelled) setOrders(body.orders || []);
+      } catch (error) {
+        console.error('Failed to load orders:', error);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, [user, token]);
 
   const getStatusStep = (status: string) => {
-    return statusSteps.findIndex(s => s.key === status);
+    const normalizedStatus = (status || 'pending').replace(/_/g, '-');
+    const stepIndex = statusSteps.findIndex((step) => {
+      if (step.key === 'pending') return ['pending', 'confirmed'].includes(normalizedStatus);
+      if (step.key === 'preparing') return ['accepted', 'preparing', 'ready', 'awaiting-pickup', 'assigned'].includes(normalizedStatus);
+      if (step.key === 'out-for-delivery') return ['picked-up', 'out-for-delivery'].includes(normalizedStatus);
+      return ['completed', 'delivered'].includes(normalizedStatus);
+    });
+    return stepIndex;
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
+    const normalized = (status || '').replace(/_/g, '-');
+    switch (normalized) {
       case 'delivered': return 'bg-[#F0FDF4] text-[#16A34A]';
       case 'preparing': return 'bg-[#FFF1E8] text-[#E8621A]';
       case 'out-for-delivery': return 'bg-[#EFF6FF] text-[#2563EB]';
@@ -59,7 +81,7 @@ export default function OrdersPage() {
     }
   };
 
-  if (loading) {
+  if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#E8621A]"></div>
@@ -78,11 +100,15 @@ export default function OrdersPage() {
             <Card key={order._id} className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="font-bold text-sm text-[#1C1C1E]">{order.restaurantName}</h3>
+                  <h3 className="font-bold text-sm text-[#1C1C1E]">
+                    {typeof order.restaurant === 'object' && order.restaurant?.name
+                      ? order.restaurant.name
+                      : order.restaurantName || 'Order'}
+                  </h3>
                   <p className="text-xs text-[#A0A0A0]">
                     {order.items.map(i => {
                       const options = (i.customizations || [])
-                        .map(c => c.option)
+                        .map(c => [c?.name, c?.option].filter(Boolean).join(': ') || c?.option)
                         .filter(Boolean)
                         .join(', ');
                       return `${i.quantity}x ${i.name}${options ? ` (${options})` : ''}`;
@@ -113,7 +139,7 @@ export default function OrdersPage() {
               <div className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-4 text-xs text-[#A0A0A0]">
                   <span className="font-mono text-[#E8621A]">{order._id}</span>
-                  <span>{order.createdAt}</span>
+                  <span>{new Date(order.createdAt).toLocaleDateString()}</span>
                 </div>
                 <span className="font-bold text-[#E8621A]">₦{order.totalAmount.toLocaleString()}</span>
               </div>
