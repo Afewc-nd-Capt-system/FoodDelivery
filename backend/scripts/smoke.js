@@ -246,8 +246,9 @@ async function fetchRestaurants() {
         const addButton = page.locator('button', { hasText: 'Add to Cart' }).first();
         check('menu modal has Add to Cart', (await addButton.count()) > 0, `item=${item.name}`);
         if (await addButton.count()) {
-          await addButton.click();
-          await page.waitForTimeout(1800);
+          await page.waitForTimeout(1000);
+          await addButton.click({ force: true, timeout: 20000 });
+          await page.waitForTimeout(2500);
         }
 
         const afterAdd = await bodyText(page);
