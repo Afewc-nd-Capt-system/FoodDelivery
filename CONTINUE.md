@@ -32,6 +32,24 @@
   - `SMOKE_API_URL` can override the direct API root; `SMOKE_BYPASS` is only
     for protected previews.
 
+### Production verification (Nov 1, 2026)
+
+- Backend (Render): `https://vibechops.onrender.com` — `main` at `b005195`.
+- Frontend (Vercel): deployment `dpl_HEjmYfTagYXUkV4q6jvHBjMa65uP`
+  (`food-delivery-1qikh7y1s-dawudtus-projects.vercel.app`), aliased to
+  `https://food-delivery-app-ten-beta.vercel.app`.
+- CORS: first-party origins (`vibechops.com`, `www.vibechops.com`, and the
+  stable Vercel aliases) are built into `src/config/cors.js`, so a missing or
+  stale Render `ALLOWED_ORIGINS` no longer blocks the browser.
+- E2E: `41/41` checks passed (Cloudinary upload skipped — keys not set).
+- Smoke: `28/28` checks passed against the alias; the browser called the Render
+  API directly and made no same-origin `/api` requests.
+- Admin revenue and restaurant/vendor subscription pages now use
+  `lib/apiBase.ts` instead of relative `/api` paths.
+- Still human-only: point `vibechops.com` / `www.vibechops.com` DNS at the
+  Vercel project, and set real Paystack + Cloudinary credentials for live
+  payments/uploads.
+
 ---
 
 ## PHASE 1: RETENTION & LOYALTY (✅ COMPLETED)
