@@ -4,6 +4,18 @@ const { getFrontendUrl, parseOrigins } = require('./frontend');
 
 const LOCAL_DEVELOPMENT_ORIGIN = 'http://localhost:3000';
 
+// First-party browser origins that must keep working even when the Render
+// dashboard allowlist is missing or stale. These are exact hostnames only; no
+// suffix or wildcard matching is performed. Keeping the public domain and the
+// stable Vercel production aliases here prevents a broken/misconfigured
+// ALLOWED_ORIGINS value from taking the whole frontend offline.
+const DEFAULT_ALLOWED_ORIGINS = [
+  'https://vibechops.com',
+  'https://www.vibechops.com',
+  'https://food-delivery-app-ten-beta.vercel.app',
+  'https://food-delivery-app-dawudtus-projects.vercel.app',
+];
+
 function normalizeOrigin(origin) {
   return String(origin || '').trim().replace(/\/+$/, '');
 }
@@ -11,17 +23,18 @@ function normalizeOrigin(origin) {
 function getAllowedOrigins() {
   const configured = parseOrigins(process.env.ALLOWED_ORIGINS);
 
-  if (configured.length) return [...new Set(configured)];
-
-  // Derive the browser origin from FRONTEND_URL when ALLOWED_ORIGINS is not
-  // set. In production this also covers the intended custom domain instead of
-  // a deployment-specific Vercel hostname.
+  // Derive the browser origin from FRONTEND_URL as well, so an operator who
+  // only sets FRONTEND_URL still gets a working credentialed CORS grant.
   const frontend = normalizeOrigin(getFrontendUrl());
-  if (frontend) return [frontend];
 
-  if (process.env.NODE_ENV === 'production') return [];
+  const origins = [...DEFAULT_ALLOWED_ORIGINS, ...configured];
+  if (frontend) origins.push(frontend);
 
-  return [LOCAL_DEVELOPMENT_ORIGIN];
+  if (process.env.NODE_ENV !== 'production') {
+    origins.push(LOCAL_DEVELOPMENT_ORIGIN);
+  }
+
+  return [...new Set(origins.filter(Boolean))];
 }
 
 function isAllowedOrigin(origin) {

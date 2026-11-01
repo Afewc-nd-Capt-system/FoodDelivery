@@ -98,7 +98,10 @@
 
 ### 7. CORS Hardening
 - Exact allowlist from `ALLOWED_ORIGINS` (comma-separated); no suffix matching
-- If `ALLOWED_ORIGINS` is unset, the first `FRONTEND_URL` origin is used
+- First-party production origins are always included: `https://vibechops.com`,
+  `https://www.vibechops.com`, and the stable Vercel production aliases. This
+  keeps the frontend working if the Render allowlist is unset or stale.
+- The `FRONTEND_URL` origin is also included when it is set
 - `http://localhost:3000` is added only outside production
 - Credentials only for whitelisted origins; `Vary: Origin` is set
 - Requests without an Origin (mobile/server-to-server) are allowed without
