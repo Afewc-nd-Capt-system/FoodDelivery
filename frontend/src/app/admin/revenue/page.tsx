@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { TrendingUp, DollarSign, CreditCard, BarChart3 } from 'lucide-react';
+import { API_V2 } from '@/lib/apiBase';
 
 export default function AdminRevenuePage() {
   const [period, setPeriod] = useState('30');
@@ -16,7 +17,7 @@ export default function AdminRevenuePage() {
 
   const fetchOverview = async () => {
     try {
-      const response = await fetch(`/api/v2/admin/revenue/overview?period=${period}`, {
+      const response = await fetch(`${API_V2}/admin/revenue/overview?period=${period}`, {
         headers: {
           Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`,
         },
@@ -32,7 +33,7 @@ export default function AdminRevenuePage() {
 
   const fetchChartData = async () => {
     try {
-      const response = await fetch(`/api/v2/admin/revenue/chart?period=${period}`, {
+      const response = await fetch(`${API_V2}/admin/revenue/chart?period=${period}`, {
         headers: {
           Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`,
         },

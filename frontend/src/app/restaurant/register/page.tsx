@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiPost } from '@/lib/apiClient';
+import { API_V2 } from '@/lib/apiBase';
 import { Shield, Upload, FileText } from 'lucide-react';
 
 const nigerianStates = [
@@ -98,7 +99,7 @@ export default function RestaurantRegisterPage() {
       formDataUpload.append('tinNumber', formData.tinNumber);
       formDataUpload.append('rcNumber', formData.rcNumber);
 
-      const uploadResponse = await fetch('/api/v2/restaurants/upload-docs', {
+      const uploadResponse = await fetch(`${API_V2}/restaurants/upload-docs`, {
         method: 'POST',
         body: formDataUpload,
       });

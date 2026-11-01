@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, X, Star, Crown } from 'lucide-react';
+import { API_V2 } from '@/lib/apiBase';
 
 interface Plan {
   _id: string;
@@ -31,7 +32,7 @@ export default function VendorSubscriptionPage() {
 
   const fetchPlans = async () => {
     try {
-      const response = await fetch('/api/v2/subscriptions/plans?type=vendor');
+      const response = await fetch(`${API_V2}/subscriptions/plans?type=vendor`);
       const data = await response.json();
       setPlans(data.plans);
     } catch (error) {
@@ -43,7 +44,7 @@ export default function VendorSubscriptionPage() {
 
   const fetchCurrentSubscription = async () => {
     try {
-      const response = await fetch('/api/v2/subscriptions/current', {
+      const response = await fetch(`${API_V2}/subscriptions/current`, {
         headers: {
           Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`,
         },
@@ -60,7 +61,7 @@ export default function VendorSubscriptionPage() {
   const handleUpgrade = async (planId: string) => {
     setUpgrading(true);
     try {
-      const response = await fetch('/api/v2/subscriptions/activate', {
+      const response = await fetch(`${API_V2}/subscriptions/activate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
