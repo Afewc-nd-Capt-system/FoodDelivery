@@ -96,7 +96,10 @@ async function login(page, loginPath, email, password) {
     await page.click('button');
 
     let state = null;
-    for (let i = 0; i < 40; i += 1) {
+    // Render can take several seconds to answer a cold login request. Poll for
+    // up to 60s per attempt instead of failing while the button still says
+    // "Signing in...".
+    for (let i = 0; i < 120; i += 1) {
       await page.waitForTimeout(500);
       state = await page
         .evaluate(() => ({
@@ -115,6 +118,14 @@ async function login(page, loginPath, email, password) {
 
 function bodyText(page) {
   return page.evaluate(() => document.body.innerText);
+}
+
+// Navigate and let the app settle, but never fail a page check solely because
+// a long-lived request (polling, sockets, analytics) keeps networkidle open.
+async function gotoPage(page, url, timeout = 60000) {
+  const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
+  await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+  return response;
 }
 
 async function fetchRestaurants() {
@@ -166,7 +177,7 @@ async function fetchRestaurants() {
     ];
     for (const [pathname, label] of tabs) {
       try {
-        const res = await page.goto(BASE + pathname, { waitUntil: 'networkidle', timeout: 60000 });
+        const res = await gotoPage(page, BASE + pathname);
         const text = await bodyText(page);
         const bad = /failed to fetch|something went wrong|unauthorized|access denied/i.test(text);
         check(`admin tab ${label} (${pathname})`, res && res.status() === 200 && !bad, `status=${res && res.status()} chars=${text.length}`);
@@ -181,7 +192,7 @@ async function fetchRestaurants() {
   if (sessions.customer) {
     const { page } = sessions.customer;
     try {
-      const res = await page.goto(BASE + '/restaurants', { waitUntil: 'networkidle', timeout: 60000 });
+      const res = await gotoPage(page, BASE + '/restaurants');
       const text = await bodyText(page);
       check('restaurants list loads', res && res.status() === 200 && text.length > 200, `status=${res && res.status()} chars=${text.length}`);
 
@@ -204,7 +215,7 @@ async function fetchRestaurants() {
 
       if (withRequiredOptions) {
         const { restaurant, item } = withRequiredOptions;
-        const detail = await page.goto(`${BASE}/restaurant/${restaurant._id}`, { waitUntil: 'networkidle', timeout: 60000 });
+        const detail = await gotoPage(page, `${BASE}/restaurant/${restaurant._id}`);
         const detailText = await bodyText(page);
         const bad = /something went wrong|restaurant not found/i.test(detailText);
         check('restaurant menu page loads', detail && detail.status() === 200 && !bad && detailText.length > 200,
@@ -276,7 +287,7 @@ async function fetchRestaurants() {
 
       const res = page.url().includes('/cart')
         ? { status: () => 200 }
-        : await page.goto(BASE + '/cart', { waitUntil: 'networkidle', timeout: 60000 });
+        : await gotoPage(page, BASE + '/cart');
       const text = await bodyText(page);
       const hasItem = !cartItem || (text.includes(cartItem.name) && (!cartItem.option || text.includes(cartItem.option)));
       check('cart page loads customized item', res && res.status() === 200 && text.length > 200 && hasItem,
@@ -313,7 +324,7 @@ async function fetchRestaurants() {
   if (sessions.vendor) {
     const { page } = sessions.vendor;
     try {
-      const res = await page.goto(BASE + '/vendor-dashboard', { waitUntil: 'networkidle', timeout: 60000 });
+      const res = await gotoPage(page, BASE + '/vendor-dashboard');
       const text = await bodyText(page);
       const bad = /failed to fetch|something went wrong/i.test(text);
       check('vendor dashboard', res && res.status() === 200 && !bad && text.length > 200, `chars=${text.length}`);
@@ -325,7 +336,7 @@ async function fetchRestaurants() {
   if (sessions.restaurant) {
     const { page } = sessions.restaurant;
     try {
-      const res = await page.goto(BASE + '/restaurant-dashboard', { waitUntil: 'networkidle', timeout: 60000 });
+      const res = await gotoPage(page, BASE + '/restaurant-dashboard');
       const text = await bodyText(page);
       const bad = /failed to fetch|something went wrong/i.test(text);
       check('restaurant dashboard', res && res.status() === 200 && !bad && text.length > 200, `chars=${text.length}`);
