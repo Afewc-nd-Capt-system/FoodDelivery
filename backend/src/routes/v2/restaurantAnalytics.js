@@ -4,6 +4,21 @@ const analyticsService = require('../../services/analyticsService');
 
 const router = express.Router();
 
+router.get('/me', authMiddleware, async (req, res) => {
+  try {
+    const { period = 'week' } = req.query;
+    const Restaurant = require('../../models/Restaurant');
+    const restaurant = await Restaurant.findOne({ owner: req.user.id });
+    if (!restaurant) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+    const data = await analyticsService.getDashboardData(restaurant._id, period);
+    res.json({ success: true, data: { restaurantId: restaurant._id, ...data } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 router.get('/dashboard', authMiddleware, async (req, res) => {
   try {
     const { restaurantId, period = 'week' } = req.query;

@@ -90,7 +90,10 @@ const loginLimiter = disabled
   ? (req, res, next) => next()
   : rateLimit({
       windowMs: 15 * 60 * 1000,
-      max: 5,
+      // IP-wide backstop above the per-account brute-force lockout. It is not
+      // the first line (login emails lock at 5 failed attempts); the headroom
+      // exists so tests and shared-NAT users are not locked out by one another.
+      max: 20,
       message: { message: 'Too many login attempts. Please try again after 15 minutes.' },
       standardHeaders: true,
       legacyHeaders: false,

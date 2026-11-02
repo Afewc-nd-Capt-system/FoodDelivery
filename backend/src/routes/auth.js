@@ -79,7 +79,10 @@ router.post('/register', [
   }
 });
 
-router.post('/login', loginLimiter, bruteForceProtection, [
+// Brute-force lockout runs first so a locked account gets the precise
+// "try again in N minutes" message and locked retries do not consume the
+// shared IP budget guarded by loginLimiter.
+router.post('/login', bruteForceProtection, loginLimiter, [
   body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
   body('password').notEmpty().withMessage('Password is required'),
 ], xssProtection, async (req, res) => {

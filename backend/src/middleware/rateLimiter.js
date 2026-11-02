@@ -11,7 +11,10 @@ const authLimiter = disabled
   ? (req, res, next) => next()
   : rateLimit({
       windowMs: 15 * 60 * 1000,
-      max: 10,
+      max: 20,
+      // Successful logins should not consume the shared budget; brute-force
+      // lockout (middleware/bruteForce.js) is the per-account guard.
+      skipSuccessfulRequests: true,
       message: { success: false, message: 'Too many attempts, please try again later' },
       standardHeaders: true,
       legacyHeaders: false,
