@@ -360,6 +360,78 @@ async function fetchRestaurants() {
     }
   }
 
+  // ---- Round 2: synthetic 429 should surface the retry window in the UI ----
+  try {
+    const { page } = await newPage(browser);
+    await page.route('**/auth/login', (route) => route.fulfill({
+      status: 429,
+      contentType: 'application/json',
+      headers: { 'access-control-allow-origin': BASE },
+      body: JSON.stringify({ success: false, message: 'Too many login attempts. Please try again in 15 minutes.' }),
+    }));
+    await page.goto(BASE + '/login', { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.waitForTimeout(1200);
+    await page.fill('input[type=email]', 'smoke-429@example.com');
+    await page.fill('input[type=password]', 'not-the-password');
+    await page.click('button');
+    let fourTwentyNineText = '';
+    for (let i = 0; i < 30; i += 1) {
+      await page.waitForTimeout(500);
+      fourTwentyNineText = await bodyText(page);
+      if (/try again in \d+ minutes/i.test(fourTwentyNineText)) break;
+    }
+    check('UI surfaces 429 lockout message', /try again in \d+ minutes/i.test(fourTwentyNineText),
+      fourTwentyNineText.replace(/\s+/g, ' ').slice(0, 120));
+    await page.context().close().catch(() => {});
+  } catch (error) {
+    check('UI surfaces 429 lockout message', false, error.message);
+  }
+
+  // ---- Round 2: fixed pages must not render cancelled mock markers ----
+  try {
+    const { page } = await newPage(browser);
+    const res = await gotoPage(page, BASE + '/');
+    const text = await bodyText(page);
+    const bad = /50K\+|28 min delivery|Happy Customers/.test(text) || /failed to fetch|something went wrong/i.test(text);
+    check('homepage uses real stats (no fake counters)', res && res.status() === 200 && !bad,
+      `chars=${text.length}${bad ? ' mock-marker found' : ''}`);
+  } catch (error) {
+    check('homepage uses real stats (no fake counters)', false, error.message);
+  }
+
+  try {
+    const { page } = await newPage(browser);
+    const res = await gotoPage(page, BASE + '/vibepass');
+    const text = await bodyText(page);
+    const ok = res && res.status() === 200 && !/₦2,500|Best Value Badge|Save up to \d+% today/.test(text);
+    check('vibepass page has no hardcoded plan prices', ok, `chars=${text.length}`);
+  } catch (error) {
+    check('vibepass page has no hardcoded plan prices', false, error.message);
+  }
+
+  const sweep = [
+    ['vendor dashboard', sessions.vendor, BASE + '/vendor-dashboard', /₦52,000|Battery 85%|Signal Strong|\+12%|\+8%/],
+    ['rider dashboard', sessions.rider, BASE + '/rider-dashboard', /Battery 85%|Signal Strong/],
+    ['delivery company dashboard', sessions.delivery, BASE + '/delivery-company-dashboard', /Butter Chicken|₦2,500|50K\+/],
+    ['restaurant dashboard', sessions.restaurant, BASE + '/restaurant-dashboard', /873 Fernando|Mock Order|₦52,000/],
+  ];
+  for (const [label, session, url, mockRe] of sweep) {
+    if (!session) {
+      check(`${label} mock sweep (skipped)`, true, 'no session — login missing credentials');
+      continue;
+    }
+    try {
+      const res = await gotoPage(session.page, url);
+      const text = await bodyText(session.page);
+      const mock = mockRe.test(text);
+      const bad = /failed to fetch|something went wrong/i.test(text);
+      check(`${label} renders live data (no mock markers)`, res && res.status() === 200 && !mock && !bad,
+        `chars=${text.length}${mock ? ' mock-marker found' : ''}`);
+    } catch (error) {
+      check(`${label} renders live data (no mock markers)`, false, error.message);
+    }
+  }
+
   // ---- Deployment contract: direct Render API, never the same-origin proxy ----
   const directApiRequests = apiRequests.filter((url) => url.startsWith(API_ORIGIN));
   const proxyApiRequests = apiRequests.filter((url) => url.startsWith(BASE) && /\/api\/v2\//.test(url));

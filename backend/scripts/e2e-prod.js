@@ -308,9 +308,11 @@ async function main() {
 
   // Trigger the login limiter on a throwaway spoofed IP (trusted-proxy mode)
   // so the shared production IP budget is never consumed by the test itself.
+  // The limiter allows 20 attempts on the same IP (skipSuccessfulRequests is on),
+  // so push just past 22 failures to confirm the 429 + retry window + ACAO.
   await requestStep('login limiter 429 carries ACAO and the lockout message', async () => {
     const spoofIp = `203.0.113.${10 + (Date.now() % 200)}`;
-    for (let attempt = 0; attempt < 6; attempt += 1) {
+    for (let attempt = 0; attempt < 24; attempt += 1) {
       const result = await api('/auth/login', {
         method: 'POST',
         headers: { 'X-Forwarded-For': spoofIp },
@@ -333,7 +335,7 @@ async function main() {
         return `429 after ${attempt + 1} failed attempts — ACAO + retry window OK`;
       }
     }
-    throw new Error('login limiter did not trip after 6 failed attempts');
+    throw new Error('login limiter did not trip after 24 failed attempts');
   });
 
   await requestStep('verification documents are admin-only', async () => {
