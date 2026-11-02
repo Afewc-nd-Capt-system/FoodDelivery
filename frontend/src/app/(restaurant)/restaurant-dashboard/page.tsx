@@ -11,33 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { DollarSign, ShoppingCart, TrendingUp, Star, Clock, Plus, Edit, Trash2, Calendar, Percent, User } from 'lucide-react';
 import { useAuthGuard } from '@/hooks/useAuthGuard';
-
-const chartData = [
-  { date: 'Mon', revenue: 45000, orders: 45 },
-  { date: 'Tue', revenue: 52000, orders: 52 },
-  { date: 'Wed', revenue: 48000, orders: 48 },
-  { date: 'Thu', revenue: 61000, orders: 61 },
-  { date: 'Fri', revenue: 73000, orders: 73 },
-  { date: 'Sat', revenue: 85000, orders: 85 },
-  { date: 'Sun', revenue: 60000, orders: 60 },
-];
-
-const topItems = [
-  { name: 'Butter Chicken', orders: 234, revenue: 840000, rating: 4.8 },
-  { name: 'Paneer Tikka', orders: 198, revenue: 720000, rating: 4.6 },
-  { name: 'Garlic Naan', orders: 167, revenue: 400000, rating: 4.5 },
-];
-
-const peakHours = [
-  { hour: 12, orders: 45 },
-  { hour: 13, orders: 52 },
-  { hour: 18, orders: 85 },
-  { hour: 19, orders: 73 },
-  { hour: 20, orders: 61 },
-];
 
 function RestaurantDashboardPageContent() {
   const { user: authUser, loading: authLoading, authorized } = useAuthGuard('restaurant')
@@ -52,10 +28,33 @@ function RestaurantDashboardPageContent() {
   const [restaurantOrders, setRestaurantOrders] = useState<any[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [socketConnected, setSocketConnected] = useState(false);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const [restaurantEarnings, setRestaurantEarnings] = useState<{ totalEarned: number; pendingEarnings: number } | null>(null);
 
-  const fetchPromotions = async () => {
+  // Derived Overview values, all sourced from the real analytics payload
+  // (GET /v2/analytics/me or /v2/analytics/dashboard). No hard-coded numbers.
+  const summary = analytics?.summary || null;
+  const trendData: { date: string; revenue: number; orderCount: number }[] = Array.isArray(analytics?.chartData)
+    ? analytics.chartData
+    : [];
+  const topItemsList: { name: string; orderCount: number; revenue: number }[] = Array.isArray(analytics?.topItems)
+    ? analytics.topItems
+    : [];
+  const peakHoursList: { hour: number; orderCount: number }[] = Array.isArray(analytics?.peakHours)
+    ? analytics.peakHours
+    : [];
+  const topHour = peakHoursList.length > 0
+    ? peakHoursList.reduce(
+        (peak: any, h: any) => ((h.orderCount ?? 0) > (peak.orderCount ?? 0) ? h : peak),
+        peakHoursList[0]
+      )
+    : null;
+
+  const fetchPromotions = async (overrideId?: string) => {
+    const id = overrideId || restaurantId;
+    if (!id) return;
     try {
-      const response = await fetch(`${API_URL}/v2/restaurant-promotions?restaurantId=${restaurantId}`, {
+      const response = await fetch(`${API_URL}/v2/restaurant-promotions?restaurantId=${id}`, {
         credentials: 'include',
       });
       if (response.ok) {
@@ -69,15 +68,39 @@ function RestaurantDashboardPageContent() {
 
   const fetchAnalytics = async () => {
     try {
-      const response = await fetch(`${API_URL}/v2/analytics/dashboard?restaurantId=${restaurantId}&period=${period}`, {
-        credentials: 'include',
+      const token = localStorage.getItem('token');
+      // `/me` resolves the signed-in owner's restaurant; the ?restaurantId=
+      // query is the legacy path kept working for deep links.
+      const query = restaurantId ? `restaurantId=${restaurantId}&period=${period}` : `period=${period}`;
+      const response = await fetch(`${API_URL}/v2/analytics/${restaurantId ? 'dashboard' : 'me'}?${query}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       if (response.ok) {
         const data = await response.json();
-        setAnalytics(data);
+        setAnalytics(data?.data || data);
+      } else {
+        setAnalytics(null);
       }
     } catch (error) {
       console.error('Failed to fetch analytics:', error);
+      setAnalytics(null);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  };
+
+  const fetchEarnings = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/v2/earnings/restaurants/earnings`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setRestaurantEarnings(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch restaurant earnings:', error);
     }
   };
 
@@ -99,12 +122,20 @@ function RestaurantDashboardPageContent() {
   };
 
   useEffect(() => {
-    if (restaurantId) {
-      fetchPromotions();
-      fetchAnalytics();
-    }
+    fetchAnalytics();
+  }, [restaurantId, period]);
+
+  useEffect(() => {
     fetchOrders();
-  }, [restaurantId]);
+    fetchEarnings();
+  }, []);
+
+  // Once analytics resolves the restaurant of the signed-in owner, load its
+  // promotions even when the page was opened without ?restaurantId=.
+  useEffect(() => {
+    const resolvedId = analytics?.restaurantId;
+    if (resolvedId && !restaurantId) fetchPromotions(String(resolvedId));
+  }, [analytics?.restaurantId, restaurantId]);
 
   // Socket.io connection for real-time orders
   useEffect(() => {
@@ -206,14 +237,34 @@ function RestaurantDashboardPageContent() {
           </div>
 
           <TabsContent value="overview">
-            {/* Stats Cards */}
+            {/* Stats Cards — real data from /analytics/me or /analytics/dashboard */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
               {[
-                { label: 'Today Revenue', value: '₦52,000', icon: DollarSign, color: '#16A34A' },
-                { label: 'Orders', value: '52', icon: ShoppingCart, color: '#E8621A' },
-                { label: 'Avg Rating', value: '4.6', icon: Star, color: '#FF8C42' },
-                { label: 'Return Rate', value: '68%', icon: TrendingUp, color: '#2563EB' },
-                { label: 'Peak Hour', value: '6PM', icon: Clock, color: '#BE3A2A' },
+                {
+                  label: period === 'week' ? 'Weekly Revenue' : 'Period Revenue',
+                  value: summary ? `₦${Number(summary.revenue || 0).toLocaleString()}` : '—',
+                  icon: DollarSign, color: '#16A34A',
+                },
+                {
+                  label: 'Orders',
+                  value: summary ? String(summary.totalOrders ?? '—') : '—',
+                  icon: ShoppingCart, color: '#E8621A',
+                },
+                {
+                  label: 'Avg Order Value',
+                  value: summary ? `₦${Number(summary.avgOrderValue || 0).toLocaleString()}` : '—',
+                  icon: Star, color: '#FF8C42',
+                },
+                {
+                  label: 'Return Rate',
+                  value: summary ? `${Math.round(Number(summary.returnRate || 0))}%` : '—',
+                  icon: TrendingUp, color: '#2563EB',
+                },
+                {
+                  label: 'Peak Hour',
+                  value: topHour ? `${String(topHour.hour)}:00` : '—',
+                  icon: Clock, color: '#BE3A2A',
+                },
               ].map((stat) => (
                 <Card key={stat.label} className="p-5">
                   <div className="flex items-center gap-2 mb-3">
@@ -232,7 +283,7 @@ function RestaurantDashboardPageContent() {
               <Card className="p-5">
                 <h3 className="font-bold mb-4">Revenue Trend</h3>
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={chartData}>
+                  <LineChart data={trendData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#F0EAE0" />
                     <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                     <YAxis tick={{ fontSize: 12 }} />
@@ -240,17 +291,20 @@ function RestaurantDashboardPageContent() {
                     <Line type="monotone" dataKey="revenue" stroke="#E8621A" strokeWidth={3} dot={{ r: 5, fill: '#E8621A' }} />
                   </LineChart>
                 </ResponsiveContainer>
+                {trendData.length === 0 && !analyticsLoading && (
+                  <p className="text-xs text-[#A0A0A0] mt-2">No completed orders in this period yet.</p>
+                )}
               </Card>
 
               <Card className="p-5">
                 <h3 className="font-bold mb-4">Orders</h3>
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={chartData}>
+                  <BarChart data={trendData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#F0EAE0" />
                     <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                    <YAxis tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
                     <Tooltip />
-                    <Bar dataKey="orders" fill="#E8621A" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="orderCount" fill="#E8621A" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </Card>
@@ -259,42 +313,52 @@ function RestaurantDashboardPageContent() {
             {/* Top Items */}
             <Card className="p-5 mb-8">
               <h3 className="font-bold mb-4">Top Items</h3>
+              {(!topItemsList || topItemsList.length === 0) ? (
+                <p className="text-sm text-[#A0A0A0]">No sold items yet.</p>
+              ) : (
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-[#F0EAE0]">
                     <th className="text-left text-xs text-[#A0A0A0] pb-2">Item</th>
                     <th className="text-left text-xs text-[#A0A0A0] pb-2">Orders</th>
                     <th className="text-left text-xs text-[#A0A0A0] pb-2">Revenue</th>
-                    <th className="text-left text-xs text-[#A0A0A0] pb-2">Rating</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {topItems.map((item) => (
+                  {topItemsList.map((item: any) => (
                     <tr key={item.name} className="border-b border-[#F0EAE0]">
                       <td className="py-3 text-sm font-medium">{item.name}</td>
-                      <td className="py-3 text-sm">{item.orders}</td>
-                      <td className="py-3 text-sm font-semibold">₦{item.revenue.toLocaleString()}</td>
-                      <td className="py-3 text-sm">★ {item.rating}</td>
+                      <td className="py-3 text-sm">{item.orderCount}</td>
+                      <td className="py-3 text-sm font-semibold">₦{Number(item.revenue).toLocaleString()}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              )}
             </Card>
 
             {/* Peak Hours */}
             <Card className="p-5">
               <h3 className="font-bold mb-4">Peak Hours</h3>
+              {(!peakHoursList || peakHoursList.length === 0) ? (
+                <p className="text-sm text-[#A0A0A0]">No order activity yet.</p>
+              ) : (
               <div className="space-y-2">
-                {peakHours.map((hour) => (
+                {peakHoursList.map((hour: any) => {
+                  const max = Math.max(...peakHoursList.map((h: any) => h.orderCount || h.orders || 0), 1);
+                  const count = hour.orderCount ?? hour.orders ?? 0;
+                  return (
                   <div key={hour.hour} className="flex items-center gap-2">
                     <span className="text-xs w-8">{hour.hour}:00</span>
                     <div className="flex-1 h-4 bg-[#F0EAE0] rounded-full overflow-hidden">
-                      <div className="h-full bg-[#E8621A]" style={{ width: `${(hour.orders / 85) * 100}%` }} />
+                      <div className="h-full bg-[#E8621A]" style={{ width: `${(count / max) * 100}%` }} />
                     </div>
-                    <span className="text-xs text-[#636366] w-12 text-right">{hour.orders}</span>
+                    <span className="text-xs text-[#636366] w-12 text-right">{count}</span>
                   </div>
-                ))}
+                  );
+                })}
               </div>
+              )}
             </Card>
           </TabsContent>
 
@@ -434,63 +498,51 @@ function RestaurantDashboardPageContent() {
           <TabsContent value="analytics">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Card className="p-5">
-                <h3 className="font-bold mb-4">Revenue by Category</h3>
+                <h3 className="font-bold mb-4">Revenue by Item</h3>
+                {topItemsList.length === 0 ? (
+                  <p className="text-sm text-[#A0A0A0]">No sold items yet.</p>
+                ) : (
                 <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={[
-                        { name: 'Main Course', value: 400 },
-                        { name: 'Appetizers', value: 300 },
-                        { name: 'Desserts', value: 200 },
-                        { name: 'Beverages', value: 100 },
-                      ]}
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      <Cell fill="#E8621A" />
-                      <Cell fill="#C4501A" />
-                      <Cell fill="#BE3A2A" />
-                      <Cell fill="#FF8C42" />
-                    </Pie>
+                  <BarChart data={topItemsList.map((item: any) => ({ name: item.name, revenue: item.revenue }))}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F0EAE0" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} angle={-20} textAnchor="end" height={60} />
+                    <YAxis tick={{ fontSize: 12 }} />
                     <Tooltip />
-                  </PieChart>
+                    <Bar dataKey="revenue" fill="#E8621A" radius={[6, 6, 0, 0]} />
+                  </BarChart>
                 </ResponsiveContainer>
+                )}
               </Card>
 
               <Card className="p-5">
-                <h3 className="font-bold mb-4">Customer Satisfaction</h3>
+                <h3 className="font-bold mb-4">Order Quality</h3>
+                {!summary ? (
+                  <p className="text-sm text-[#A0A0A0]">No analytics data yet.</p>
+                ) : (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">Food Quality</span>
+                    <span className="text-sm">Return Rate</span>
                     <div className="flex items-center gap-2">
                       <div className="w-32 h-2 bg-[#F0EAE0] rounded-full">
-                        <div className="h-full bg-[#16A34A]" style={{ width: '92%' }} />
+                        <div className="h-full bg-[#16A34A]" style={{ width: `${Math.min(Math.round(Number(summary.returnRate || 0)), 100)}%` }} />
                       </div>
-                      <span className="text-sm font-bold">4.6</span>
+                      <span className="text-sm font-bold">{Math.round(Number(summary.returnRate || 0))}%</span>
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">Delivery Speed</span>
+                    <span className="text-sm">Cancelled Orders</span>
                     <div className="flex items-center gap-2">
                       <div className="w-32 h-2 bg-[#F0EAE0] rounded-full">
-                        <div className="h-full bg-[#E8621A]" style={{ width: '88%' }} />
+                        <div className="h-full bg-[#D32F2F]" style={{ width: `${Math.min(Math.round(Number(summary.cancelledRate || 0)), 100)}%` }} />
                       </div>
-                      <span className="text-sm font-bold">4.4</span>
+                      <span className="text-sm font-bold">{Math.round(Number(summary.cancelledRate || 0))}%</span>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Order Accuracy</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-32 h-2 bg-[#F0EAE0] rounded-full">
-                        <div className="h-full bg-[#2563EB]" style={{ width: '95%' }} />
-                      </div>
-                      <span className="text-sm font-bold">4.8</span>
-                    </div>
-                  </div>
+                  <p className="text-xs text-[#A0A0A0]">
+                    Star ratings are not collected yet — satisfaction scores will appear here once reviews are recorded.
+                  </p>
                 </div>
+                )}
               </Card>
             </div>
           </TabsContent>
@@ -498,22 +550,25 @@ function RestaurantDashboardPageContent() {
           <TabsContent value="earnings">
             <Card className="p-5">
               <h3 className="font-bold mb-4">Earnings</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div className="p-4 rounded-xl" style={{ backgroundColor: '#FFF1E8' }}>
-                  <p className="text-sm" style={{ color: '#636366' }}>Total Revenue</p>
-                  <p className="text-2xl font-bold" style={{ color: '#1C1C1E' }}>₦520,000</p>
-                </div>
+              {!restaurantEarnings ? (
+                <p className="text-sm text-[#A0A0A0]">No earnings data yet.</p>
+              ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div className="p-4 rounded-xl" style={{ backgroundColor: '#F0FDF4' }}>
-                  <p className="text-sm" style={{ color: '#636366' }}>Commission (10%)</p>
-                  <p className="text-2xl font-bold" style={{ color: '#16A34A' }}>₦52,000</p>
+                  <p className="text-sm" style={{ color: '#636366' }}>Total Earned (after commission)</p>
+                  <p className="text-2xl font-bold" style={{ color: '#16A34A' }}>₦{Number(restaurantEarnings.totalEarned || 0).toLocaleString()}</p>
                 </div>
                 <div className="p-4 rounded-xl" style={{ backgroundColor: '#EFF6FF' }}>
-                  <p className="text-sm" style={{ color: '#636366' }}>Net Earnings</p>
-                  <p className="text-2xl font-bold" style={{ color: '#2563EB' }}>₦468,000</p>
+                  <p className="text-sm" style={{ color: '#636366' }}>Pending Settlement</p>
+                  <p className="text-2xl font-bold" style={{ color: '#2563EB' }}>₦{Number(restaurantEarnings.pendingEarnings || 0).toLocaleString()}</p>
                 </div>
               </div>
-              <div className="text-center py-8 text-[#636366]">
-                <p>Detailed earnings report coming soon</p>
+              )}
+              <p className="text-xs text-[#A0A0A0] mb-4">
+                Net amounts are calculated per order after the platform commission is applied.
+              </p>
+              <div className="text-center py-4 text-[#636366]">
+                <p>Detailed commission history coming soon</p>
               </div>
             </Card>
           </TabsContent>

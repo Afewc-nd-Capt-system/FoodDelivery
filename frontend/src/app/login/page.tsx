@@ -28,7 +28,7 @@ export default function LoginPage() {
           body: JSON.stringify({ email, password }),
         }
       )
-      let data = await res.json()
+      let data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.message || 'Login failed')
       data = await completeMfaIfRequired(data)
       persistAuthSession(data)

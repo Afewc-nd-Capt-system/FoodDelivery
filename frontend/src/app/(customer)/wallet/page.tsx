@@ -6,24 +6,16 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowUp, ArrowDown, Filter, Search } from 'lucide-react';
-import { mockWalletTransactions } from '@/lib/mockData';
 import { API_V2 } from '@/lib/apiBase';
 
 export default function WalletPage() {
-  const [balance, setBalance] = useState(7500);
+  const [balance, setBalance] = useState(0);
   const [selectedAmount, setSelectedAmount] = useState('1000');
   const [customAmount, setCustomAmount] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const allTransactions = [
-    { id: '1', type: 'credit', description: 'Wallet top-up', amount: 5000, date: 'May 5, 2026', balance: 7500 },
-    { id: '2', type: 'debit', description: 'Order #ORD-8021', amount: 3200, date: 'May 3, 2026', balance: 2500 },
-    { id: '3', type: 'credit', description: 'Referral Bonus', amount: 1000, date: 'May 1, 2026', balance: 5700 },
-    ...mockWalletTransactions,
-  ];
 
   useEffect(() => {
     fetchTransactions();
@@ -50,18 +42,18 @@ export default function WalletPage() {
       if (txRes.ok) {
         const txData = await txRes.json();
         const list = Array.isArray(txData) ? txData : txData?.data;
-        setTransactions(Array.isArray(list) ? list : allTransactions);
+        setTransactions(Array.isArray(list) ? list : []);
       } else {
-        setTransactions(allTransactions);
+        setTransactions([]);
       }
     } catch (error) {
-      setTransactions(allTransactions);
+      setTransactions([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredTransactions = (transactions.length > 0 ? transactions : allTransactions).filter(txn => {
+  const filteredTransactions = transactions.filter(txn => {
     const matchesType = filterType === 'all' || txn.type === filterType;
     const matchesSearch = txn.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           txn.id.toLowerCase().includes(searchTerm.toLowerCase());

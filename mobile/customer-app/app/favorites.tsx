@@ -5,11 +5,7 @@ import { Heart } from 'lucide-react-native';
 import { api } from '../../shared/api';
 
 export default function FavoritesScreen() {
-  const [favorites, setFavorites] = useState([
-    { _id: '1', name: 'Jollof Palace', cuisine: 'Nigerian', rating: 4.5, deliveryTime: '25-35 min', image: '🍚' },
-    { _id: '2', name: 'Grill House', cuisine: 'Grills', rating: 4.8, deliveryTime: '30-40 min', image: '🔥' },
-    { _id: '3', name: 'Soup Kitchen', cuisine: 'Soups', rating: 4.3, deliveryTime: '20-30 min', image: '🍲' },
-  ]);
+  const [favorites, setFavorites] = useState<any[]>([]);
 
   const renderFavorite = ({ item }: { item: any }) => (
     <TouchableOpacity

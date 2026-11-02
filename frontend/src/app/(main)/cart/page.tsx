@@ -17,7 +17,7 @@ const PAYMENT_METHODS = [
   { id: 'paystack', label: 'Paystack', icon: CreditCard, desc: 'Cards, Bank Transfer, USSD', badge: 'Recommended', badgeColor: '#00C3F7' },
   { id: 'card', label: 'Credit / Debit Card', icon: CreditCard, desc: 'Visa, Mastercard, Verve' },
   { id: 'transfer', label: 'Bank Transfer', icon: Banknote, desc: 'Direct bank transfer' },
-  { id: 'wallet', label: 'VibeChops Wallet', icon: Smartphone, desc: 'Balance: ₦2,500' },
+  { id: 'wallet', label: 'VibeChops Wallet', icon: Smartphone, desc: '' },
 ];
 
 const DELIVERY_PRESETS = ['Home', 'Work', "Partner's"];
@@ -31,6 +31,7 @@ export default function CartPage() {
   const [promoStatus, setPromoStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [address, setAddress] = useState('12 Allen Avenue, Ikeja, Lagos');
   const [paymentMethod, setPaymentMethod] = useState('paystack');
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [placing, setPlacing] = useState(false);
   const [placed, setPlaced] = useState(false);
 
@@ -162,6 +163,22 @@ export default function CartPage() {
       document.body.appendChild(script);
     }
   }, []);
+
+  // Show the customer's real wallet balance on the payment method card.
+  useEffect(() => {
+    if (!user) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch(`${API_V2}/wallet`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const value = Number(
+          data?.data?.balance ?? data?.balance ?? data?.wallet?.balance ?? NaN
+        );
+        if (Number.isFinite(value)) setWalletBalance(value);
+      })
+      .catch(() => {});
+  }, [user]);
 
   /* ─── Guest Checkout ───────────────────── */
   if (!user && items.length > 0) {
@@ -629,7 +646,13 @@ export default function CartPage() {
                     </div>
                     <div className="flex-1">
                       <div className="font-bold text-sm" style={{ color: '#1C1C1E' }}>{method.label}</div>
-                      <div className="text-xs" style={{ color: '#A0A0A0' }}>{method.desc}</div>
+                      <div className="text-xs" style={{ color: '#A0A0A0' }}>
+                        {method.id === 'wallet'
+                          ? (Number.isFinite(walletBalance)
+                            ? `Balance: ₦${Number(walletBalance).toLocaleString()}`
+                            : 'Balance loading…')
+                          : method.desc}
+                      </div>
                     </div>
                     {method.badge && (
                       <span

@@ -256,13 +256,9 @@ export function Navbar() {
                 <Search size={16} />
               </button>
 
-              {/* Notification bell */}
+              {/* Notification bell (no notification feed yet — no unread dot) */}
               <button className="hidden md:flex relative p-2 rounded-xl transition-colors hover:bg-orange-50">
                 <Bell size={19} style={{ color: '#636366' }} />
-                <span
-                  className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full"
-                  style={{ backgroundColor: '#E8621A', border: '1.5px solid white' }}
-                />
               </button>
 
               {/* Cart button */}

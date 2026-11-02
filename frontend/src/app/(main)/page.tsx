@@ -246,6 +246,7 @@ export default function HomePage() {
 
   const [featuredRestaurants, setFeaturedRestaurants] = useState<any[]>([]);
   const [allVendors, setAllVendors] = useState<any[]>([]);
+  const [restaurantTotal, setRestaurantTotal] = useState<number | null>(null);
   const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
@@ -255,6 +256,7 @@ export default function HomePage() {
     ])
       .then(([restData, vendData]) => {
         setFeaturedRestaurants(restData.restaurants || []);
+        setRestaurantTotal(typeof restData.total === 'number' ? restData.total : null);
         setAllVendors(vendData.vendors || []);
       })
       .catch(err => console.error('Failed to fetch homepage data:', err))
@@ -352,8 +354,8 @@ export default function HomePage() {
         </div>
         <div className="relative border-t" style={{ borderColor: 'rgba(255,255,255,0.06)', backgroundColor: 'rgba(0,0,0,0.25)' }}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-4">
-              {[{ value: '200+', label: 'Restaurants' }, { value: '28 min', label: 'Avg Delivery' }, { value: '50K+', label: 'Happy Customers' }, { value: '4.8★', label: 'App Rating' }, { value: '₦0', label: 'Min Delivery Fee' }].map((stat, i) => (
+            <div className="grid grid-cols-3 gap-4">
+              {[{ value: restaurantTotal !== null ? String(restaurantTotal) : '—', label: 'Restaurants' }, { value: openRestaurants.length ? `${openRestaurants.length} open` : '—', label: 'Ready to Deliver' }, { value: openVendors.length ? `${openVendors.length} open` : '—', label: 'Vendor Stalls' }].map((stat, i) => (
                 <div key={stat.label} className={`text-center ${i >= 3 ? 'hidden sm:block' : ''}`}><div className="text-xl font-black" style={{ color: '#E8621A' }}>{stat.value}</div><div className="text-xs font-medium mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>{stat.label}</div></div>
               ))}
             </div>
@@ -419,7 +421,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="text-center mb-14"><h2 className="text-3xl font-black text-white mb-3">How VibeChops Works</h2><p className="text-white/40 text-sm">Order your favourite Nigerian food in 3 simple steps</p></div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[{ step: '01', icon: Search, title: 'Find Your Vibe', desc: 'Browse 200+ restaurants and thousands of dishes. Filter by cuisine, rating, price or delivery time.', color: '#E8621A' },
+            {[{ step: '01', icon: Search, title: 'Find Your Vibe', desc: 'Browse every restaurant on VibeChops and thousands of dishes. Filter by cuisine, rating, price or delivery time.', color: '#E8621A' },
               { step: '02', icon: Zap, title: 'Place Your Order', desc: 'Customise your meal, add to cart and checkout in seconds. Pay via Paystack, card or bank transfer.', color: '#FF8C42' },
               { step: '03', icon: MapPin, title: 'Track & Enjoy', desc: 'Watch your order in real-time as it gets prepared and delivered hot to your door. Rate & review after.', color: '#BE3A2A' },
             ].map((item, i) => (

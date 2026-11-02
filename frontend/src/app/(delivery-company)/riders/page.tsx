@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -9,23 +9,52 @@ import {
   Users, Plus, Search, Filter, Bike, Phone, Mail,
   Star, MapPin, MoreVertical, Edit, Ban, CheckCircle, Package
 } from 'lucide-react';
+import { API_V2 } from '@/lib/apiBase';
 
 export default function DeliveryCompanyRidersPage() {
-  const [riders] = useState([
-    { id: '1', name: 'Emmanuel Okafor', email: 'emmanuel@vibechops.com', phone: '08012345678', vehicleType: 'bike', isOnline: true, isActive: true, totalDeliveries: 45, rating: 4.8, joinedAt: '2024-01-15' },
-    { id: '2', name: 'Chinedu Eze', email: 'chinedu@vibechops.com', phone: '08023456789', vehicleType: 'scooter', isOnline: true, isActive: true, totalDeliveries: 38, rating: 4.6, joinedAt: '2024-02-20' },
-    { id: '3', name: 'Adebayo Johnson', email: 'adebayo@vibechops.com', phone: '08034567890', vehicleType: 'bike', isOnline: false, isActive: true, totalDeliveries: 52, rating: 4.9, joinedAt: '2024-01-10' },
-    { id: '4', name: 'Funmi Adeyemi', email: 'funmi@vibechops.com', phone: '08045678901', vehicleType: 'bike', isOnline: true, isActive: true, totalDeliveries: 28, rating: 4.7, joinedAt: '2024-03-05' },
-    { id: '5', name: 'Tunde Bello', email: 'tunde@vibechops.com', phone: '08056789012', vehicleType: 'scooter', isOnline: false, isActive: false, totalDeliveries: 15, rating: 4.3, joinedAt: '2024-02-28' },
-  ]);
+  const [riders, setRiders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Real rider fleet from the company API — GET /v2/delivery-company/:id/riders
+  useEffect(() => {
+    let token: string | null = null;
+    let companyId: string | null = null;
+    try {
+      token = localStorage.getItem('token');
+      const raw = localStorage.getItem('user');
+      if (raw) {
+        const user = JSON.parse(raw);
+        companyId = typeof user?.company === 'object' ? user?.company?._id || null : user?.company || null;
+      }
+    } catch {}
+
+    if (!token || !companyId) {
+      setLoading(false);
+      return;
+    }
+    fetch(`${API_V2}/delivery-company/${companyId}/riders?status=all`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (res) => {
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(`status ${res.status}`);
+        setRiders(Array.isArray(body?.riders) ? body.riders : []);
+      })
+      .catch((error) => console.error('Failed to load riders:', error))
+      .finally(() => setLoading(false));
+  }, []);
 
   const [filter, setFilter] = useState('all');
 
   const filteredRiders = riders.filter(rider => {
-    if (filter === 'active') return rider.isActive && rider.isOnline;
+    if (filter === 'active') return rider.isOnline;
     if (filter === 'offline') return rider.isActive && !rider.isOnline;
     if (filter === 'inactive') return !rider.isActive;
     return true;
+  }).filter(rider => {
+    const q = searchQuery.toLowerCase();
+    return !q || rider.name?.toLowerCase().includes(q) || rider.email?.toLowerCase().includes(q) || rider.phone?.includes(q);
   });
 
   return (
@@ -35,7 +64,7 @@ export default function DeliveryCompanyRidersPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <div>
-              <Link href="/(delivery-company)/dashboard" className="text-white/60 hover:text-white text-sm mb-1 block">
+              <Link href="/delivery-company-dashboard" className="text-white/60 hover:text-white text-sm mb-1 block">
                 ← Back to Dashboard
               </Link>
               <h1 className="text-2xl font-black text-white mb-1">Riders Management</h1>
@@ -72,6 +101,8 @@ export default function DeliveryCompanyRidersPage() {
             <input
               type="text"
               placeholder="Search riders..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="flex-1 outline-none text-sm"
             />
           </div>
@@ -92,8 +123,16 @@ export default function DeliveryCompanyRidersPage() {
 
         {/* Riders List */}
         <div className="space-y-4">
+          {loading && <p className="text-sm text-[#A0A0A0] py-6 text-center">Loading riders…</p>}
+          {!loading && filteredRiders.length === 0 && (
+            <Card className="p-10 text-center">
+              <Bike className="w-10 h-10 mx-auto mb-3 text-[#E8E8E8]" />
+              <p className="font-bold text-[#1C1C1E]">No riders yet</p>
+              <p className="text-sm text-[#A0A0A0]">Riders you add to your company will show up here.</p>
+            </Card>
+          )}
           {filteredRiders.map((rider) => (
-            <Card key={rider.id} className="p-6 hover:shadow-lg transition-all">
+            <Card key={rider._id || rider.phone || rider.name} className="p-6 hover:shadow-lg transition-all">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 rounded-2xl bg-[#EFF6FF] flex items-center justify-center">
@@ -146,7 +185,7 @@ export default function DeliveryCompanyRidersPage() {
               </div>
 
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#F5F5F5]">
-                <p className="text-xs text-[#A0A0A0]">Joined: {rider.joinedAt}</p>
+                <p className="text-xs text-[#A0A0A0]">Joined: {rider.createdAt ? new Date(rider.createdAt).toLocaleDateString() : '—'}</p>
                 <div className="flex items-center gap-2">
                   {rider.isActive ? (
                     <Button className="bg-[#F5F5F5] text-[#EF4444] hover:bg-[#FEE2E2] text-xs">

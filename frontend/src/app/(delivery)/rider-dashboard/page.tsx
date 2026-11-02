@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Bike, MapPin, Clock, CheckCircle, Package, DollarSign,
-  TrendingUp, Star, Bell, Navigation, Battery, Signal, User, History
+  TrendingUp, Star, Bell, Navigation, User, History
 } from 'lucide-react';
 import { useAuthGuard } from '@/hooks/useAuthGuard';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -26,49 +26,34 @@ interface DeliveryOrder {
   riderConfirmed?: boolean;
 }
 
-const mockOrders: DeliveryOrder[] = [
-  {
-    id: 'DEL-4521',
-    customer: 'Funmi Adeyemi',
-    address: '12 Glover Road, Ikoyi, Lagos',
-    restaurant: 'Mama Cass Kitchen',
-    items: 3,
-    amount: 8500,
-    status: 'delivering',
-    distance: '3.2 km',
-    estimatedTime: '12 min',
-    riderConfirmed: false,
-  },
-  {
-    id: 'DEL-4522',
-    customer: 'Tunde Bello',
-    address: '5B Victoria Island, Lagos',
-    restaurant: 'Chop Chop Lagos',
-    items: 2,
-    amount: 5200,
-    status: 'pickup',
-    distance: '1.8 km',
-    estimatedTime: '8 min',
-  },
-];
-
-const todayStats = {
-  completedOrders: 12,
-  totalEarnings: 15400,
-  hoursOnline: 6.5,
-  averageRating: 4.8,
-  totalDistance: 45,
-  acceptanceRate: 92,
-};
+// Rider overview starts empty — real accepted/assigned orders arrive via
+// Socket.IO (`order_assigned`) and the Incoming Orders tab. Today's stats
+// come from GET /v2/riders/earnings?period=today.
 
 export default function DeliveryDashboardPage() {
   const { user: authUser, loading: authLoading, authorized } = useAuthGuard('delivery_rider')
   const [activeTab, setActiveTab] = useState('overview');
   const [isOnline, setIsOnline] = useState(true);
   const [currentLocation, setCurrentLocation] = useState('Ikoyi, Lagos');
-  const [orders, setOrders] = useState<DeliveryOrder[]>(mockOrders);
+  const [orders, setOrders] = useState<DeliveryOrder[]>([]);
   const [confirmingArrival, setConfirmingArrival] = useState<string | null>(null);
   const [socketConnected, setSocketConnected] = useState(false);
+  const [todayEarnings, setTodayEarnings] = useState<{ totalEarnings?: number; deliveriesCount?: number } | null>(null);
+
+  // Real "today" stats from GET /v2/riders/earnings
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : '';
+    if (!token || !authUser) return;
+    fetch(`${API_V2}/riders/earnings?period=today`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+      .then(async (res) => {
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(`status ${res.status}`);
+        setTodayEarnings(body);
+      })
+      .catch((err) => console.error('Failed to fetch today earnings:', err));
+  }, [authUser]);
 
   // Socket.io for real-time order assignments
   useEffect(() => {
@@ -200,7 +185,7 @@ export default function DeliveryDashboardPage() {
               <button className="relative p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors">
                 <Bell size={20} className="text-white" />
                 <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#E8621A] text-white text-xs flex items-center justify-center font-bold">
-                  {mockOrders.length}
+                  {orders.length}
                 </span>
               </button>
               <button
@@ -219,19 +204,11 @@ export default function DeliveryDashboardPage() {
             </div>
           </div>
 
-          {/* Location & Battery */}
+          {/* Location */}
           <div className="flex items-center gap-4 mt-4">
             <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-lg">
               <MapPin size={14} className="text-white/60" />
               <span className="text-white text-sm">{currentLocation}</span>
-            </div>
-            <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-lg">
-              <Battery size={14} className="text-white/60" />
-              <span className="text-white text-sm">85%</span>
-            </div>
-            <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-lg">
-              <Signal size={14} className="text-white/60" />
-              <span className="text-white text-sm">Strong</span>
             </div>
           </div>
         </div>
@@ -272,14 +249,10 @@ export default function DeliveryDashboardPage() {
           <>
             {/* Today's Stats */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
-          {[
-            { icon: CheckCircle, label: 'Completed', value: todayStats.completedOrders, color: '#16A34A' },
-            { icon: DollarSign, label: 'Earnings', value: `₦${todayStats.totalEarnings.toLocaleString()}`, color: '#E8621A' },
-            { icon: Clock, label: 'Hours Online', value: `${todayStats.hoursOnline}h`, color: '#2563EB' },
-            { icon: Star, label: 'Rating', value: todayStats.averageRating, color: '#F59E0B' },
-            { icon: Navigation, label: 'Distance', value: `${todayStats.totalDistance}km`, color: '#8B5CF6' },
-            { icon: TrendingUp, label: 'Acceptance', value: `${todayStats.acceptanceRate}%`, color: '#10B981' },
-          ].map((stat, i) => (
+          {([
+            { icon: CheckCircle, label: 'Completed Today', value: todayEarnings?.deliveriesCount ?? 0, color: '#16A34A' },
+            { icon: DollarSign, label: 'Earnings Today', value: `₦${Number(todayEarnings?.totalEarnings || 0).toLocaleString()}`, color: '#E8621A' },
+          ]).map((stat, i) => (
             <Card key={i} className="p-4 hover:shadow-md transition-shadow">
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${stat.color}15` }}>
@@ -297,7 +270,7 @@ export default function DeliveryDashboardPage() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-black text-[#1C1C1E]">
               Active Orders
-              <Badge className="ml-2 bg-[#FFF1E8] text-[#E8621A]">{mockOrders.length}</Badge>
+              <Badge className="ml-2 bg-[#FFF1E8] text-[#E8621A]">{orders.length}</Badge>
             </h2>
             <Link href="/delivery/history">
               <Button className="bg-[#F5F5F5] text-[#636366] hover:bg-[#E8E8E8] text-xs">
@@ -307,7 +280,14 @@ export default function DeliveryDashboardPage() {
           </div>
 
           <div className="space-y-4">
-            {mockOrders.map((order) => (
+            {orders.length === 0 && (
+              <Card className="p-10 text-center">
+                <Package className="w-14 h-14 mx-auto mb-3" style={{ color: '#E8E8E8' }} />
+                <p className="font-bold text-lg mb-1" style={{ color: '#1C1C1E' }}>No active order</p>
+                <p style={{ color: '#636366' }}>Check the Orders tab to accept incoming delivery requests.</p>
+              </Card>
+            )}
+            {orders.map((order) => (
               <Card key={order.id} className="p-6 hover:shadow-lg transition-all">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
@@ -585,23 +565,12 @@ function RiderEarningsTab() {
           const data = await res.json()
           setEarningsData(data)
         } else {
-          // Use mock data for demo
-          setEarningsData({
-            totalEarnings: period === 'today' ? 4500 : period === 'week' ? 28500 : 112000,
-            deliveriesCount: period === 'today' ? 3 : period === 'week' ? 18 : 72,
-            history: [
-              { id: 'DEL-4521', route: 'Mama Cass → Ikoyi', amount: 1500, date: '2024-06-13', rating: 5 },
-              { id: 'DEL-4520', route: 'Chop Chop → VI', amount: 1200, date: '2024-06-13', rating: 4 },
-              { id: 'DEL-4519', route: 'Jollof House → Surulere', amount: 1800, date: '2024-06-12', rating: 5 },
-            ]
-          })
+          // No demo fallback — show a real zero/empty state on errors.
+          setEarningsData({ totalEarnings: 0, deliveriesCount: 0, chartData: [] })
         }
       } catch (err) {
-        setEarningsData({
-          totalEarnings: period === 'today' ? 4500 : period === 'week' ? 28500 : 112000,
-          deliveriesCount: period === 'today' ? 3 : period === 'week' ? 18 : 72,
-          history: []
-        })
+        console.error('Failed to fetch earnings:', err)
+        setEarningsData({ totalEarnings: 0, deliveriesCount: 0, chartData: [] })
       } finally {
         setLoading(false)
       }
@@ -611,11 +580,8 @@ function RiderEarningsTab() {
 
   if (loading) return <Card className="p-12 text-center"><div className="animate-spin w-8 h-8 border-4 border-[#E8621A] border-t-transparent rounded-full mx-auto mb-4" /></Card>
 
-  const weeklyData = [
-    { day: 'Mon', amount: 3500 }, { day: 'Tue', amount: 4200 }, { day: 'Wed', amount: 2800 },
-    { day: 'Thu', amount: 5100 }, { day: 'Fri', amount: 6700 }, { day: 'Sat', amount: 4500 },
-    { day: 'Sun', amount: 3800 },
-  ]
+  // Real per-day earnings from GET /v2/riders/earnings (chartData: day/amount).
+  const weeklyData = Array.isArray(earningsData?.chartData) ? earningsData.chartData : []
 
   return (
     <div>
@@ -645,8 +611,11 @@ function RiderEarningsTab() {
       </div>
 
       <Card className="p-6 mb-6">
-        <h3 className="font-bold mb-4" style={{ color: '#1C1C1E' }}>Weekly Earnings</h3>
-        <div style={{ width: '100%', height: '200px' }}>
+        <h3 className="font-bold mb-4" style={{ color: '#1C1C1E' }}>Earnings by Day</h3>
+        {weeklyData.length === 0 && (
+          <p className="text-sm text-center py-4" style={{ color: '#636366' }}>No earnings in this period yet.</p>
+        )}
+        <div style={{ width: '100%', height: weeklyData.length ? '200px' : '0px' }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={weeklyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F0EAE0" />
@@ -701,12 +670,7 @@ function RiderHistoryTab() {
           const data = await res.json()
           setDeliveries(data.deliveries || data || [])
         } else {
-          setDeliveries([
-            { id: 'DEL-4521', from: 'Mama Cass Kitchen, Ikoyi', to: '12 Glover Road, Ikoyi', amount: 1500, date: '2024-06-13T14:30:00', rating: 5 },
-            { id: 'DEL-4520', from: 'Chop Chop Lagos, VI', to: '5B Victoria Island', amount: 1200, date: '2024-06-13T12:15:00', rating: 4 },
-            { id: 'DEL-4519', from: "Mama Cass Kitchen, Ikoyi", to: '24 Norman Williams, Ikoyi', amount: 1800, date: '2024-06-12T19:45:00', rating: 5 },
-            { id: 'DEL-4518', from: 'Jollof House, Surulere', to: '32 Bode Thomas, Surulere', amount: 1000, date: '2024-06-12T13:00:00', rating: 4 },
-          ])
+          setDeliveries([])
         }
       } catch (err) {
         setDeliveries([])

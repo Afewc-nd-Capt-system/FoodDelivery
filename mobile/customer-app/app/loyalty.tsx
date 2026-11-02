@@ -6,13 +6,22 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../../shared/api';
 
 export default function LoyaltyScreen() {
-  const [points, setPoints] = useState(1250);
-  const [tier, setTier] = useState('Gold');
-  const [history, setHistory] = useState([
-    { id: '1', description: 'Order #12345', points: 50, date: '2024-01-15' },
-    { id: '2', description: 'Order #12344', points: 45, date: '2024-01-14' },
-    { id: '3', description: 'Referral bonus', points: 100, date: '2024-01-10' },
-  ]);
+  const [points, setPoints] = useState(0);
+  const [tier, setTier] = useState('Member');
+  const [loading, setLoading] = useState(true);
+  const [history, setHistory] = useState<any[]>([]);
+
+  // Real loyalty data — GET /loyalty/balance and /loyalty/history (v2 API).
+  useEffect(() => {
+    Promise.all([api.get('/loyalty/balance'), api.get('/loyalty/history?limit=50')])
+      .then(([balanceRes, historyRes]) => {
+        setPoints(Number(balanceRes.data?.data?.points ?? 0));
+        const items = historyRes.data?.data;
+        if (Array.isArray(items)) setHistory(items);
+      })
+      .catch((error) => console.error('Failed to load loyalty data:', error))
+      .finally(() => setLoading(false));
+  }, []);
 
   const renderHistoryItem = ({ item }: { item: any }) => (
     <View style={styles.historyItem}>
@@ -20,10 +29,12 @@ export default function LoyaltyScreen() {
         <Gift size={20} color="#E8621A" />
       </View>
       <View style={styles.historyInfo}>
-        <Text style={styles.historyDescription}>{item.description}</Text>
-        <Text style={styles.historyDate}>{item.date}</Text>
+        <Text style={styles.historyDescription}>{item.description || 'Loyalty transaction'}</Text>
+        <Text style={styles.historyDate}>{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : ''}</Text>
       </View>
-      <Text style={styles.historyPoints}>+{item.points} pts</Text>
+      <Text style={[styles.historyPoints, { color: item.points < 0 ? '#D32F2F' : '#16A34A' }]}>
+        {item.points < 0 ? '' : '+'}{item.points} pts
+      </Text>
     </View>
   );
 
@@ -42,48 +53,30 @@ export default function LoyaltyScreen() {
         <Text style={styles.balanceAmount}>{points.toLocaleString()}</Text>
         <View style={styles.tierBadge}>
           <TrendingUp size={16} color="#FFFFFF" />
-          <Text style={styles.tierText}>{tier} Tier</Text>
+          <Text style={styles.tierText}>{tier}</Text>
         </View>
       </LinearGradient>
 
-      <View style={styles.progressSection}>
-        <Text style={styles.sectionTitle}>Progress to Platinum</Text>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: '65%' }]} />
-        </View>
-        <Text style={styles.progressText}>2,500 / 5,000 points</Text>
-      </View>
-
       <View style={styles.rewardsSection}>
         <Text style={styles.sectionTitle}>Redeem Rewards</Text>
-        <View style={styles.rewardsList}>
-          <TouchableOpacity style={styles.rewardCard}>
-            <Text style={styles.rewardEmoji}>🎁</Text>
-            <Text style={styles.rewardPoints}>500 pts</Text>
-            <Text style={styles.rewardTitle}>Free Delivery</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.rewardCard}>
-            <Text style={styles.rewardEmoji}>🍔</Text>
-            <Text style={styles.rewardPoints}>1000 pts</Text>
-            <Text style={styles.rewardTitle}>Free Meal</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.rewardCard}>
-            <Text style={styles.rewardEmoji}>💰</Text>
-            <Text style={styles.rewardPoints}>2000 pts</Text>
-            <Text style={styles.rewardTitle}>₦500 Credit</Text>
-          </TouchableOpacity>
-        </View>
+        <Text style={styles.rewardNote}>
+          Rewards redemption is coming to the app soon. Points earned on every order are tracked above in real time.
+        </Text>
       </View>
 
       <View style={styles.historySection}>
         <Text style={styles.sectionTitle}>Points History</Text>
+        {!loading && history.length === 0 ? (
+          <Text style={styles.rewardNote}>No loyalty activity yet. Points appear after your first completed order.</Text>
+        ) : (
         <FlatList
           data={history}
           renderItem={renderHistoryItem}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item._id || String(item.id)}
           scrollEnabled={false}
           contentContainerStyle={styles.historyList}
         />
+        )}
       </View>
     </ScrollView>
   );
@@ -111,6 +104,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '900',
     color: '#1C1C1E',
+  },
+  rewardNote: {
+    fontSize: 14,
+    color: '#636366',
+    lineHeight: 20,
   },
   balanceCard: {
     margin: 24,

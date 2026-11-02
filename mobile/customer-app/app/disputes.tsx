@@ -5,21 +5,28 @@ import { AlertTriangle, Plus } from 'lucide-react-native';
 import { api } from '../../shared/api';
 
 export default function DisputesScreen() {
-  const [disputes, setDisputes] = useState([
-    { _id: '1', orderId: '12345', issue: 'Missing items', status: 'pending', date: '2024-01-15' },
-    { _id: '2', orderId: '12344', issue: 'Wrong order', status: 'resolved', date: '2024-01-10' },
-  ]);
+  const [disputes, setDisputes] = useState<any[]>([]);
+
+  // Real disputes — GET /disputes (v2 API, auth handled by shared api client).
+  useEffect(() => {
+    api.get('/disputes')
+      .then((res) => {
+        const data = res.data?.data;
+        if (Array.isArray(data)) setDisputes(data);
+      })
+      .catch((error) => console.error('Failed to load disputes:', error));
+  }, []);
 
   const renderDispute = ({ item }: { item: any }) => (
     <View style={styles.disputeCard}>
       <View style={styles.disputeHeader}>
-        <Text style={styles.orderId}>Order #{item.orderId}</Text>
-        <View style={[styles.statusBadge, item.status === 'resolved' && styles.statusResolved]}>
-          <Text style={styles.statusText}>{item.status}</Text>
+        <Text style={styles.orderId}>{item.order?.restaurantName || item.order?._id || 'Dispute'}</Text>
+        <View style={[styles.statusBadge, ['resolved', 'rejected'].includes(item.status) && styles.statusResolved]}>
+          <Text style={styles.statusText}>{String(item.status || '').replace(/_/g, ' ')}</Text>
         </View>
       </View>
-      <Text style={styles.issue}>{item.issue}</Text>
-      <Text style={styles.date}>{item.date}</Text>
+      <Text style={styles.issue}>{item.description}</Text>
+      <Text style={styles.date}>{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : ''}</Text>
     </View>
   );
 

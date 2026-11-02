@@ -515,7 +515,7 @@ export default function OrderTrackingPage() {
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-8 max-w-md w-full text-center">
             <h2 className="text-2xl font-black mb-2">Rate Your Order 🎉</h2>
-            <p className="text-[#636366] mb-6">How was your food from Spice Garden?</p>
+            <p className="text-[#636366] mb-6">How was your food from {order?.restaurant?.name || order?.restaurantName || 'VibeChops'}?</p>
             <div className="flex justify-center gap-2 mb-6">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button

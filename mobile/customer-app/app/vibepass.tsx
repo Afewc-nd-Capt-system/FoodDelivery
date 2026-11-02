@@ -1,63 +1,66 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, FlatList } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, FlatList, Linking } from 'react-native';
 import { router } from 'expo-router';
 import { Crown, Check, X } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../../shared/api';
 
 export default function VibePassScreen() {
-  const [plans, setPlans] = useState([
-    {
-      id: '1',
-      name: 'Basic',
-      price: 1000,
-      features: ['Free delivery on orders over ₦2000', '5% discount on all orders', 'Priority support'],
-      badge: null,
-    },
-    {
-      id: '2',
-      name: 'Premium',
-      price: 3000,
-      features: ['Free delivery on all orders', '10% discount on all orders', 'Exclusive deals', 'Priority support', 'Early access to new features'],
-      badge: 'POPULAR',
-    },
-    {
-      id: '3',
-      name: 'VIP',
-      price: 5000,
-      features: ['Free delivery on all orders', '15% discount on all orders', 'Exclusive deals', 'Priority support', 'Early access to new features', 'Free meal every month'],
-      badge: 'BEST VALUE',
-    },
-  ]);
-  const [currentPlan, setCurrentPlan] = useState('1');
+  const [plans, setPlans] = useState<any[]>([]);
+  const [plans, setPlans] = useState<any[]>([]);
+  const [currentPlan, setCurrentPlan] = useState<string | null>(null);
 
-  const handleSubscribe = async (planId: string) => {
-    // TODO: Implement Paystack subscription
-    router.push('/checkout');
+  // Real plans + the user's active subscription (v2 API).
+  useEffect(() => {
+    api.get('/subscriptions/plans')
+      .then((res) => {
+        const data = res.data?.data;
+        if (Array.isArray(data)) setPlans(data);
+      })
+      .catch((error) => console.error('Failed to load plans:', error));
+    api.get('/subscriptions/my-subscription')
+      .then((res) => {
+        const sub = res.data?.data;
+        if (sub?.plan) setCurrentPlan(sub.plan);
+      })
+      .catch(() => {});
+  }, []);
+
+  const planFeatures = (plan: any): string[] => {
+    const list = Array.isArray(plan.features) ? plan.features : [];
+    const strings = list.map((f: any) => (typeof f === 'string' ? f : f?.text || '')).filter(Boolean);
+    if (plan.freeDeliveryLimit) strings.unshift(`${plan.freeDeliveryLimit} free deliveries per month`);
+    if (plan.discountPercent) strings.push(`${plan.discountPercent}% off every order`);
+    return strings;
   };
 
-  const renderPlan = ({ item, index }: { item: typeof plans[0]; index: number }) => {
-    const isCurrent = currentPlan === item.id;
-    const isPopular = index === 1;
-    const isBestValue = index === 2;
+  const handleSubscribe = async (plan: any) => {
+    try {
+      const res = await api.post('/subscriptions/subscribe', { planType: plan.planType });
+      const url = res.data?.data?.authorizationUrl;
+      if (url) {
+        Linking.openURL(url);
+      } else {
+        setCurrentPlan(plan.planType);
+      }
+    } catch (error: any) {
+      console.error('Failed to subscribe:', error);
+    }
+  };
+
+  const renderPlan = ({ item }: { item: any }) => {
+    const isCurrent = currentPlan === item.planType;
+    const features = planFeatures(item);
 
     return (
       <TouchableOpacity
-        style={[
-          styles.planCard,
-          isBestValue && styles.planCardBest,
-        ]}
-        onPress={() => !isCurrent && handleSubscribe(item.id)}
+        style={styles.planCard}
+        onPress={() => !isCurrent && handleSubscribe(item)}
       >
-        {item.badge && (
-          <View style={[styles.badge, isBestValue ? styles.badgeGreen : styles.badgeOrange]}>
-            <Text style={styles.badgeText}>{item.badge}</Text>
-          </View>
-        )}
         <Text style={styles.planName}>{item.name}</Text>
-        <Text style={styles.planPrice}>₦{item.price.toLocaleString()}/mo</Text>
+        <Text style={styles.planPrice}>₦{Number(item.monthlyPrice || 0).toLocaleString()}/mo</Text>
         <View style={styles.featuresList}>
-          {item.features.map((feature, idx) => (
+          {features.map((feature, idx) => (
             <View key={idx} style={styles.featureItem}>
               <Check size={16} color="#16A34A" />
               <Text style={styles.featureText}>{feature}</Text>
@@ -68,7 +71,6 @@ export default function VibePassScreen() {
           style={[
             styles.subscribeButton,
             isCurrent && styles.subscribeButtonDisabled,
-            isBestValue && styles.subscribeButtonBest,
           ]}
           disabled={isCurrent}
         >
@@ -101,9 +103,14 @@ export default function VibePassScreen() {
       <FlatList
         data={plans}
         renderItem={renderPlan}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item._id || item.planType}
         scrollEnabled={false}
         contentContainerStyle={styles.plansContainer}
+        ListEmptyComponent={
+          <View style={{ padding: 24, alignItems: 'center' }}>
+            <Text style={{ color: '#636366', fontSize: 14 }}>No VibePass plans are available right now.</Text>
+          </View>
+        }
       />
     </ScrollView>
   );

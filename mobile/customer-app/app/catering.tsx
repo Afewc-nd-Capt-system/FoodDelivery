@@ -5,23 +5,32 @@ import { Utensils, Plus } from 'lucide-react-native';
 import { api } from '../../shared/api';
 
 export default function CateringScreen() {
-  const [orders, setOrders] = useState([
-    { _id: '1', event: 'Birthday Party', date: '2024-01-20', guests: 50, status: 'pending', total: 150000 },
-    { _id: '2', event: 'Wedding', date: '2024-02-14', guests: 200, status: 'confirmed', total: 500000 },
-  ]);
+  const [orders, setOrders] = useState<any[]>([]);
+
+  // Real catering requests — GET /catering (v2 API).
+  useEffect(() => {
+    api.get('/catering')
+      .then((res) => {
+        const data = res.data?.data;
+        if (Array.isArray(data)) setOrders(data);
+      })
+      .catch((error) => console.error('Failed to load catering requests:', error));
+  }, []);
 
   const renderOrder = ({ item }: { item: any }) => (
     <View style={styles.orderCard}>
       <View style={styles.orderHeader}>
-        <Text style={styles.eventName}>{item.event}</Text>
+        <Text style={styles.eventName}>{String(item.eventType || 'Catering').replace(/_/g, ' ')}</Text>
         <View style={[styles.statusBadge, item.status === 'confirmed' && styles.statusConfirmed]}>
           <Text style={styles.statusText}>{item.status}</Text>
         </View>
       </View>
       <View style={styles.orderDetails}>
-        <Text style={styles.detailText}>📅 {item.date}</Text>
-        <Text style={styles.detailText}>👥 {item.guests} guests</Text>
-        <Text style={styles.total}>₦{item.total.toLocaleString()}</Text>
+        <Text style={styles.detailText}>📅 {item.eventDate}</Text>
+        <Text style={styles.detailText}>👥 {item.numberOfPeople} guests</Text>
+        {item.quotedPrice != null && (
+          <Text style={styles.total}>₦{Number(item.quotedPrice).toLocaleString()}</Text>
+        )}
       </View>
     </View>
   );

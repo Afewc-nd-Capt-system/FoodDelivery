@@ -5,15 +5,25 @@ import { Calendar, Plus } from 'lucide-react-native';
 import { api } from '../../shared/api';
 
 export default function ReservationsScreen() {
-  const [reservations, setReservations] = useState([
-    { _id: '1', restaurant: 'Jollof Palace', date: '2024-01-20', time: '19:00', guests: 4, status: 'confirmed' },
-    { _id: '2', restaurant: 'Grill House', date: '2024-01-25', time: '20:00', guests: 2, status: 'pending' },
-  ]);
+  const [reservations, setReservations] = useState<any[]>([]);
+
+  // Real table reservations — GET /reservations (v2 API).
+  useEffect(() => {
+    api.get('/reservations?limit=50')
+      .then((res) => {
+        const data = res.data?.data;
+        if (Array.isArray(data)) setReservations(data);
+      })
+      .catch((error) => console.error('Failed to load reservations:', error));
+  }, []);
+
+  const restaurantLabel = (item: any) =>
+    typeof item.restaurant === 'object' ? item.restaurant?.name || 'Restaurant' : item.restaurant || 'Restaurant';
 
   const renderReservation = ({ item }: { item: any }) => (
     <View style={styles.reservationCard}>
       <View style={styles.reservationHeader}>
-        <Text style={styles.restaurantName}>{item.restaurant}</Text>
+        <Text style={styles.restaurantName}>{restaurantLabel(item)}</Text>
         <View style={[styles.statusBadge, item.status === 'confirmed' && styles.statusConfirmed]}>
           <Text style={styles.statusText}>{item.status}</Text>
         </View>
@@ -23,7 +33,7 @@ export default function ReservationsScreen() {
           <Calendar size={16} color="#636366" />
           <Text style={styles.detailText}>{item.date} at {item.time}</Text>
         </View>
-        <Text style={styles.guests}>{item.guests} guests</Text>
+        <Text style={styles.guests}>{item.partySize} guests</Text>
       </View>
     </View>
   );

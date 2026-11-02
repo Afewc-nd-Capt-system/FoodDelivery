@@ -1,7 +1,7 @@
 'use client';
 import { API_BASE as API_URL } from '@/lib/apiBase';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -18,19 +18,29 @@ export default function GroupOrderCreatePage() {
   const [loading, setLoading] = useState(false);
   const [groupName, setGroupName] = useState('');
   const [restaurant, setRestaurant] = useState('');
+  const [restaurants, setRestaurants] = useState<{ _id: string; name: string; cuisine?: string }[]>([]);
+  const [restaurantsLoading, setRestaurantsLoading] = useState(true);
+  const [deliveryAddress, setDeliveryAddress] = useState('');
   const [deliveryTime, setDeliveryTime] = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
   const [maxParticipants, setMaxParticipants] = useState('10');
   const [inviteEmails, setInviteEmails] = useState<string[]>([]);
   const [emailInput, setEmailInput] = useState('');
   const [groupCode, setGroupCode] = useState('');
+  const [error, setError] = useState('');
 
-  const restaurants = [
-    { id: '1', name: 'Mama Cass Kitchen', cuisine: 'Nigerian' },
-    { id: '2', name: 'Chop Chop Lagos', cuisine: 'Chinese' },
-    { id: '3', name: 'Spice Garden', cuisine: 'Indian' },
-    { id: '4', name: 'Bella Italia', cuisine: 'Italian' },
-  ];
+  // Real restaurant list from the API — the group order must reference an
+  // existing restaurant, never a hard-coded demo list.
+  useEffect(() => {
+    fetch(`${API_URL.replace(/\/v2$/, '')}/v2/restaurants?limit=20`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body) => {
+        const list = body?.restaurants || body?.data || [];
+        setRestaurants(Array.isArray(list) ? list : []);
+      })
+      .catch((err) => console.error('Failed to load restaurants:', err))
+      .finally(() => setRestaurantsLoading(false));
+  }, []);
 
   const timeSlots = [
     '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '5:00 PM', '6:00 PM', '7:00 PM', '8:00 PM'
@@ -48,28 +58,36 @@ export default function GroupOrderCreatePage() {
   };
 
   const handleCreate = async () => {
+    setError('');
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/auth/login');
+      return;
+    }
+    const selected = restaurants.find((r) => r._id === restaurant);
+    if (!selected) {
+      setError('Please choose a restaurant.');
+      return;
+    }
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/v2/group-orders`, {
+      const response = await fetch(`${API_URL.replace(/\/v2$/, '')}/v2/group-orders`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         credentials: 'include',
         body: JSON.stringify({
-          groupName,
-          restaurantId: restaurant,
-          deliveryDate,
-          deliveryTime,
-          maxParticipants: parseInt(maxParticipants),
-          invitedEmails: inviteEmails,
+          restaurant: selected._id,
+          restaurantName: selected.name,
+          deliveryAddress: deliveryAddress || groupName || selected.name,
         }),
       });
-      if (response.ok) {
-        const data = await response.json();
-        setGroupCode(data.code);
-        setStep(3);
-      }
-    } catch (error) {
-      console.error('Failed to create group order:', error);
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.message || `status ${response.status}`);
+      setGroupCode(body.data?.groupOrder?.shareCode || body.data?.groupOrder?.share_code || '');
+      setStep(3);
+    } catch (err) {
+      console.error('Failed to create group order:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create group order');
     } finally {
       setLoading(false);
     }
@@ -117,9 +135,13 @@ export default function GroupOrderCreatePage() {
                     <SelectValue placeholder="Choose a restaurant" />
                   </SelectTrigger>
                   <SelectContent className="bg-white">
+                    {restaurantsLoading && <SelectItem value="loading" disabled>Loading restaurants…</SelectItem>}
+                    {!restaurantsLoading && restaurants.length === 0 && (
+                      <SelectItem value="none" disabled>No restaurants available yet</SelectItem>
+                    )}
                     {restaurants.map((r) => (
-                      <SelectItem key={r.id} value={r.id}>
-                        {r.name} - {r.cuisine}
+                      <SelectItem key={r._id} value={r._id}>
+                        {r.name}{r.cuisine ? ` - ${r.cuisine}` : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>

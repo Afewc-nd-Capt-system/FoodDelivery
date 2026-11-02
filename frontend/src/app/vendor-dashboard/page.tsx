@@ -1,42 +1,53 @@
 'use client'
-import { useState } from 'react'
-import Link from 'next/link'
+import { useState, useEffect } from 'react'
 import { useAuthGuard } from '@/hooks/useAuthGuard'
+import { API_V2 } from '@/lib/apiBase'
 import {
   Package, TrendingUp, DollarSign, Star, Calendar,
-  Clock, Utensils, Plus, Settings, AlertCircle, User, X
+  Clock, Utensils, Plus, Settings, User, X
 } from 'lucide-react'
+import Link from 'next/link'
 
 export default function VendorDashboardPage() {
   const { user, loading, authorized } = useAuthGuard('vendor')
   const [activeTab, setActiveTab] = useState('overview')
-  const [vendorStats] = useState({
-    totalOrders: 45,
-    totalRevenue: 125000,
-    totalDeliveries: 42,
-    rating: 4.8,
-    activeMenuItems: 12,
-    pendingOrders: 3,
-  })
-  const [upcomingCookingDays] = useState([
-    { date: 'Monday, May 12', orders: 8, status: 'upcoming' },
-    { date: 'Wednesday, May 14', orders: 12, status: 'upcoming' },
-    { date: 'Friday, May 16', orders: 15, status: 'upcoming' },
-  ])
+  // Real vendor data from GET /v2/vendor-forecast/me (resolves the signed-in
+  // vendor and aggregates its historic orders per cooking day).
+  const [vendorStats, setVendorStats] = useState<any>(null)
+  const [statsLoading, setStatsLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
   const [menuForm, setMenuForm] = useState({
     name: '', description: '', price: '', category: '', image: '',
     availableDate: '', availableFrom: '08:00', availableTo: '18:00',
     cutoffHours: 12, maxPreOrders: 20, cookingDay: '',
   })
-  const [recentOrders] = useState([
-    { id: 'ORD-001', customer: 'Funmi Adeyemi', items: 3, total: 8500, status: 'pending', deliveryDate: 'Monday, May 12' },
-    { id: 'ORD-002', customer: 'Tunde Bello', items: 2, total: 5200, status: 'confirmed', deliveryDate: 'Monday, May 12' },
-    { id: 'ORD-003', customer: 'Chioma Nwosu', items: 4, total: 12000, status: 'pending', deliveryDate: 'Wednesday, May 14' },
-  ])
 
-  const tabs = [
-    { id: 'overview', label: 'Overview', icon: TrendingUp },
+  useEffect(() => {
+    if (!authorized) return;
+    const token = localStorage.getItem('token');
+    if (!token) { setStatsLoading(false); return; }
+    fetch(`${API_V2}/vendor-forecast/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (res) => {
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.message || `status ${res.status}`);
+        setVendorStats(body?.data || null);
+      })
+      .catch((error) => console.error('Failed to load vendor stats:', error))
+      .finally(() => setStatsLoading(false));
+  }, [authorized]);
+
+  const cookingDays = Array.isArray(vendorStats?.cookingDays) ? vendorStats.cookingDays : [];
+  const upcomingCookingDays = cookingDays.map((day: any) => ({
+    date: day.day,
+    orders: day.historicalOrders ?? 0,
+    forecast: day.forecastedOrders ?? 0,
+    revenue: day.historicalRevenue ?? 0,
+  }));
+  const totalRevenue = cookingDays.reduce((sum: number, d: any) => sum + (d.historicalRevenue || 0), 0);
+
+  const tabs = [    { id: 'overview', label: 'Overview', icon: TrendingUp },
     { id: 'preorders', label: 'Pre-orders', icon: Clock },
     { id: 'menu', label: 'Menu', icon: Utensils },
     { id: 'schedule', label: 'Cooking Schedule', icon: Calendar },
@@ -124,47 +135,23 @@ export default function VendorDashboardPage() {
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               <div className="p-6 bg-white rounded-2xl shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <Package size={20} style={{ color: '#E8621A' }} />
-                  <span style={{
-                    fontSize: '11px', fontWeight: '700', padding: '2px 8px',
-                    borderRadius: '6px', color: '#E8621A', border: '1px solid #E8621A'
-                  }}>+12%</span>
-                </div>
-                <h3 className="text-2xl font-black" style={{ color: '#1C1C1E' }}>{vendorStats.totalOrders}</h3>
+                <Package size={20} style={{ color: '#E8621A' }} />
+                <h3 className="text-2xl font-black" style={{ color: '#1C1C1E' }}>{vendorStats ? vendorStats.totalHistoricalOrders ?? 0 : '…'}</h3>
                 <p className="text-sm" style={{ color: '#A0A0A0' }}>Total Orders</p>
               </div>
               <div className="p-6 bg-white rounded-2xl shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <DollarSign size={20} style={{ color: '#16A34A' }} />
-                  <span style={{
-                    fontSize: '11px', fontWeight: '700', padding: '2px 8px',
-                    borderRadius: '6px', color: '#16A34A', border: '1px solid #16A34A'
-                  }}>+8%</span>
-                </div>
-                <h3 className="text-2xl font-black" style={{ color: '#1C1C1E' }}>₦{(vendorStats.totalRevenue || 0).toLocaleString()}</h3>
+                <DollarSign size={20} style={{ color: '#16A34A' }} />
+                <h3 className="text-2xl font-black" style={{ color: '#1C1C1E' }}>{vendorStats ? `₦${Number(totalRevenue || 0).toLocaleString()}` : '…'}</h3>
                 <p className="text-sm" style={{ color: '#A0A0A0' }}>Total Revenue</p>
               </div>
               <div className="p-6 bg-white rounded-2xl shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <Star size={20} style={{ color: '#EAB308' }} />
-                  <span style={{
-                    fontSize: '11px', fontWeight: '700', padding: '2px 8px',
-                    borderRadius: '6px', color: '#CA8A04', border: '1px solid #CA8A04'
-                  }}>4.8★</span>
-                </div>
-                <h3 className="text-2xl font-black" style={{ color: '#1C1C1E' }}>{vendorStats.rating}</h3>
+                <Star size={20} style={{ color: '#EAB308' }} />
+                <h3 className="text-2xl font-black" style={{ color: '#1C1C1E' }}>{vendorStats?.rating ?? '—'}</h3>
                 <p className="text-sm" style={{ color: '#A0A0A0' }}>Customer Rating</p>
               </div>
               <div className="p-6 bg-white rounded-2xl shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <Utensils size={20} style={{ color: '#2563EB' }} />
-                  <span style={{
-                    fontSize: '11px', fontWeight: '700', padding: '2px 8px',
-                    borderRadius: '6px', color: '#2563EB', border: '1px solid #2563EB'
-                  }}>Active</span>
-                </div>
-                <h3 className="text-2xl font-black" style={{ color: '#1C1C1E' }}>{vendorStats.activeMenuItems}</h3>
+                <Utensils size={20} style={{ color: '#2563EB' }} />
+                <h3 className="text-2xl font-black" style={{ color: '#1C1C1E' }}>{vendorStats?.menuCount ?? '—'}</h3>
                 <p className="text-sm" style={{ color: '#A0A0A0' }}>Menu Items</p>
               </div>
             </div>
@@ -180,81 +167,42 @@ export default function VendorDashboardPage() {
                   </Link>
                 </div>
                 <div className="space-y-4">
-                  {(upcomingCookingDays || []).map((day, index) => (
+                  {(upcomingCookingDays || []).length === 0 && (
+                    <p className="text-sm" style={{ color: '#A0A0A0' }}>
+                      {statsLoading ? 'Loading cooking days…' : 'No cooking days configured yet. Add them in your vendor profile.'}
+                    </p>
+                  )}
+                  {(upcomingCookingDays || []).map((day: any, index: number) => (
                     <div key={index} className="flex items-center justify-between p-4 rounded-xl" style={{ backgroundColor: '#FFF1E8' }}>
                       <div className="flex items-center gap-3">
                         <Calendar size={20} style={{ color: '#E8621A' }} />
                         <div>
                           <p className="font-bold" style={{ color: '#1C1C1E' }}>{day.date}</p>
-                          <p className="text-sm" style={{ color: '#636366' }}>{(day.orders || 0)} orders scheduled</p>
+                          <p className="text-sm" style={{ color: '#636366' }}>
+                            {(day.orders || 0)} orders historically • ₦{Number(day.revenue || 0).toLocaleString()}
+                          </p>
                         </div>
                       </div>
                       <span style={{
                         padding: '4px 12px', borderRadius: '8px', background: '#E8621A',
                         color: 'white', fontSize: '12px', fontWeight: '700'
-                      }}>Upcoming</span>
+                      }}>~{(day.forecast || 0)} expected</span>
                     </div>
                   ))}
                 </div>
               </div>
 
               <div className="p-6 bg-white rounded-2xl shadow-sm">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-black" style={{ color: '#1C1C1E' }}>
-                    Recent Orders
-                  </h2>
-                  <Link href="/vendor/orders" className="text-sm font-bold" style={{ color: '#E8621A' }}>
-                    View All →
-                  </Link>
-                </div>
-                <div className="space-y-4">
-                  {(recentOrders || []).map((order) => (
-                    <div key={order.id} className="flex items-center justify-between p-4 rounded-xl border" style={{ borderColor: '#F0EAE0' }}>
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: '#FFF1E8' }}>
-                          <Package size={20} style={{ color: '#E8621A' }} />
-                        </div>
-                        <div>
-                          <p className="font-bold" style={{ color: '#1C1C1E' }}>{order.customer}</p>
-                          <p className="text-sm" style={{ color: '#636366' }}>
-                            {(order.items || 0)} items • ₦{(order.total || 0).toLocaleString()}
-                          </p>
-                          <p className="text-xs" style={{ color: '#A0A0A0' }}>
-                            Delivery: {order.deliveryDate}
-                          </p>
-                        </div>
-                      </div>
-                      <span style={{
-                        padding: '4px 12px', borderRadius: '8px',
-                        background: order.status === 'confirmed' ? '#16A34A' : '#EAB308',
-                        color: 'white', fontSize: '12px', fontWeight: '700'
-                      }}>{order.status}</span>
-                    </div>
-                  ))}
+                <h2 className="text-xl font-black mb-6" style={{ color: '#1C1C1E' }}>
+                  Recent Orders
+                </h2>
+                <div className="text-center py-8">
+                  <Package size={40} style={{ color: '#E8E8E8', margin: '0 auto 8px' }} />
+                  <p className="font-bold" style={{ color: '#1C1C1E' }}>Order list coming soon</p>
+                  <p className="text-sm" style={{ color: '#636366' }}>A vendor order inbox isn't built yet — totals above are counted straight from your completed orders.</p>
                 </div>
               </div>
             </div>
-
-            {(vendorStats.pendingOrders || 0) > 0 && (
-              <div className="p-6 bg-white rounded-2xl shadow-sm border-l-4" style={{ borderLeftColor: '#E8621A' }}>
-                <div className="flex items-center gap-4">
-                  <AlertCircle size={24} style={{ color: '#E8621A' }} />
-                  <div className="flex-1">
-                    <h3 className="font-bold" style={{ color: '#1C1C1E' }}>
-                      {(vendorStats.pendingOrders || 0)} Pending Orders
-                    </h3>
-                    <p className="text-sm" style={{ color: '#636366' }}>
-                      You have orders awaiting confirmation. Review them now to avoid delays.
-                    </p>
-                  </div>
-                  <button style={{
-                    padding: '10px 20px', borderRadius: '12px', border: 'none',
-                    background: '#E8621A', color: 'white', fontWeight: '700',
-                    cursor: 'pointer'
-                  }}>Review Orders</button>
-                </div>
-              </div>
-            )}
           </>
         )}
 
@@ -346,17 +294,24 @@ export default function VendorDashboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <div className="p-4 rounded-xl" style={{ backgroundColor: '#FFF1E8' }}>
                 <p className="text-sm" style={{ color: '#636366' }}>Total Revenue</p>
-                <p className="text-2xl font-bold" style={{ color: '#1C1C1E' }}>₦{(vendorStats.totalRevenue || 0).toLocaleString()}</p>
+                <p className="text-2xl font-bold" style={{ color: '#1C1C1E' }}>{vendorStats ? `₦${Number(totalRevenue || 0).toLocaleString()}` : '…'}</p>
               </div>
               <div className="p-4 rounded-xl" style={{ backgroundColor: '#F0FDF4' }}>
-                <p className="text-sm" style={{ color: '#636366' }}>Commission (15%)</p>
-                <p className="text-2xl font-bold" style={{ color: '#16A34A' }}>₦{((vendorStats.totalRevenue || 0) * 0.15).toLocaleString()}</p>
+                <p className="text-sm" style={{ color: '#636366' }}>Per order (avg)</p>
+                <p className="text-2xl font-bold" style={{ color: '#16A34A' }}>
+                  {vendorStats && vendorStats.totalHistoricalOrders > 0
+                    ? `₦${Number(Math.round(totalRevenue / vendorStats.totalHistoricalOrders)).toLocaleString()}`
+                    : '—'}
+                </p>
               </div>
               <div className="p-4 rounded-xl" style={{ backgroundColor: '#EFF6FF' }}>
-                <p className="text-sm" style={{ color: '#636366' }}>Net Earnings</p>
-                <p className="text-2xl font-bold" style={{ color: '#2563EB' }}>₦{((vendorStats.totalRevenue || 0) * 0.85).toLocaleString()}</p>
+                <p className="text-sm" style={{ color: '#636366' }}>Historic Orders</p>
+                <p className="text-2xl font-bold" style={{ color: '#2563EB' }}>{vendorStats ? vendorStats.totalHistoricalOrders ?? 0 : '…'}</p>
               </div>
             </div>
+            <p className="text-xs" style={{ color: '#A0A0A0' }}>
+              Commission statements will appear here once per-vendor commission settlement is enabled.
+            </p>
           </div>
         )}
 

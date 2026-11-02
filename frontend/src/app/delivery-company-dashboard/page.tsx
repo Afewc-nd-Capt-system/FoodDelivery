@@ -1,5 +1,5 @@
 'use client'
-import { SOCKET_URL } from '@/lib/apiBase';
+import { SOCKET_URL, API_V2 as API_V2_BASE } from '@/lib/apiBase';
 import { useState, useEffect } from 'react'
 import { useAuthGuard } from '@/hooks/useAuthGuard'
 import {
@@ -42,19 +42,33 @@ export default function DeliveryCompanyDashboardPage() {
 
     return () => { if (socket) socket.disconnect() }
   }, [user])
-  const [companyStats] = useState({
-    totalRiders: 24,
-    activeRiders: 18,
-    totalDeliveries: 1250,
-    totalEarnings: 375000,
-    rating: 4.7,
-    wallet: { balance: 87500, pendingWithdrawals: 12500 }
-  })
-  const [riders] = useState([
-    { id: '1', name: 'Emmanuel Okafor', phone: '08012345678', vehicleType: 'bike', isOnline: true, totalDeliveries: 45, rating: 4.8 },
-    { id: '2', name: 'Chinedu Eze', phone: '08023456789', vehicleType: 'scooter', isOnline: true, totalDeliveries: 38, rating: 4.6 },
-    { id: '3', name: 'Adebayo Johnson', phone: '08034567890', vehicleType: 'bike', isOnline: false, totalDeliveries: 52, rating: 4.9 },
-  ])
+  const [companyStats, setCompanyStats] = useState<any>(null);
+  const [riders, setRiders] = useState<any[]>([]);
+  const [companyEarnings, setCompanyEarnings] = useState<{ totalEarned: number; pendingEarnings: number } | null>(null);
+
+  // Real data: company stats + rider fleet + earnings for the signed-in company owner.
+  // GET /v2/delivery-company/:companyId/stats · /riders · GET /v2/earnings/delivery/earnings
+  useEffect(() => {
+    if (!user) return;
+    const companyId = typeof (user as any).company === 'object' ? (user as any).company?._id : (user as any).company;
+    const token = localStorage.getItem('token');
+    const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+
+    if (companyId) {
+      fetch(`${API_V2_BASE}/delivery-company/${companyId}/stats`, { headers })
+        .then((r) => (r.ok ? r.json() : null))
+        .then(setCompanyStats)
+        .catch((error) => console.error('Failed to load company stats:', error));
+      fetch(`${API_V2_BASE}/delivery-company/${companyId}/riders?status=all`, { headers })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((body) => setRiders(Array.isArray(body?.riders) ? body.riders : []))
+        .catch((error) => console.error('Failed to load riders:', error));
+    }
+    fetch(`${API_V2_BASE}/earnings/delivery/earnings`, { headers })
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setCompanyEarnings)
+      .catch((error) => console.error('Failed to load company earnings:', error));
+  }, [user]);
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: TrendingUp },
@@ -154,12 +168,12 @@ export default function DeliveryCompanyDashboardPage() {
           <>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
               {[
-                { icon: Users, label: 'Total Riders', value: companyStats.totalRiders, color: '#2563EB' },
-                { icon: Bike, label: 'Active Riders', value: companyStats.activeRiders, color: '#16A34A' },
-                { icon: Package, label: 'Total Deliveries', value: companyStats.totalDeliveries, color: '#E8621A' },
-                { icon: DollarSign, label: 'Total Earnings', value: `₦${((companyStats.totalEarnings || 0) / 1000).toFixed(0)}K`, color: '#F59E0B' },
-                { icon: Star, label: 'Rating', value: companyStats.rating, color: '#8B5CF6' },
-                { icon: Wallet, label: 'Wallet', value: `₦${((companyStats.wallet?.balance || 0) / 1000).toFixed(0)}K`, color: '#10B981' },
+                { icon: Users, label: 'Total Riders', value: companyStats ? companyStats.totalRiders ?? '—' : '…', color: '#2563EB' },
+                { icon: Bike, label: 'Active Riders', value: companyStats ? companyStats.activeRiders ?? '—' : '…', color: '#16A34A' },
+                { icon: Package, label: 'Total Deliveries', value: companyStats ? companyStats.totalDeliveries ?? '—' : '…', color: '#E8621A' },
+                { icon: DollarSign, label: 'Total Earnings', value: companyStats ? `₦${Number(companyStats.totalEarnings || 0).toLocaleString()}` : '…', color: '#F59E0B' },
+                { icon: Star, label: 'Rating', value: companyStats && companyStats.rating ? companyStats.rating : '—', color: '#8B5CF6' },
+                { icon: Wallet, label: 'Wallet', value: companyStats ? `₦${Number(companyStats.wallet?.balance || 0).toLocaleString()}` : '…', color: '#10B981' },
               ].map((stat, i) => {
                 const Icon = stat.icon
                 return (
@@ -186,7 +200,7 @@ export default function DeliveryCompanyDashboardPage() {
               </div>
               <div className="space-y-4">
                 {(riders || []).map((rider) => (
-                  <div key={rider.id} className="p-6 bg-white rounded-2xl shadow-sm">
+                  <div key={rider._id || rider.name || rider.phone} className="p-6 bg-white rounded-2xl shadow-sm">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center gap-3">
                         <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ backgroundColor: '#EFF6FF' }}>
@@ -229,7 +243,7 @@ export default function DeliveryCompanyDashboardPage() {
             <h3 className="font-bold mb-4" style={{ color: '#1C1C1E' }}>Riders Management</h3>
             <div className="space-y-4">
               {(riders || []).map((rider) => (
-                <div key={rider.id} className="flex items-center justify-between p-4 rounded-xl" style={{ background: '#F5F5F7' }}>
+                <div key={rider._id || rider.name || rider.phone} className="flex items-center justify-between p-4 rounded-xl" style={{ background: '#F5F5F7' }}>
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#EFF6FF' }}>
                       <Bike size={20} style={{ color: '#2563EB' }} />
@@ -260,9 +274,9 @@ export default function DeliveryCompanyDashboardPage() {
           <div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               {[
-                { label: 'Total Earnings', value: '₦375,000', color: '#16A34A' },
-                { label: 'This Month', value: '₦82,500', color: '#2563EB' },
-                { label: 'Pending Payout', value: '₦12,500', color: '#E8621A' },
+                { label: 'Total Earned', value: companyEarnings ? `₦${Number(companyEarnings.totalEarned || 0).toLocaleString()}` : '…', color: '#16A34A' },
+                { label: 'Pending Settlement', value: companyEarnings ? `₦${Number(companyEarnings.pendingEarnings || 0).toLocaleString()}` : '…', color: '#2563EB' },
+                { label: 'Lifetime Deliveries', value: companyStats ? String(companyStats.totalDeliveries ?? '—') : '…', color: '#E8621A' },
               ].map((stat) => (
                 <div key={stat.label} className="p-6 bg-white rounded-2xl shadow-sm">
                   <p className="text-sm" style={{ color: '#636366' }}>{stat.label}</p>
@@ -286,8 +300,8 @@ export default function DeliveryCompanyDashboardPage() {
                 <Wallet size={32} style={{ color: '#E8621A' }} />
               </div>
               <p className="text-sm" style={{ color: '#636366' }}>Available Balance</p>
-              <p className="text-4xl font-black mt-1" style={{ color: '#1C1C1E' }}>₦87,500</p>
-              <p className="text-sm mt-2" style={{ color: '#D32F2F' }}>Pending withdrawals: ₦12,500</p>
+              <p className="text-4xl font-black mt-1" style={{ color: '#1C1C1E' }}>{companyStats ? `₦${Number(companyStats.wallet?.balance || 0).toLocaleString()}` : '…'}</p>
+              <p className="text-sm mt-2" style={{ color: '#D32F2F' }}>Pending withdrawals: {companyStats ? `₦${Number(companyStats.wallet?.pendingWithdrawals || 0).toLocaleString()}` : '…'}</p>
               <div className="flex gap-3 justify-center mt-6">
                 <button style={{
                   padding: '12px 24px', borderRadius: '12px', border: 'none',
@@ -306,27 +320,10 @@ export default function DeliveryCompanyDashboardPage() {
           <div className="p-6 bg-white rounded-2xl shadow-sm">
             <h3 className="font-bold mb-4" style={{ color: '#1C1C1E' }}>Delivery History</h3>
             <div className="space-y-3">
-              {[
-                { id: 'DEL-4521', customer: 'Funmi Adeyemi', amount: '₦8,500', status: 'Delivered', time: '2 hours ago' },
-                { id: 'DEL-4520', customer: 'Tunde Bello', amount: '₦5,200', status: 'Delivered', time: '4 hours ago' },
-                { id: 'DEL-4519', customer: 'Chioma Obi', amount: '₦3,800', status: 'Cancelled', time: 'Yesterday' },
-                { id: 'DEL-4518', customer: 'Segun Adebayo', amount: '₦12,000', status: 'Delivered', time: 'Yesterday' },
-              ].map((delivery) => (
-                <div key={delivery.id} className="flex items-center justify-between p-4 rounded-xl" style={{ background: '#F5F5F7' }}>
-                  <div>
-                    <p className="font-bold text-sm" style={{ color: '#1C1C1E' }}>{delivery.customer}</p>
-                    <p className="text-xs" style={{ color: '#636366' }}>{delivery.id} · {delivery.time}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-sm" style={{ color: '#1C1C1E' }}>{delivery.amount}</p>
-                    <span style={{
-                      padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '700',
-                      background: delivery.status === 'Delivered' ? '#F0FDF4' : '#FEF2F2',
-                      color: delivery.status === 'Delivered' ? '#16A34A' : '#D32F2F'
-                    }}>{delivery.status}</span>
-                  </div>
-                </div>
-              ))}
+              <div className="text-center py-8" style={{ color: '#636366' }}>
+                <History size={48} style={{ color: '#E8E8E8' }} />
+                <p className="mt-2 text-sm">Per-company delivery history is not tracked yet. Rider individual histories are available on each rider's completed deliveries.</p>
+              </div>
             </div>
           </div>
         )}

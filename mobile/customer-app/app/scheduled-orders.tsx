@@ -5,26 +5,45 @@ import { Clock, Plus } from 'lucide-react-native';
 import { api } from '../../shared/api';
 
 export default function ScheduledOrdersScreen() {
-  const [orders, setOrders] = useState([
-    { _id: '1', restaurant: 'Jollof Palace', deliveryDate: '2024-01-20', deliveryTime: '19:00', status: 'scheduled', total: 5000 },
-    { _id: '2', restaurant: 'Grill House', deliveryDate: '2024-01-25', deliveryTime: '12:00', status: 'scheduled', total: 3500 },
-  ]);
+  const [orders, setOrders] = useState<any[]>([]);
+
+  // Real scheduled orders — GET /scheduled-orders (v2 API).
+  useEffect(() => {
+    api.get('/scheduled-orders?limit=50')
+      .then((res) => {
+        const data = res.data?.data;
+        if (Array.isArray(data)) setOrders(data);
+      })
+      .catch((error) => console.error('Failed to load scheduled orders:', error));
+  }, []);
+
+  const restaurantLabel = (item: any) =>
+    typeof item.restaurant === 'object' ? item.restaurant?.name || item.restaurantName || 'Restaurant' : item.restaurantName || 'Restaurant';
 
   const renderOrder = ({ item }: { item: any }) => (
     <View style={styles.orderCard}>
       <View style={styles.orderHeader}>
-        <Text style={styles.restaurantName}>{item.restaurant}</Text>
+        <Text style={styles.restaurantName}>{restaurantLabel(item)}</Text>
         <View style={styles.statusBadge}>
           <Text style={styles.statusText}>{item.status}</Text>
         </View>
       </View>
       <View style={styles.orderDetails}>
-        <Text style={styles.detailText}>📅 {item.deliveryDate} at {item.deliveryTime}</Text>
-        <Text style={styles.total}>₦{item.total.toLocaleString()}</Text>
+        <Text style={styles.detailText}>📅 {item.scheduledTime ? new Date(item.scheduledTime).toLocaleString() : ''}</Text>
+        <Text style={styles.total}>₦{Number(item.totalAmount || 0).toLocaleString()}</Text>
       </View>
-      <TouchableOpacity style={styles.cancelButton}>
-        <Text style={styles.cancelButtonText}>Cancel</Text>
-      </TouchableOpacity>
+      {(item.status !== 'cancelled') && (
+        <TouchableOpacity
+          style={styles.cancelButton}
+          onPress={() => {
+            api.put(`/scheduled-orders/${item._id}/cancel`)
+              .then(() => setOrders((prev) => prev.filter((o) => o._id !== item._id)))
+              .catch((error) => console.error('Failed to cancel:', error));
+          }}
+        >
+          <Text style={styles.cancelButtonText}>Cancel</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 

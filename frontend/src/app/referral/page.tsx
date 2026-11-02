@@ -1,19 +1,61 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { CheckCircle, Copy, MessageCircle, Twitter, Users, TrendingUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { API_V2 } from '@/lib/apiBase';
+
+interface ReferralEntry {
+  _id: string;
+  referee?: { name?: string; email?: string; createdAt?: string } | string;
+  status: string;
+  rewardValue?: number;
+  createdAt: string;
+}
 
 export default function ReferralPage() {
   const [copied, setCopied] = useState(false);
-  const referralCode = 'VIBE-ABC123';
-  const [friendsReferred] = useState(3);
-  const [totalEarned] = useState(1500);
+  const [loading, setLoading] = useState(true);
+  const [authRequired, setAuthRequired] = useState(false);
+  const [referralCode, setReferralCode] = useState('');
+  const [friendsReferred, setFriendsReferred] = useState(0);
+  const [totalEarned, setTotalEarned] = useState(0);
+  const [history, setHistory] = useState<ReferralEntry[]>([]);
+
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      setAuthRequired(true);
+      setLoading(false);
+      return;
+    }
+    const headers = { Authorization: `Bearer ${token}` };
+    const run = async () => {
+      try {
+        const [summary, rewards, referrals] = await Promise.all([
+          fetch(`${API_V2}/referral`, { headers }).then((r) => (r.ok ? r.json() : null)),
+          fetch(`${API_V2}/referral/my-rewards`, { headers }).then((r) => (r.ok ? r.json() : null)),
+          fetch(`${API_V2}/referral/my-referrals`, { headers }).then((r) => (r.ok ? r.json() : null)),
+        ]);
+        if (summary) setReferralCode(summary.data?.referralCode || '');
+        if (rewards) {
+          setFriendsReferred(Number(rewards.data?.totalReferrals || 0));
+          setTotalEarned(Number(rewards.data?.totalRewardsValue || 0));
+        }
+        if (referrals) setHistory(Array.isArray(referrals.data) ? referrals.data : []);
+      } catch (error) {
+        console.error('Failed to fetch referral data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    run();
+  }, []);
 
   const copyCode = () => {
+    if (!referralCode) return;
     navigator.clipboard.writeText(referralCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -24,11 +66,22 @@ export default function ReferralPage() {
       <h1 className="text-2xl font-black text-[#1C1C1E] mb-8">Invite & Earn 🎉</h1>
 
       {/* Hero Card */}
+      {authRequired ? (
+        <Card className="p-8 mb-8 text-center">
+          <h2 className="text-xl font-black mb-2 text-[#1C1C1E]">Sign in to get your referral code</h2>
+          <p className="text-sm text-[#636366]">
+            Create an account or log in, then share your code to earn referral rewards.
+          </p>
+        </Card>
+      ) : (
+      <>
       <div className="bg-gradient-to-r from-[#E8621A] to-[#C4501A] rounded-3xl p-8 text-white mb-8">
         <h2 className="text-3xl font-black mb-2">Invite Friends, Earn Rewards</h2>
         <p className="text-white/80 mb-4">Share your referral code and earn ₦500 for each friend who joins!</p>
         <div className="bg-white/20 rounded-xl p-4 inline-block">
-          <p className="text-sm font-mono text-lg font-bold tracking-wider">{referralCode}</p>
+          <p className="text-sm font-mono text-lg font-bold tracking-wider">
+            {loading ? '…' : (referralCode || 'Code unavailable')}
+          </p>
         </div>
         <button
           onClick={copyCode}
@@ -101,29 +154,40 @@ export default function ReferralPage() {
       <Card className="p-6">
         <h3 className="font-bold mb-4">Referral History</h3>
         <div className="space-y-4">
-          {[
-            { name: 'Chinua A.', date: 'May 2, 2026', status: 'completed', reward: 500 },
-            { name: 'Bola T.', date: 'Apr 28, 2026', status: 'completed', reward: 500 },
-            { name: 'Funke M.', date: 'Apr 15, 2026', status: 'completed', reward: 500 },
-          ].map((ref, i) => (
-            <div key={i} className="flex items-center justify-between py-3 border-b border-[#F0EAE0] last:border-0">
+          {loading && <p className="text-sm text-[#A0A0A0]">Loading…</p>}
+          {!loading && history.length === 0 && (
+            <p className="text-sm text-[#A0A0A0]">No referrals yet — share your code above to earn rewards.</p>
+          )}
+          {!loading && history.map((ref) => {
+            const refereeName = typeof ref.referee === 'object'
+              ? (ref.referee?.name || ref.referee?.email || 'A user')
+              : (ref.referee || 'A user');
+            return (
+            <div key={ref._id} className="flex items-center justify-between py-3 border-b border-[#F0EAE0] last:border-0">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-r from-[#E8621A] to-[#BE3A2A] flex items-center justify-center text-white font-bold">
-                  {ref.name.charAt(0)}
+                  {String(refereeName).charAt(0)}
                 </div>
                 <div>
-                  <p className="text-sm font-medium">{ref.name}</p>
-                  <p className="text-xs text-[#A0A0A0]">{ref.date}</p>
+                  <p className="text-sm font-medium">{refereeName}</p>
+                  <p className="text-xs text-[#A0A0A0]">{new Date(ref.createdAt).toLocaleDateString()}</p>
                 </div>
               </div>
               <div className="text-right">
-                <Badge className="bg-[#F0FDF4] text-[#16A34A]">Completed</Badge>
-                <p className="text-sm font-bold text-[#E8621A] mt-1">+₦{ref.reward}</p>
+                <Badge className="bg-[#F0FDF4] text-[#16A34A]">
+                  {ref.status === 'completed' ? 'Completed' : ref.status}
+                </Badge>
+                {Number(ref.rewardValue || 0) > 0 && (
+                  <p className="text-sm font-bold text-[#E8621A] mt-1">+₦{Number(ref.rewardValue).toLocaleString()}</p>
+                )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </Card>
+      </>
+      )}
     </div>
   );
 }
