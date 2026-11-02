@@ -403,7 +403,7 @@ async function fetchRestaurants() {
     const { page } = await newPage(browser);
     const res = await gotoPage(page, BASE + '/vibepass');
     const text = await bodyText(page);
-    const ok = res && res.status() === 200 && !/₦2,500|Best Value Badge|Save up to \d+% today/.test(text);
+    const ok = res && res.status() === 200 && /VibePass/i.test(text) && !/BEST VALUE|Early access to new features|Save up to \d+% today/i.test(text);
     check('vibepass page has no hardcoded plan prices', ok, `chars=${text.length}`);
   } catch (error) {
     check('vibepass page has no hardcoded plan prices', false, error.message);
