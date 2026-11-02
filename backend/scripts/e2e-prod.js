@@ -207,6 +207,135 @@ async function main() {
     return '404';
   });
 
+  // ---- CORS: exact allowlist, allowed origins only ----
+  const allowedMatrixOrigins = [
+    ['E2E origin', ORIGIN],
+    ['vibechops.com', 'https://vibechops.com'],
+    ['www.vibechops.com', 'https://www.vibechops.com'],
+  ];
+  const deniedMatrixOrigins = [
+    ['evil.vercel.app', 'https://evil.vercel.app'],
+    ['vibechops.com.evil.com', 'https://vibechops.com.evil.com'],
+    ['http://vibechops.com', 'http://vibechops.com'],
+  ];
+
+  await requestStep('CORS grants every allowed origin (GET + preflight)', async () => {
+    for (const [label, origin] of allowedMatrixOrigins) {
+      const plain = await api('/restaurants?limit=1', { headers: { Origin: origin } });
+      assert(plain.status === 200, `${label} GET returned ${plain.status}`);
+      assert(
+        plain.response.headers.get('access-control-allow-origin') === origin,
+        `${label} GET ACAO was ${(plain.response.headers.get('access-control-allow-origin') || '(missing)')}`
+      );
+      const pre = await fetch(`${API}/restaurants?limit=1`, {
+        method: 'OPTIONS',
+        headers: {
+          Origin: origin,
+          'Access-Control-Request-Method': 'GET',
+        },
+      });
+      assert(pre.status === 204, `${label} preflight returned ${pre.status}`);
+      assert(
+        pre.headers.get('access-control-allow-origin') === origin,
+        `${label} preflight ACAO was ${(pre.headers.get('access-control-allow-origin') || '(missing)')}`
+      );
+    }
+    return `${allowedMatrixOrigins.length} origins × GET+preflight`;
+  });
+
+  await requestStep('CORS denies bad origins and suffix spoofs (GET + preflight)', async () => {
+    for (const [label, origin] of deniedMatrixOrigins) {
+      const plain = await api('/restaurants?limit=1', { headers: { Origin: origin } });
+      assert(plain.status === 200, `${label} GET unexpected status ${plain.status} (non-browser only rule)`);
+      assert(
+        !plain.response.headers.get('access-control-allow-origin'),
+        `${label} GET was granted ACAO!`
+      );
+      const pre = await fetch(`${API}/restaurants?limit=1`, {
+        method: 'OPTIONS',
+        headers: {
+          Origin: origin,
+          'Access-Control-Request-Method': 'GET',
+        },
+      });
+      assert(pre.status === 403, `${label} preflight returned ${pre.status}, expected 403`);
+      assert(
+        !pre.headers.get('access-control-allow-origin'),
+        `${label} preflight was granted ACAO!`
+      );
+    }
+    return `${deniedMatrixOrigins.length} origins denied on GET+preflight`;
+  });
+
+  await requestStep('CORS headers survive error statuses (401/403/404/400-500) for allowed origin', async () => {
+    const unauth = await api('/orders');
+    assert(unauth.status === 401, `unauth orders returned ${unauth.status}`);
+    assert(
+      unauth.response.headers.get('access-control-allow-origin') === ORIGIN,
+      '401 missing ACAO for allowed origin'
+    );
+
+    const forbidden = await api('/wallet/credit', {
+      method: 'POST', token: tokens.customer, body: { amount: 1000 },
+    });
+    assert(forbidden.status === 403, `customer wallet credit returned ${forbidden.status}`);
+    assert(
+      forbidden.response.headers.get('access-control-allow-origin') === ORIGIN,
+      '403 missing ACAO for allowed origin'
+    );
+
+    const notFound = await api('/route/that/does/not/exist');
+    assert(notFound.status === 404, `unknown route returned ${notFound.status}`);
+    assert(
+      notFound.response.headers.get('access-control-allow-origin') === ORIGIN,
+      '404 missing ACAO for allowed origin'
+    );
+
+    // Malformed JSON short-circuits body-parser; the error response must still
+    // carry the CORS grant.
+    const malformed = await fetch(`${API}/auth/login`, {
+      method: 'POST',
+      headers: { Origin: ORIGIN, 'Content-Type': 'application/json' },
+      body: '{"email":',
+    });
+    assert([400, 500].includes(malformed.status), `malformed JSON returned ${malformed.status}`);
+    assert(
+      malformed.headers.get('access-control-allow-origin') === ORIGIN,
+      `${malformed.status} missing ACAO for allowed origin`
+    );
+    return '401/403/404/400-500 all carry ACAO';
+  });
+
+  // Trigger the login limiter on a throwaway spoofed IP (trusted-proxy mode)
+  // so the shared production IP budget is never consumed by the test itself.
+  await requestStep('login limiter 429 carries ACAO and the lockout message', async () => {
+    const spoofIp = `203.0.113.${10 + (Date.now() % 200)}`;
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const result = await api('/auth/login', {
+        method: 'POST',
+        headers: { 'X-Forwarded-For': spoofIp },
+        body: { email: `limiter-e2e-${spoofIp}@example.com`, password: 'definitely-not-it' },
+      });
+      assert([401, 429].includes(result.status), `limiter probe returned ${result.status}`);
+      assert(
+        result.response.headers.get('access-control-allow-origin') === ORIGIN,
+        `probe ${result.status} missing ACAO for allowed origin`
+      );
+      if (result.status === 429) {
+        assert(
+          /too many.*(attempts|login)/i.test(result.body?.message || ''),
+          `429 message was: ${result.text}`
+        );
+        assert(
+          /try again in \d+ minutes/i.test(result.body?.message || ''),
+          `429 message lacks the retry window: ${result.text}`
+        );
+        return `429 after ${attempt + 1} failed attempts — ACAO + retry window OK`;
+      }
+    }
+    throw new Error('login limiter did not trip after 6 failed attempts');
+  });
+
   await requestStep('verification documents are admin-only', async () => {
     const customerAttempt = await api('/restaurants/docs/does-not-exist.jpg', {
       token: tokens.customer,
