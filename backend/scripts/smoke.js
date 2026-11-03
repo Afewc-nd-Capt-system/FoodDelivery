@@ -350,6 +350,14 @@ async function fetchRestaurants() {
   if (sessions.customer) {
     try {
       const res = await gotoPage(sessions.customer.page, BASE + '/orders');
+      // The orders list is client-fetched; give a cold Render API room to
+      // answer before judging the page.
+      await sessions.customer.page
+        .waitForFunction(
+          () => /No orders yet|Order #|₦/.test(document.body.innerText) || /failed to fetch/i.test(document.body.innerText),
+          { timeout: 25000 }
+        )
+        .catch(() => {});
       const text = await bodyText(sessions.customer.page);
       const mockVisible = /Spice Garden|Burger Barn|Dragon Palace/.test(text);
       const ok = res && res.status() === 200 && !mockVisible
@@ -370,12 +378,18 @@ async function fetchRestaurants() {
       body: JSON.stringify({ success: false, message: 'Too many login attempts. Please try again in 15 minutes.' }),
     }));
     await page.goto(BASE + '/login', { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.waitForTimeout(1200);
+    // Wait for the form to hydrate: on a cold production load the inputs can
+    // be painted before React attaches the submit handler, and a click then
+    // does nothing (no fetch, no error message).
+    await page.waitForSelector('input[type=password]', { state: 'visible', timeout: 30000 });
+    await page.waitForTimeout(2500);
     await page.fill('input[type=email]', 'smoke-429@example.com');
     await page.fill('input[type=password]', 'not-the-password');
-    await page.click('button');
+    await page.locator('button', { hasText: /^Sign In$/i }).first().click().catch(async () => {
+      await page.click('button');
+    });
     let fourTwentyNineText = '';
-    for (let i = 0; i < 30; i += 1) {
+    for (let i = 0; i < 40; i += 1) {
       await page.waitForTimeout(500);
       fourTwentyNineText = await bodyText(page);
       if (/try again in \d+ minutes/i.test(fourTwentyNineText)) break;
