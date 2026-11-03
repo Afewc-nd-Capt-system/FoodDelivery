@@ -2,7 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const Vendor = require('../models/Vendor');
 const authMiddleware = require('../middleware/auth');
-const { vendorGuard } = require('../middleware/routeGuards');
+const { vendorGuard, adminGuard } = require('../middleware/routeGuards');
 const { xssProtection } = require('../middleware/sanitize');
 
 const router = express.Router();
@@ -268,6 +268,51 @@ router.post('/:id/trusted-customers', vendorGuard, async (req, res) => {
     res.json({ trustedCustomerWhitelist: vendor.payOnDeliveryConfig.trustedCustomerWhitelist });
   } catch (error) {
     res.status(400).json({ message: error.message });
+  }
+});
+
+// Admin-only maintenance: repair known-dead vendor images and normalize the
+// legacy placeholder schedule ('saturday' / '12pm - 2pm') for records that were
+// seeded before the fix. Idempotent; safe to run any time.
+router.post('/admin/normalize', authMiddleware, adminGuard, async (req, res) => {
+  try {
+    const deadImageIds = ['1563379928-8602815af19b'];
+    const fallbackImages = [
+      'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800&q=80',
+      'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=800&q=80',
+      'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=800&q=80',
+      'https://images.unsplash.com/photo-1529042410759-befb1204b468?w=800&q=80',
+    ];
+    const broken = await Vendor.find({
+      $or: deadImageIds.map((id) => ({ image: { $regex: id } })),
+    });
+    let imagesFixed = 0;
+    for (let i = 0; i < broken.length; i++) {
+      await Vendor.findByIdAndUpdate(broken[i]._id, {
+        $set: { image: fallbackImages[i % fallbackImages.length] },
+      });
+      imagesFixed++;
+    }
+
+    const presets = [
+      ['Saturday', 'Monday', 'Wednesday'], ['Tuesday', 'Thursday', 'Sunday'],
+      ['Friday', 'Sunday'], ['Monday', 'Wednesday'], ['Thursday', 'Saturday'],
+      ['Friday', 'Sunday'], ['Monday', 'Tuesday'],
+    ];
+    const times = ['12pm - 2pm', '4pm - 7pm', '10am - 1pm', '2pm - 5pm', '5pm - 8pm', '11am - 2pm', '3pm - 6pm'];
+    const stale = await Vendor.find({ cookingDays: ['saturday'] });
+    let schedulesFixed = 0;
+    for (let i = 0; i < stale.length; i++) {
+      const idx = Math.abs(String(stale[i]._id).split('').reduce((h, ch) => h * 31 + ch.charCodeAt(0), 7)) % presets.length;
+      await Vendor.findByIdAndUpdate(stale[i]._id, {
+        $set: { cookingDays: presets[idx], deliveryTime: times[idx] },
+      });
+      schedulesFixed++;
+    }
+
+    res.json({ success: true, data: { imagesFixed, schedulesFixed } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
