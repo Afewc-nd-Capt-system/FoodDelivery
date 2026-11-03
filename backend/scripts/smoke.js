@@ -378,21 +378,24 @@ async function fetchRestaurants() {
       body: JSON.stringify({ success: false, message: 'Too many login attempts. Please try again in 15 minutes.' }),
     }));
     await page.goto(BASE + '/login', { waitUntil: 'domcontentloaded', timeout: 60000 });
-    // Wait for the form to hydrate: on a cold production load the inputs can
-    // be painted before React attaches the submit handler, and a click then
-    // does nothing (no fetch, no error message).
+    await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
     await page.waitForSelector('input[type=password]', { state: 'visible', timeout: 30000 });
-    await page.waitForTimeout(2500);
-    await page.fill('input[type=email]', 'smoke-429@example.com');
-    await page.fill('input[type=password]', 'not-the-password');
-    await page.locator('button', { hasText: /^Sign In$/i }).first().click().catch(async () => {
-      await page.click('button');
-    });
+    await page.waitForTimeout(2000);
+
+    // The inputs are server-painted before React hydrates; until hydration an
+    // early fill is silently discarded and submit trips client-side validation.
+    // Retry the whole interaction until the request actually leaves.
     let fourTwentyNineText = '';
-    for (let i = 0; i < 40; i += 1) {
-      await page.waitForTimeout(500);
-      fourTwentyNineText = await bodyText(page);
-      if (/try again in \d+ minutes/i.test(fourTwentyNineText)) break;
+    for (let attempt = 0; attempt < 3 && !/try again in \d+ minutes/i.test(fourTwentyNineText); attempt += 1) {
+      await page.fill('input[type=email]', 'smoke-429@example.com');
+      await page.fill('input[type=password]', 'not-the-password');
+      await page.locator('button').first().click();
+      for (let i = 0; i < 16; i += 1) {
+        await page.waitForTimeout(500);
+        fourTwentyNineText = await bodyText(page);
+        if (/try again in \d+ minutes/i.test(fourTwentyNineText)) break;
+        if (/enter email and password/i.test(fourTwentyNineText)) break;
+      }
     }
     check('UI surfaces 429 lockout message', /try again in \d+ minutes/i.test(fourTwentyNineText),
       fourTwentyNineText.replace(/\s+/g, ' ').slice(0, 120));
