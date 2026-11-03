@@ -46,10 +46,35 @@ export default function CartPage() {
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
 
-  const deliveryFee = 500;
-  const serviceFee = 100;
+  // Delivery and service fees follow the same rule the backend prices orders
+  // with (orderPricingService: fee comes from the restaurant document —
+  // its stored deliveryFee/serviceFee, default 40/0 when unset; a stored 0
+  // means free delivery). Fetched live so the cart total matches the charged
+  // total exactly.
+  const [storeFees, setStoreFees] = useState<{ deliveryFee: number; serviceFee: number } | null>(null);
+  const deliveryFee = storeFees ? storeFees.deliveryFee : 40;
+  const serviceFee = storeFees ? storeFees.serviceFee : 0;
   const discountAmount = Math.round(subtotal * discount);
   const total = subtotal - discountAmount + deliveryFee + serviceFee;
+
+  // Load the fee configuration from the restaurant(s) in the cart.
+  useEffect(() => {
+    const restaurantId = items[0]?.restaurantId;
+    if (!restaurantId) return;
+    fetch(`${API_V2}/restaurants/${restaurantId}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (data) {
+          const del = Number(data.deliveryFee);
+          const svc = Number(data.serviceFee);
+          setStoreFees({
+            deliveryFee: Number.isFinite(del) ? del : 40,
+            serviceFee: Number.isFinite(svc) && svc > 0 ? svc : 0,
+          });
+        }
+      })
+      .catch(() => setStoreFees({ deliveryFee: 40, serviceFee: 0 }));
+  }, [items]);
 
   const handlePromo = () => {
     const ok = applyPromoCode(promoInput);
@@ -689,7 +714,7 @@ export default function CartPage() {
                 )}
                 <div className="flex justify-between text-sm">
                   <span style={{ color: '#636366' }}>Delivery Fee</span>
-                  <span className="font-semibold" style={{ color: '#1C1C1E' }}>₦{deliveryFee}</span>
+                  <span className="font-semibold" style={{ color: '#1C1C1E' }}>{deliveryFee > 0 ? `₦${deliveryFee}` : 'Free'}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span style={{ color: '#636366' }}>Service Fee</span>

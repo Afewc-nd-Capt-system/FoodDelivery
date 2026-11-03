@@ -243,7 +243,7 @@ function RestaurantsPageContent() {
             )}
           </h1>
           <p className="text-white/40 text-sm mb-6">
-            {filtered.length} restaurant{filtered.length !== 1 ? 's' : ''} found near you
+            {filtered.length} restaurant{filtered.length !== 1 ? 's' : ''}{activeFilterCount > 0 || quickFilter !== 'All' || maxDelivery < 60 ? ' matching your filters' : ''}
           </p>
 
           {/* Search row */}

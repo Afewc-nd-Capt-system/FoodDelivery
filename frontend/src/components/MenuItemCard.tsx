@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import { Star, Plus, Minus, Leaf } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
@@ -51,11 +50,15 @@ export default function MenuItemCard({ item, restaurantId, restaurantName }: Men
 
       <div className="relative w-28 h-28 flex-shrink-0">
         {item.image && (
-          <Image
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
             src={item.image}
             alt={item.name}
-            fill
-            className="object-cover rounded-lg"
+            className="absolute inset-0 w-full h-full object-cover rounded-lg"
+            onError={(e) => {
+              e.currentTarget.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&q=80';
+              e.currentTarget.onerror = null;
+            }}
           />
         )}
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2">

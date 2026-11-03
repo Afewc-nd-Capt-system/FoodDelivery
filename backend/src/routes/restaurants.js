@@ -208,9 +208,14 @@ router.post('/:id/reviews', async (req, res) => {
 router.put('/:id/pod-config', authMiddleware, restaurantGuard, async (req, res) => {
   try {
     const restaurant = await Restaurant.findById(req.params.id);
-    
+
     if (!restaurant) {
       return res.status(404).json({ message: 'Restaurant not found' });
+    }
+
+    // Tenant scoping: only the owner (or an admin) may change POD config.
+    if (req.user.role !== 'admin' && String(restaurant.owner) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized' });
     }
 
     restaurant.payOnDeliveryConfig = {
@@ -235,6 +240,11 @@ router.post('/:id/trusted-customers', authMiddleware, restaurantGuard, async (re
       return res.status(404).json({ message: 'Restaurant not found' });
     }
 
+    // Tenant scoping: only the owner (or an admin) may change the whitelist.
+    if (req.user.role !== 'admin' && String(restaurant.owner) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
     if (action === 'add') {
       if (!restaurant.payOnDeliveryConfig.trustedCustomerWhitelist.includes(userId)) {
         restaurant.payOnDeliveryConfig.trustedCustomerWhitelist.push(userId);
@@ -257,6 +267,11 @@ router.put('/:id/menu/:menuItemId/pod-settings', authMiddleware, restaurantGuard
     const restaurant = await Restaurant.findById(req.params.id);
     if (!restaurant) {
       return res.status(404).json({ message: 'Restaurant not found' });
+    }
+
+    // Tenant scoping: only the owner (or an admin) may change menu POD settings.
+    if (req.user.role !== 'admin' && String(restaurant.owner) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized' });
     }
 
     const menuItem = restaurant.menu.id(req.params.menuItemId);

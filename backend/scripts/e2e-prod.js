@@ -68,6 +68,7 @@ const results = [];
 const tokens = {};
 const refreshTokens = {};
 const users = {};
+let ownRestaurantId = null;
 
 function log(message) {
   console.log(message);
@@ -304,6 +305,140 @@ async function main() {
       `${malformed.status} missing ACAO for allowed origin`
     );
     return '401/403/404/400-500 all carry ACAO';
+  });
+
+  // ---- Tenant isolation: business A must not touch business B's data ----
+  await requestStep('tenant: restaurant reads own analytics baseline', async () => {
+    const me = await api('/analytics/me', { token: tokens.restaurant });
+    assert(me.status === 200, `analytics/me returned ${me.status}: ${me.text}`);
+    const id = me.body?.data?.restaurantId;
+    assert(!!id, 'analytics/me returned no restaurantId');
+    ownRestaurantId = String(id);
+    return `restaurantId=${ownRestaurantId}`;
+  });
+
+  const notOwn = {};
+  await requestStep('tenant: pick a foreign restaurant and vendor', async () => {
+    const list = await api('/restaurants?limit=50');
+    assert(list.status === 200, `restaurants list returned ${list.status}`);
+    const foreign = (list.body?.restaurants || list.body?.data || list.body || [])
+      .map((r) => ({ id: r._id || r.id, name: r.name }))
+      .find((r) => r.id && String(r.id) !== String(ownRestaurantId));
+    assert(!!foreign, 'no foreign restaurant found in public list');
+    notOwn.restaurantId = String(foreign.id);
+    notOwn.restaurantName = foreign.name;
+
+    const vendors = await api('/vendors?limit=50');
+    assert(vendors.status === 200, `vendors list returned ${vendors.status}`);
+    const anyVendor = (vendors.body?.vendors || vendors.body?.data || vendors.body || [])[0];
+    assert(anyVendor?._id || anyVendor?.id, 'no vendor found in public list');
+    notOwn.vendorName = anyVendor.businessName || anyVendor.name;
+    return `restaurant=${notOwn.restaurantName}`;
+  });
+
+  await requestStep('tenant: restaurant A denied analytics for B', async () => {
+    for (const path of [
+      `/analytics/dashboard?restaurantId=${notOwn.restaurantId}`,
+      `/analytics/menu-performance?restaurantId=${notOwn.restaurantId}`,
+      `/analytics/summary?restaurantId=${notOwn.restaurantId}`,
+    ]) {
+      const result = await api(path, { token: tokens.restaurant });
+      assert(result.status === 403, `${path} returned ${result.status} (expected 403)`);
+      assert(
+        result.response.headers.get('access-control-allow-origin') === ORIGIN,
+        `${path} missing ACAO`
+      );
+    }
+    return 'dashboard/menu-performance/summary all 403';
+  });
+
+  await requestStep('tenant: restaurant A denied promotions for B', async () => {
+    const read = await api(`/restaurant-promotions?restaurantId=${notOwn.restaurantId}`, {
+      token: tokens.restaurant,
+    });
+    assert(read.status === 403, `promotions read returned ${read.status} (expected 403)`);
+
+    const create = await api('/restaurant-promotions', {
+      method: 'POST',
+      token: tokens.restaurant,
+      body: {
+        restaurantId: notOwn.restaurantId,
+        name: 'E2E Tenant Escape',
+        discountType: 'percentage',
+        discountValue: 10,
+        startDate: new Date().toISOString(),
+        endDate: new Date(Date.now() + 86400000).toISOString(),
+      },
+    });
+    assert(create.status === 403, `promotions create returned ${create.status} (expected 403)`);
+
+    const update = await api(`/restaurants/${notOwn.restaurantId}/pod-config`, {
+      method: 'PUT',
+      token: tokens.restaurant,
+      body: { enabled: false },
+    });
+    assert(update.status === 403, `foreign pod-config returned ${update.status} (expected 403)`);
+    return 'read/create/pod-config all 403';
+  });
+
+  await requestStep('tenant: restaurant A denied vendor forecast for B', async () => {
+    const list = await api('/vendors?limit=50');
+    const anyVendorId = String(
+      (list.body?.vendors || list.body?.data || [])[0]?._id || ''
+    );
+    const result = await api(
+      `/vendor-forecast/demand-forecast?vendorId=${anyVendorId}`,
+      { token: tokens.restaurant }
+    );
+    assert(result.status === 403, `demand-forecast returned ${result.status} (expected 403)`);
+    return `vendorId=${anyVendorId.slice(0, 8)}… 403`;
+  });
+
+  await requestStep('tenant: earnings ledger is per-restaurant', async () => {
+    const earnings = await api('/earnings/restaurants/earnings', { token: tokens.restaurant });
+    assert(earnings.status === 200, `earnings returned ${earnings.status}: ${earnings.text}`);
+    const rows = earnings.body?.earnings || earnings.body?.data || [];
+    const ownOrders = await api('/orders/restaurants/orders?limit=100', { token: tokens.restaurant });
+    assert(ownOrders.status === 200, `restaurant orders returned ${ownOrders.status}`);
+    const ownOrderIds = new Set((ownOrders.body?.data || ownOrders.body?.orders || []).map((o) => String(o._id)));
+    const leaks = rows.filter((row) => !ownOrderIds.has(String(row.orderId)));
+    assert(leaks.length === 0, `earnings leaked rows for other restaurants: ${leaks.length}`);
+    return `${rows.length} row(s), all from own orders`;
+  });
+
+  // ---- Limiter XFF-rotation: per-email lockout must survive IP spoofing ----
+  await requestStep('forged X-Forwarded-For does not bypass the per-account lockout', async () => {
+    const email = `limiter-xff-${Date.now()}@example.com`;
+    const first429ArrivedAt = [];
+    for (let attempt = 0; attempt < 14; attempt += 1) {
+      // A DIFFERENT forged XFF entry per attempt: without email-global
+      // counting each attempt would get a fresh per-(IP, email) bucket, and
+      // the IP backstop would never trip either (still under 20 total).
+      const forgeIp = `198.51.100.${(attempt * 7 + 3) % 250}`;
+      const result = await api('/auth/login', {
+        method: 'POST',
+        headers: { 'X-Forwarded-For': forgeIp },
+        body: { email, password: 'definitely-not-the-password' },
+      });
+      assert([401, 429].includes(result.status), `probe returned ${result.status}`);
+      assert(
+        result.response.headers.get('access-control-allow-origin') === ORIGIN,
+        `attempt ${attempt} missing ACAO`
+      );
+      if (result.status === 429) {
+        first429ArrivedAt.push(attempt);
+        assert(
+          /try again in \d+ minutes/i.test(result.body?.message || ''),
+          `429 lacks retry window: ${result.text}`
+        );
+        assert(first429ArrivedAt[0] > 0, 'lockout tripped immediately (accounting broken)');
+        break;
+      }
+      // Give the async res.on('finish') accounting a beat to run.
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    assert(first429ArrivedAt.length === 1, 'per-email lockout never tripped after 14 rotated-IP failures');
+    return `429 at rotated-IP attempt ${first429ArrivedAt[0] + 1} (distinct XFF per attempt)`;
   });
 
   // Trigger the login limiter on a throwaway spoofed IP (trusted-proxy mode)

@@ -1,27 +1,32 @@
 import React, { useState } from 'react'
 
-const ERROR_IMG_SRC =
-  'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODgiIGhlaWdodD0iODgiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgc3Ryb2tlPSIjMDAwIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBvcGFjaXR5PSIuMyIgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIzLjciPjxyZWN0IHg9IjE2IiB5PSIxNiIgd2lkdGg9IjU2IiBoZWlnaHQ9IjU2IiByeD0iNiIvPjxwYXRoIGQ9Im0xNiA1OCAxNi0xOCAzMiAzMiIvPjxjaXJjbGUgY3g9IjUzIiBjeT0iMzUiIHI9IjciLz48L3N2Zz4KCg=='
+// Deterministic food-photo fallback used whenever a business's stored image
+// cannot load (removed/unsplash 404/orb-blocked) so no broken-image icon is
+// ever visible. Falls can be overridden per-card with the fallbackSrc prop.
+export const FOOD_FALLBACK_IMG = 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&q=80'
 
-export function ImageWithFallback(props: React.ImgHTMLAttributes<HTMLImageElement>) {
+interface Props extends React.ImgHTMLAttributes<HTMLImageElement> {
+  src?: string
+  fallbackSrc?: string
+}
+
+export function ImageWithFallback({ src, fallbackSrc = FOOD_FALLBACK_IMG, alt, style, className, ...rest }: Props) {
   const [didError, setDidError] = useState(false)
 
   const handleError = () => {
     setDidError(true)
   }
 
-  const { src, alt, style, className, ...rest } = props
-
-  return didError ? (
-    <div
-      className={`inline-block bg-gray-100 text-center align-middle ${className ?? ''}`}
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={didError ? fallbackSrc : (src || fallbackSrc)}
+      alt={alt}
+      className={className}
       style={style}
-    >
-      <div className="flex items-center justify-center w-full h-full">
-        <img src={ERROR_IMG_SRC} alt="Error loading image" {...rest} data-original-url={src} />
-      </div>
-    </div>
-  ) : (
-    <img src={src} alt={alt} className={className} style={style} {...rest} onError={handleError} />
+      {...rest}
+      onError={handleError}
+      data-fallback-active={didError ? 'true' : undefined}
+    />
   )
 }

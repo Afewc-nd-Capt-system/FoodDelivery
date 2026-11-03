@@ -39,10 +39,11 @@ class CommissionService {
     };
   }
 
-  async recordCommission(orderId, type, amounts) {
+  async recordCommission(orderId, type, amounts, tenant = null) {
     const commission = new Commission({
       orderId,
       type,
+      tenant: tenant || undefined,
       gross: amounts.gross,
       commissionRate: amounts.rate,
       commissionAmount: amounts.commission,

@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import { Star, Clock, MapPin } from 'lucide-react';
 
 interface Restaurant {
@@ -16,15 +15,20 @@ interface Restaurant {
   address: string;
 }
 
+// Client component: the image onError swap requires browser event handlers.
 export default function RestaurantCard({ restaurant }: { restaurant: Restaurant }) {
   return (
     <Link href={`/restaurants/${restaurant._id}`} className="card group block hover:shadow-xl transition-all duration-300">
       <div className="relative h-48 w-full overflow-hidden">
-        <Image
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src={restaurant.image || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=400'}
           alt={restaurant.name}
-          fill
-          className="object-cover group-hover:scale-105 transition-transform duration-300"
+          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          onError={(e) => {
+            e.currentTarget.src = 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&q=80';
+            e.currentTarget.onerror = null;
+          }}
         />
         {restaurant.offers && restaurant.offers.length > 0 && (
           <div className="absolute top-3 left-3 bg-accent-500 text-white text-xs font-bold px-2 py-1 rounded">

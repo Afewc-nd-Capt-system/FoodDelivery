@@ -25,7 +25,7 @@ router.post('/', authMiddleware, async (req, res) => {
     let businessType = 'restaurant';
     
     if (!business) {
-      business = await Vendor.findOne({ owner: req.user.id });
+      business = await await Vendor.findOwnedBy(req.user);
       businessType = 'vendor';
     }
     
@@ -131,7 +131,7 @@ router.patch('/:id/pause', authMiddleware, async (req, res) => {
     
     // Verify ownership
     const restaurant = await Restaurant.findOne({ owner: req.user.id });
-    const vendor = await Vendor.findOne({ owner: req.user.id });
+    const vendor = await await Vendor.findOwnedBy(req.user);
     
     if ((!restaurant || ad.restaurantId?.toString() !== restaurant._id.toString()) &&
         (!vendor || ad.vendorId?.toString() !== vendor._id.toString())) {
@@ -158,7 +158,7 @@ router.patch('/:id/resume', authMiddleware, async (req, res) => {
     
     // Verify ownership
     const restaurant = await Restaurant.findOne({ owner: req.user.id });
-    const vendor = await Vendor.findOne({ owner: req.user.id });
+    const vendor = await await Vendor.findOwnedBy(req.user);
     
     if ((!restaurant || ad.restaurantId?.toString() !== restaurant._id.toString()) &&
         (!vendor || ad.vendorId?.toString() !== vendor._id.toString())) {
@@ -182,7 +182,7 @@ router.patch('/:id/resume', authMiddleware, async (req, res) => {
 router.get('/my-campaigns', authMiddleware, async (req, res) => {
   try {
     const restaurant = await Restaurant.findOne({ owner: req.user.id });
-    const vendor = await Vendor.findOne({ owner: req.user.id });
+    const vendor = await await Vendor.findOwnedBy(req.user);
     
     let query = {};
     

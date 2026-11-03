@@ -212,9 +212,17 @@ router.delete('/:id', async (req, res) => {
 router.put('/:id/pod-config', vendorGuard, async (req, res) => {
   try {
     const vendor = await Vendor.findById(req.params.id);
-    
+
     if (!vendor) {
       return res.status(404).json({ message: 'Vendor not found' });
+    }
+
+    // Tenant scoping: only the owner (or an admin) may change POD config.
+    const isOwner = vendor.owner
+      ? String(vendor.owner) === String(req.user.id)
+      : String(vendor.email).toLowerCase() === String(req.user.email || '').toLowerCase();
+    if (req.user.role !== 'admin' && !isOwner) {
+      return res.status(403).json({ message: 'Not authorized' });
     }
 
     vendor.payOnDeliveryConfig = {
@@ -237,6 +245,14 @@ router.post('/:id/trusted-customers', vendorGuard, async (req, res) => {
 
     if (!vendor) {
       return res.status(404).json({ message: 'Vendor not found' });
+    }
+
+    // Tenant scoping: only the owner (or an admin) may change the whitelist.
+    const isOwner = vendor.owner
+      ? String(vendor.owner) === String(req.user.id)
+      : String(vendor.email).toLowerCase() === String(req.user.email || '').toLowerCase();
+    if (req.user.role !== 'admin' && !isOwner) {
+      return res.status(403).json({ message: 'Not authorized' });
     }
 
     if (action === 'add') {

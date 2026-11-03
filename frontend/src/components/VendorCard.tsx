@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Image from 'next/image';
 import { Star, Clock, MapPin } from 'lucide-react';
 
 interface VendorCardProps {
@@ -27,11 +26,15 @@ export default function VendorCard({ vendor, onClick }: VendorCardProps) {
     >
       <div className="relative h-48">
         {vendor.image ? (
-          <Image
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
             src={vendor.image}
             alt={vendor.name || vendor.businessName || 'Home Kitchen'}
-            fill
-            className="object-cover"
+            className="absolute inset-0 w-full h-full object-cover"
+            onError={(e) => {
+              e.currentTarget.src = 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=800&q=80';
+              e.currentTarget.onerror = null;
+            }}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-5xl" style={{ background: 'linear-gradient(135deg, #E8621A, #BE3A2A)' }}>🥘</div>

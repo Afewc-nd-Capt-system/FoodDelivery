@@ -80,6 +80,14 @@ const vendorSchema = new mongoose.Schema({
     required: true,
     trim: true,
   },
+  // The User account that owns this vendor profile. Resolved server-side for
+  // every earnings / forecast / order-management check — never trusted from
+  // the client.
+  owner: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    index: true,
+  },
   ownerName: {
     type: String,
     required: true,
@@ -193,5 +201,24 @@ const vendorSchema = new mongoose.Schema({
 vendorSchema.index({ 'address.city': 1 });
 vendorSchema.index({ 'address.state': 1 });
 vendorSchema.index({ location: '2dsphere' });
+// Resolve the vendor profile owned by an authenticated user. Prefers the
+// explicit owner link; falls back to the unique vendor email (vendors register
+// with their own account email), upgrading the link in place.
+vendorSchema.statics.findOwnedBy = async function findOwnedBy(user) {
+  if (!user || !user.id) return null;
+  const vendor = await this.findOne({ owner: user.id });
+  if (vendor) return vendor;
+  if (user.email) {
+    const viaEmail = await this.findOne({ email: String(user.email).toLowerCase() });
+    if (viaEmail) {
+      if (!viaEmail.owner) {
+        viaEmail.owner = user.id;
+        await viaEmail.save().catch(() => {});
+      }
+      return viaEmail;
+    }
+  }
+  return null;
+};
 
 module.exports = mongoose.model('Vendor', vendorSchema);

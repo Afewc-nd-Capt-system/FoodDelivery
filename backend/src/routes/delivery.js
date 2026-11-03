@@ -295,12 +295,20 @@ router.post('/orders/:orderId/confirm-customer', async (req, res) => {
 });
 
 // Resend verification code
-router.post('/orders/:orderId/resend-code', async (req, res) => {
+router.post('/orders/:orderId/resend-code', authMiddleware, async (req, res) => {
   try {
     const order = await Order.findById(req.params.orderId);
 
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
+    }
+
+    // Tenant scoping: only the customer on the order or the assigned rider
+    // (or the admin) may trigger a code resend.
+    const isCustomer = order.user && String(order.user) === String(req.user.id);
+    const isAssignedRider = order.deliveryPartner && String(order.deliveryPartner) === String(req.user.id);
+    if (!isCustomer && !isAssignedRider && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Not authorized' });
     }
 
     if (order.deliveryConfirmation.customerConfirmed) {

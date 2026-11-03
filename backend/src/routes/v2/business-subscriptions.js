@@ -37,7 +37,7 @@ router.get('/current', authMiddleware, async (req, res) => {
     
     // Check if user has vendor subscription
     if (!subscription) {
-      const vendor = await Vendor.findOne({ owner: req.user.id });
+      const vendor = await await Vendor.findOwnedBy(req.user);
       if (vendor) {
         subscription = await Subscription.findOne({
           vendor: vendor._id,
@@ -71,7 +71,7 @@ router.post('/activate', authMiddleware, async (req, res) => {
     let businessType = 'restaurant';
     
     if (!business) {
-      business = await Vendor.findOne({ owner: req.user.id });
+      business = await await Vendor.findOwnedBy(req.user);
       businessType = 'vendor';
     }
     
@@ -126,7 +126,7 @@ router.post('/cancel', authMiddleware, async (req, res) => {
     if (restaurant) {
       subscription = await Subscription.findOne({ restaurant: restaurant._id });
     } else {
-      const vendor = await Vendor.findOne({ owner: req.user.id });
+      const vendor = await await Vendor.findOwnedBy(req.user);
       if (vendor) {
         subscription = await Subscription.findOne({ vendor: vendor._id });
       }

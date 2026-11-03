@@ -1,13 +1,29 @@
 const express = require('express');
 const authMiddleware = require('../../middleware/auth');
 const analyticsService = require('../../services/analyticsService');
+const Restaurant = require('../../models/Restaurant');
 
 const router = express.Router();
+
+// Resolve the restaurant for the signed-in owner. A restaurantId query param is
+// only honored when it matches the owner's own restaurant (admins may read any).
+async function resolveRestaurant(req) {
+  if (req.user.role === 'admin') {
+    if (req.query.restaurantId) {
+      return Restaurant.findById(req.query.restaurantId);
+    }
+    return null;
+  }
+  const restaurant = await Restaurant.findOne({ owner: req.user.id });
+  if (restaurant && req.query.restaurantId) {
+    return String(restaurant._id) === String(req.query.restaurantId) ? restaurant : null;
+  }
+  return restaurant;
+}
 
 router.get('/me', authMiddleware, async (req, res) => {
   try {
     const { period = 'week' } = req.query;
-    const Restaurant = require('../../models/Restaurant');
     const restaurant = await Restaurant.findOne({ owner: req.user.id });
     if (!restaurant) {
       return res.status(403).json({ success: false, message: 'Not authorized' });
@@ -21,13 +37,13 @@ router.get('/me', authMiddleware, async (req, res) => {
 
 router.get('/dashboard', authMiddleware, async (req, res) => {
   try {
-    const { restaurantId, period = 'week' } = req.query;
-
-    if (!restaurantId) {
-      return res.status(400).json({ success: false, message: 'Restaurant ID required' });
+    const { period = 'week' } = req.query;
+    const restaurant = await resolveRestaurant(req);
+    if (!restaurant) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
     }
 
-    const data = await analyticsService.getDashboardData(restaurantId, period);
+    const data = await analyticsService.getDashboardData(restaurant._id, period);
 
     res.json({
       success: true,
@@ -40,13 +56,12 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
 
 router.get('/menu-performance', authMiddleware, async (req, res) => {
   try {
-    const { restaurantId } = req.query;
-
-    if (!restaurantId) {
-      return res.status(400).json({ success: false, message: 'Restaurant ID required' });
+    const restaurant = await resolveRestaurant(req);
+    if (!restaurant) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
     }
 
-    const data = await analyticsService.getMenuItemPerformance(restaurantId);
+    const data = await analyticsService.getMenuItemPerformance(restaurant._id);
 
     res.json({
       success: true,
@@ -59,13 +74,12 @@ router.get('/menu-performance', authMiddleware, async (req, res) => {
 
 router.get('/summary', authMiddleware, async (req, res) => {
   try {
-    const { restaurantId } = req.query;
-
-    if (!restaurantId) {
-      return res.status(400).json({ success: false, message: 'Restaurant ID required' });
+    const restaurant = await resolveRestaurant(req);
+    if (!restaurant) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
     }
 
-    const analytics = await analyticsService.calculateRestaurantAnalytics(restaurantId);
+    const analytics = await analyticsService.calculateRestaurantAnalytics(restaurant._id);
 
     res.json({
       success: true,

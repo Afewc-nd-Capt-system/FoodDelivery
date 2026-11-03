@@ -167,7 +167,7 @@ function VendorCard({ vendor, onClick }: { vendor: any; onClick: () => void }) {
           <span className="text-gray-300">•</span><span className="font-medium text-green-600">{vendor.deliveryFee > 0 ? `₦${vendor.deliveryFee.toLocaleString()} delivery` : 'Free delivery'}</span>
         </div>
         {vendor.categories && vendor.categories.length > 0 && <div className="flex gap-1.5 mt-3 flex-wrap">{vendor.categories.slice(0, 3).map((cat: string) => (<span key={cat} className="px-2 py-0.5 rounded-lg text-[11px] font-semibold" style={{ backgroundColor: '#FFF1E8', color: '#E8621A' }}>{cat}</span>))}</div>}
-        {vendor.cookingDays && vendor.cookingDays.length > 0 && <div className="mt-3 text-xs" style={{ color: '#636366' }}><span className="font-medium">Cooking Days: </span><span>{vendor.cookingDays.join(', ')}</span></div>}
+        {vendor.cookingDays && vendor.cookingDays.length > 0 && <div className="mt-3 text-xs" style={{ color: '#636366' }}><span className="font-medium">Cooking Days: </span><span>{vendor.cookingDays.map((d: string) => d.charAt(0).toUpperCase() + d.slice(1)).join(', ')}</span></div>}
       </div>
     </div>
   );

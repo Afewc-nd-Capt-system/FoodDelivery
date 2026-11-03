@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Sparkles, Loader2, Star } from 'lucide-react';
-import Image from 'next/image';
 
 interface AIRecommendationsProps {
   limit?: number;
@@ -65,11 +64,15 @@ export function AIRecommendations({ limit = 6 }: AIRecommendationsProps) {
           <Link key={item.id} href={item.type === 'restaurant' ? `/restaurants/${item.id}` : `/restaurant/${item.id}`}>
             <Card className="overflow-hidden hover:shadow-[0_4px_20px_rgba(232,98,26,0.15)] transition-all hover:-translate-y-1">
               <div className="relative h-40">
-                <Image
-                  src={item.image || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=400'}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={item.image || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&q=80'}
                   alt={item.name}
-                  fill
-                  className="object-cover"
+                  className="absolute inset-0 w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.src = 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&q=80';
+                    e.currentTarget.onerror = null;
+                  }}
                 />
                 {item.matchScore && (
                   <Badge className="absolute top-3 left-3 bg-[#E8621A] text-white">

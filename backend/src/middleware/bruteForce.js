@@ -37,6 +37,10 @@ const bruteForceProtection = async (req, res, next) => {
   const email = req.body.email?.toLowerCase();
   const ip = req.ip || req.connection.remoteAddress;
   const key = `bruteforce:${ip}:${email}`;
+  // Email-global counter: independent of the source IP so an attacker who
+  // rotates X-Forwarded-For (or uses many hosts) still locks the email out.
+  const emailKey = email ? `bruteforce:email:${email}` : null;
+  const EMAIL_GLOBAL_MAX = 10;
 
   if (!email) {
     return next();
@@ -59,6 +63,21 @@ const bruteForceProtection = async (req, res, next) => {
       });
     }
 
+    if (emailKey) {
+      const globalAttempts = redisReady ? await redisClient.get(emailKey) : null;
+      const globalCount = globalAttempts !== null && globalAttempts !== undefined
+        ? parseInt(globalAttempts, 10) || 0
+        : memoryGet(emailKey);
+      if (globalCount >= EMAIL_GLOBAL_MAX) {
+        const ttl = redisReady ? await redisClient.ttl(emailKey) : WINDOW_SECONDS;
+        const timeLeft = Math.max(1, Math.ceil(ttl / 60));
+        return res.status(429).json({
+          message: `Too many failed login attempts. Please try again in ${timeLeft} minutes.`,
+          code: 'BRUTE_FORCE_LOCKOUT'
+        });
+      }
+    }
+
     res.on('finish', async () => {
       try {
         if (res.statusCode === 401 || res.statusCode === 400) {
@@ -69,9 +88,24 @@ const bruteForceProtection = async (req, res, next) => {
           } else {
             memoryBump(key);
           }
+          // Count the failure against the email across every IP/window bucket
+          // so rotating IPs cannot reset progress.
+          if (emailKey) {
+            if (redisReady) {
+              const gCurrent = parseInt(await redisClient.get(emailKey) || '0', 10);
+              await redisClient.incr(emailKey);
+              if (gCurrent === 0) await redisClient.expire(emailKey, WINDOW_SECONDS);
+            } else {
+              memoryBump(emailKey);
+            }
+          }
         } else if (res.statusCode === 200) {
-          if (redisReady) await redisClient.del(key);
+          if (redisReady) {
+            await redisClient.del(key);
+            if (emailKey) await redisClient.del(emailKey);
+          }
           memoryAttempts.delete(key);
+          if (emailKey) memoryAttempts.delete(emailKey);
         }
       } catch (error) {
         console.error('[SECURITY] Brute force accounting failed:', error.message);
@@ -82,6 +116,7 @@ const bruteForceProtection = async (req, res, next) => {
   } catch (err) {
     console.error('[SECURITY] Brute force protection error:', err);
     memoryBump(key);
+    if (emailKey) memoryBump(emailKey);
     next();
   }
 };

@@ -347,8 +347,8 @@ router.post('/vendors', async (req, res) => {
           isOpen: true,
           isActive: true,
           verificationStatus: 'approved',
-          cookingDays: ['saturday'],
-          deliveryTime: '12pm - 2pm',
+          cookingDays: [['Saturday', 'Monday', 'Wednesday'], ['Tuesday', 'Thursday', 'Sunday'], ['Friday', 'Sunday'], ['Monday', 'Wednesday'], ['Thursday', 'Saturday'], ['Friday', 'Sunday'], ['Monday', 'Tuesday']][i % 7],
+          deliveryTime: ['12pm - 2pm', '4pm - 7pm', '10am - 1pm', '2pm - 5pm', '5pm - 8pm', '11am - 2pm', '3pm - 6pm'][i % 7],
           minOrderForDelivery: 0,
           location: {
             type: 'Point',
@@ -362,7 +362,7 @@ router.post('/vendors', async (req, res) => {
             country: 'Nigeria',
           },
           payOnDeliveryConfig: { enabled: true, minOrderAmount: 0 },
-          image: `https://images.unsplash.com/photo-${['1555939594-58d7cb561ad1','1540189549336-e6e99c3679fe','1565299624946-b28f40a0ae38','1563379928-8602815af19b','1546069901-ba9599a7e63c','1504674900247-0877df9cc836'][i]}?w=800&q=80`,
+          image: `https://images.unsplash.com/photo-${['1555939594-58d7cb561ad1','1540189549336-e6e99c3679fe','1565299624946-b28f40a0ae38','1529042410759-befb1204b468','1546069901-ba9599a7e63c','1504674900247-0877df9cc836'][i]}?w=800&q=80`,
         }},
         { upsert: true, new: true }
       );
@@ -378,12 +378,16 @@ router.post('/vendors', async (req, res) => {
       'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&q=80',
       'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&q=80',
     ];
+    // Update any vendor without a valid image — or still pointing at a known
+    // dead URL (unsplash 404s / ORB-blocked) — with a fallback food image.
+    const knownDeadImageIds = ['1563379928-8602815af19b'];
     const noImageVendors = await Vendor.find({
       $or: [
         { image: { $exists: false } },
         { image: null },
         { image: '' },
-        { image: false }
+        { image: false },
+        ...knownDeadImageIds.map((id) => ({ image: { $regex: id } })),
       ]
     });
     let vendorFallbackCount = 0;
@@ -393,11 +397,30 @@ router.post('/vendors', async (req, res) => {
       vendorFallbackCount++;
     }
 
+    // Normalize vendors seeded with the old placeholder schedule ('saturday'
+    // only / '12pm - 2pm') to a capitalized, varied schedule.
+    const schedulePresets = [
+      ['Saturday', 'Monday', 'Wednesday'], ['Tuesday', 'Thursday', 'Sunday'],
+      ['Friday', 'Sunday'], ['Monday', 'Wednesday'], ['Thursday', 'Saturday'],
+      ['Friday', 'Sunday'], ['Monday', 'Tuesday'],
+    ];
+    const timePresets = ['12pm - 2pm', '4pm - 7pm', '10am - 1pm', '2pm - 5pm', '5pm - 8pm', '11am - 2pm', '3pm - 6pm'];
+    const staleSchedule = await Vendor.find({ cookingDays: ['saturday'] });
+    let scheduleFixed = 0;
+    for (let i = 0; i < staleSchedule.length; i++) {
+      const idx = Math.abs(String(staleSchedule[i]._id).split('').reduce((h, ch) => h * 31 + ch.charCodeAt(0), 7)) % schedulePresets.length;
+      await Vendor.findByIdAndUpdate(staleSchedule[i]._id, {
+        $set: { cookingDays: schedulePresets[idx], deliveryTime: timePresets[idx] },
+      });
+      scheduleFixed++;
+    }
+
     res.status(201).json({
       message: 'Vendors seeded successfully',
       count: results.length,
       vendors: results,
       fallbackImagesUpdated: vendorFallbackCount,
+      schedulesNormalized: scheduleFixed,
     });
   } catch (error) {
     console.error('Error seeding vendors:', error);

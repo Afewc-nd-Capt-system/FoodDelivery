@@ -11,6 +11,14 @@ const commissionSchema = new mongoose.Schema({
     enum: ['restaurant', 'vendor', 'delivery'],
     required: true,
   },
+  // The business this commission belongs to. Resolved server-side from the
+  // order at completion time (restaurant / vendor / delivery company id).
+  // Earnings and payout endpoints MUST filter on this field — a commission
+  // without a tenant must never be visible to a business owner.
+  tenant: {
+    type: mongoose.Schema.Types.ObjectId,
+    index: true,
+  },
   gross: {
     type: Number,
     required: true,

@@ -5,9 +5,8 @@ const Vendor = require('../../models/Vendor');
 
 const router = express.Router();
 
-router.get('/me', authMiddleware, async (req, res) => {
-  try {
-    const vendor = await Vendor.findOne({ owner: req.user.id });
+router.get('/me', authMiddleware, async (req, res) => {  try {
+    const vendor = await await Vendor.findOwnedBy(req.user);
     if (!vendor) {
       return res.status(403).json({ success: false, message: 'Not authorized' });
     }
@@ -30,15 +29,30 @@ router.get('/me', authMiddleware, async (req, res) => {
   }
 });
 
+// Resolve the vendor for the signed-in owner. A vendorId param is only honored
+// when it matches the owner's own vendor (admins may read any).
+async function resolveVendor(req) {
+  if (req.user.role === 'admin') {
+    if (req.query.vendorId) {
+      return Vendor.findById(req.query.vendorId);
+    }
+    return null;
+  }
+  const vendor = await await Vendor.findOwnedBy(req.user);
+  if (vendor && req.query.vendorId) {
+    return String(vendor._id) === String(req.query.vendorId) ? vendor : null;
+  }
+  return vendor;
+}
+
 router.get('/demand-forecast', authMiddleware, async (req, res) => {
   try {
-    const { vendorId } = req.query;
-
-    if (!vendorId) {
-      return res.status(400).json({ success: false, message: 'Vendor ID required' });
+    const vendor = await resolveVendor(req);
+    if (!vendor) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
     }
 
-    const forecast = await vendorForecastService.getDemandForecast(vendorId);
+    const forecast = await vendorForecastService.getDemandForecast(vendor._id);
 
     res.json({
       success: true,

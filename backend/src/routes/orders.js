@@ -154,6 +154,20 @@ router.put('/:id/status', authMiddleware, async (req, res) => {
     const isOrderOwner = order.user.toString() === req.user.id;
     const isAdmin = req.user.role === 'admin';
 
+    // Tenant scoping: only the customer (cancel only), the restaurant owner, or
+    // an admin may change an order's status. The customer can only cancel;
+    // confirming physical delivery happens via the OTP endpoints, not here.
+    const restaurant = order.restaurant
+      ? await Restaurant.findById(order.restaurant).select('owner')
+      : null;
+    const isRestaurantOwner = restaurant && String(restaurant.owner) === String(req.user.id);
+    const allowed = isAdmin
+      || (isOrderOwner && status === 'cancelled')
+      || (isRestaurantOwner && ['accepted', 'preparing', 'ready', 'cancelled'].includes(status));
+    if (!allowed) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
     if (status === 'cancelled' && isOrderOwner && !isAdmin) {
       await CustomerTrustService.updateTrustMetrics(
         req.user.id,

@@ -514,7 +514,7 @@ router.patch('/vendors/orders/:id/accept', authMiddleware, async (req, res) => {
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    const vendor = await Vendor.findOne({ owner: req.user.id });
+    const vendor = await await Vendor.findOwnedBy(req.user);
     if (!vendor || order.vendor.toString() !== vendor._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to accept this order' });
     }
@@ -540,7 +540,7 @@ router.patch('/vendors/orders/:id/decline', authMiddleware, async (req, res) => 
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    const vendor = await Vendor.findOne({ owner: req.user.id });
+    const vendor = await await Vendor.findOwnedBy(req.user);
     if (!vendor || order.vendor.toString() !== vendor._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to decline this order' });
     }
@@ -582,7 +582,7 @@ router.patch('/vendors/orders/:id/ready', authMiddleware, async (req, res) => {
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    const vendor = await Vendor.findOne({ owner: req.user.id });
+    const vendor = await await Vendor.findOwnedBy(req.user);
     if (!vendor || order.vendor.toString() !== vendor._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to update this order' });
     }
@@ -651,7 +651,7 @@ router.post('/vendors/orders/:id/forward-delivery', authMiddleware, async (req, 
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    const vendor = await Vendor.findOne({ owner: req.user.id });
+    const vendor = await await Vendor.findOwnedBy(req.user);
     if (!vendor || order.vendor.toString() !== vendor._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to forward this order' });
     }

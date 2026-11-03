@@ -35,10 +35,10 @@ async function awardLoyalty(order) {
   return record;
 }
 
-async function ensureCommission(order, type, amounts) {
+async function ensureCommission(order, type, amounts, tenant = null) {
   const existing = await Commission.findOne({ orderId: order._id, type });
   if (existing) return existing;
-  return commissionService.recordCommission(order._id, type, amounts);
+  return commissionService.recordCommission(order._id, type, amounts, tenant);
 }
 
 /**
@@ -57,25 +57,30 @@ async function completeOrder(order, { partnerId } = {}) {
 
   await awardLoyalty(order);
 
+  // The tenant is resolved from the order object (loaded server-side), never
+  // from a client-supplied id — this is what keeps the earnings ledger scoped.
   if (order.restaurant) {
     await ensureCommission(
       order,
       'restaurant',
-      commissionService.calculateRestaurantCommission(order.totalAmount)
+      commissionService.calculateRestaurantCommission(order.totalAmount),
+      order.restaurant._id || order.restaurant
     );
   }
   if (order.vendor) {
     await ensureCommission(
       order,
       'vendor',
-      commissionService.calculateVendorCommission(order.totalAmount)
+      commissionService.calculateVendorCommission(order.totalAmount),
+      order.vendor._id || order.vendor
     );
   }
   if (order.deliveryFee) {
     await ensureCommission(
       order,
       'delivery',
-      commissionService.calculateDeliveryCommission(order.deliveryFee)
+      commissionService.calculateDeliveryCommission(order.deliveryFee),
+      order.deliveryCompany?._id || order.deliveryCompany || null
     );
   }
 

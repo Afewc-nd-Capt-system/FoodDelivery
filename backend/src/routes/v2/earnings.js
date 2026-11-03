@@ -6,20 +6,47 @@ const Vendor = require('../../models/Vendor');
 const DeliveryCompany = require('../../models/DeliveryCompany');
 const DeliveryPartner = require('../../models/DeliveryPartner');
 const authMiddleware = require('../../middleware/auth');
-const commissionService = require('../../services/commissionService');
 const router = express.Router();
+
+// Every endpoint here resolves the business from the authenticated user and
+// filters the commission ledger on that business id only. No client-supplied
+// id is ever trusted, and ledger rows without a tenant belong to no business.
+
+function mapCommissions(commissions, fields) {
+  return commissions
+    .filter((c) => c.orderId) // skip rows whose order was deleted
+    .map((c) => ({
+      orderId: c.orderId._id,
+      ...fields(c),
+      status: c.status,
+      paidAt: c.paidAt,
+      createdAt: c.createdAt,
+    }));
+}
+
+async function tenantTotals(type, tenantId) {
+  const commissions = await Commission.find({ type, tenant: tenantId });
+  let totalEarned = 0;
+  let pendingEarnings = 0;
+  for (const c of commissions) {
+    if (c.status === 'paid') totalEarned += c.netAmount;
+    else if (c.status === 'pending') pendingEarnings += c.netAmount;
+  }
+  return { totalEarned, pendingEarnings };
+}
 
 // POST /api/v2/vendors/payout-request
 router.post('/vendors/payout-request', authMiddleware, async (req, res) => {
   try {
-    const vendor = await Vendor.findOne({ owner: req.user.id });
+    const vendor = await await Vendor.findOwnedBy(req.user);
     if (!vendor) {
       return res.status(403).json({ message: 'Not authorized' });
     }
 
-    // Get unpaid commissions for this vendor
+    // Only THIS vendor's unpaid commissions.
     const unpaidCommissions = await Commission.find({
       type: 'vendor',
+      tenant: vendor._id,
       status: 'pending',
     }).populate('orderId');
 
@@ -27,11 +54,8 @@ router.post('/vendors/payout-request', authMiddleware, async (req, res) => {
       return res.status(400).json({ message: 'No unpaid earnings available' });
     }
 
-    // Calculate total unpaid amount
     const totalAmount = unpaidCommissions.reduce((sum, c) => sum + c.netAmount, 0);
-
-    // Mark all as paid
-    const commissionIds = unpaidCommissions.map(c => c._id);
+    const commissionIds = unpaidCommissions.map((c) => c._id);
     await Commission.updateMany(
       { _id: { $in: commissionIds } },
       { status: 'paid', paidAt: new Date() }
@@ -55,9 +79,10 @@ router.post('/restaurants/payout-request', authMiddleware, async (req, res) => {
       return res.status(403).json({ message: 'Not authorized' });
     }
 
-    // Get unpaid commissions for this restaurant
+    // Only THIS restaurant's unpaid commissions.
     const unpaidCommissions = await Commission.find({
       type: 'restaurant',
+      tenant: restaurant._id,
       status: 'pending',
     }).populate('orderId');
 
@@ -65,11 +90,8 @@ router.post('/restaurants/payout-request', authMiddleware, async (req, res) => {
       return res.status(400).json({ message: 'No unpaid earnings available' });
     }
 
-    // Calculate total unpaid amount
     const totalAmount = unpaidCommissions.reduce((sum, c) => sum + c.netAmount, 0);
-
-    // Mark all as paid
-    const commissionIds = unpaidCommissions.map(c => c._id);
+    const commissionIds = unpaidCommissions.map((c) => c._id);
     await Commission.updateMany(
       { _id: { $in: commissionIds } },
       { status: 'paid', paidAt: new Date() }
@@ -88,28 +110,23 @@ router.post('/restaurants/payout-request', authMiddleware, async (req, res) => {
 // GET /api/v2/vendors/earnings
 router.get('/vendors/earnings', authMiddleware, async (req, res) => {
   try {
-    const vendor = await Vendor.findOne({ owner: req.user.id });
+    const vendor = await await Vendor.findOwnedBy(req.user);
     if (!vendor) {
       return res.status(403).json({ message: 'Not authorized' });
     }
 
-    const commissions = await Commission.find({ type: 'vendor' })
+    const commissions = await Commission.find({ type: 'vendor', tenant: vendor._id })
       .populate('orderId')
       .sort({ createdAt: -1 });
 
-    const earnings = commissions.map(c => ({
-      orderId: c.orderId._id,
+    const earnings = mapCommissions(commissions, (c) => ({
       orderTotal: c.gross,
       commissionRate: c.commissionRate,
       commissionAmount: c.commissionAmount,
       netAmount: c.netAmount,
-      status: c.status,
-      paidAt: c.paidAt,
-      createdAt: c.createdAt,
     }));
 
-    const totalEarned = await commissionService.getTotalEarningsByType('vendor');
-    const pendingEarnings = await commissionService.getPendingEarningsByType('vendor');
+    const { totalEarned, pendingEarnings } = await tenantTotals('vendor', vendor._id);
 
     res.json({
       earnings,
@@ -129,23 +146,18 @@ router.get('/restaurants/earnings', authMiddleware, async (req, res) => {
       return res.status(403).json({ message: 'Not authorized' });
     }
 
-    const commissions = await Commission.find({ type: 'restaurant' })
+    const commissions = await Commission.find({ type: 'restaurant', tenant: restaurant._id })
       .populate('orderId')
       .sort({ createdAt: -1 });
 
-    const earnings = commissions.map(c => ({
-      orderId: c.orderId._id,
+    const earnings = mapCommissions(commissions, (c) => ({
       orderTotal: c.gross,
       commissionRate: c.commissionRate,
       commissionAmount: c.commissionAmount,
       netAmount: c.netAmount,
-      status: c.status,
-      paidAt: c.paidAt,
-      createdAt: c.createdAt,
     }));
 
-    const totalEarned = await commissionService.getTotalEarningsByType('restaurant');
-    const pendingEarnings = await commissionService.getPendingEarningsByType('restaurant');
+    const { totalEarned, pendingEarnings } = await tenantTotals('restaurant', restaurant._id);
 
     res.json({
       earnings,
@@ -165,21 +177,16 @@ router.get('/delivery/earnings', authMiddleware, async (req, res) => {
       return res.status(403).json({ message: 'Not authorized' });
     }
 
-    const commissions = await Commission.find({ type: 'delivery' })
+    const commissions = await Commission.find({ type: 'delivery', tenant: company._id })
       .populate('orderId')
       .sort({ createdAt: -1 });
 
-    const earnings = commissions.map(c => ({
-      orderId: c.orderId._id,
+    const earnings = mapCommissions(commissions, (c) => ({
       deliveryFee: c.gross,
       netAmount: c.netAmount,
-      status: c.status,
-      paidAt: c.paidAt,
-      createdAt: c.createdAt,
     }));
 
-    const totalEarned = await commissionService.getTotalEarningsByType('delivery');
-    const pendingEarnings = await commissionService.getPendingEarningsByType('delivery');
+    const { totalEarned, pendingEarnings } = await tenantTotals('delivery', company._id);
 
     res.json({
       earnings,
@@ -204,7 +211,7 @@ router.get('/riders/earnings', authMiddleware, async (req, res) => {
       .sort({ deliveredAt: -1 });
 
     // Calculate earnings (assuming 80% of delivery fee goes to rider)
-    const earnings = orders.map(o => ({
+    const earnings = orders.map((o) => ({
       orderId: o._id,
       deliveryFee: o.deliveryFee,
       riderShare: o.deliveryFee * 0.8,
