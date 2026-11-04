@@ -79,13 +79,17 @@ export default function DisputesPage() {
       return;
     }
     const token = localStorage.getItem('token');
-    if (!token) return;
+    if (!token) {
+      setFormError('Your session expired. Please sign in again to file a dispute.');
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await fetch(`${API_V2}/disputes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ orderId, type: issueType, description }),
+        signal: AbortSignal.timeout(25000),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.message || `status ${res.status}`);

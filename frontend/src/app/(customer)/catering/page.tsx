@@ -30,6 +30,9 @@ export default function CateringPage() {
     budget: '',
   });
 
+  const [restaurants, setRestaurants] = useState<{ id: string; name: string; cuisine: string }[]>([]);
+  const [formError, setFormError] = useState('');
+
   const eventTypes = [
     { id: 'wedding', name: 'Wedding Reception' },
     { id: 'corporate', name: 'Corporate Event' },
@@ -38,12 +41,19 @@ export default function CateringPage() {
     { id: 'other', name: 'Other' },
   ];
 
-  const restaurants = [
-    { id: '1', name: 'Mama Cass Kitchen', cuisine: 'Nigerian' },
-    { id: '2', name: 'Chop Chop Lagos', cuisine: 'Chinese' },
-    { id: '3', name: 'Spice Garden', cuisine: 'Indian' },
-    { id: '4', name: 'Bella Italia', cuisine: 'Italian' },
-  ];
+  useEffect(() => {
+    fetch(`${API_URL}/v2/restaurants?limit=50`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body) => {
+        const list = body?.restaurants || body?.data || [];
+        setRestaurants(list.map((r: any) => ({
+          id: r._id || r.id,
+          name: r.name,
+          cuisine: Array.isArray(r.cuisine) ? r.cuisine.join(', ') : (r.cuisine || 'Nigerian'),
+        })));
+      })
+      .catch(() => setRestaurants([]));
+  }, []);
 
   const fetchRequests = async () => {
     try {
@@ -65,35 +75,56 @@ export default function CateringPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!date) return;
+    setFormError('');
+    if (!date) {
+      setFormError('Please choose an event date.');
+      return;
+    }
+    if (!formData.restaurantId) {
+      setFormError('Please choose a restaurant.');
+      return;
+    }
+    if (!formData.guestCount || Number(formData.guestCount) < 1) {
+      setFormError('Please enter the number of guests.');
+      return;
+    }
 
     setLoading(true);
     try {
+      const token = localStorage.getItem('token');
       const response = await fetch(`${API_URL}/v2/catering`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           ...formData,
           date: format(date, 'yyyy-MM-dd'),
           guestCount: parseInt(formData.guestCount),
           budget: parseFloat(formData.budget),
         }),
+        signal: AbortSignal.timeout(25000),
       });
-      if (response.ok) {
-        setShowForm(false);
-        setFormData({
-          eventType: '',
-          guestCount: '',
-          restaurantId: '',
-          specialRequests: '',
-          budget: '',
-        });
-        setDate(undefined);
-        fetchRequests();
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        setFormError(body?.message || `Could not submit your request (${response.status}).`);
+        return;
       }
-    } catch (error) {
-      console.error('Failed to create catering request:', error);
+      setShowForm(false);
+      setFormData({
+        eventType: '',
+        guestCount: '',
+        restaurantId: '',
+        specialRequests: '',
+        budget: '',
+      });
+      setDate(undefined);
+      fetchRequests();
+    } catch (error: any) {
+      setFormError(error?.name === 'TimeoutError' || error?.name === 'AbortError'
+        ? 'The request timed out. Please try again.'
+        : 'Network error. Check your connection and try again.');
     } finally {
       setLoading(false);
     }
@@ -216,6 +247,9 @@ export default function CateringPage() {
                 />
               </div>
 
+              {formError && (
+                <p role="alert" className="text-sm text-[#D32F2F] bg-[#FEF2F2] border border-[#FCA5A5] rounded-xl px-4 py-3">{formError}</p>
+              )}
               <div className="flex gap-4">
                 <Button
                   type="button"

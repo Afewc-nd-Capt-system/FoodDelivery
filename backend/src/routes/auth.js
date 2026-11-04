@@ -51,9 +51,11 @@ router.post('/register', [
       return res.status(409).json({ message: 'An account with this email already exists. Try signing in instead.' });
     }
 
-    const allowedPreferences = ['Vegetarian', 'Vegan', 'Halal', 'Gluten-free'];
+    const allowedPreferences = ['vegan', 'vegetarian', 'halal', 'kosher', 'gluten-free', 'nut-free', 'dairy-free'];
     const dietaryPreferences = Array.isArray(req.body.dietaryPreferences)
-      ? req.body.dietaryPreferences.filter((pref) => allowedPreferences.includes(pref))
+      ? req.body.dietaryPreferences
+        .map((pref) => String(pref).trim().toLowerCase())
+        .filter((pref) => allowedPreferences.includes(pref))
       : [];
 
     const user = new User({

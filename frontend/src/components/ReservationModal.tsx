@@ -27,6 +27,7 @@ export function ReservationModal({ restaurantId, restaurantName, onReservationCr
   const [partySize, setPartySize] = useState('');
   const [specialRequests, setSpecialRequests] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const timeSlots = [
     '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM', '1:00 PM', '1:30 PM',
@@ -35,14 +36,25 @@ export function ReservationModal({ restaurantId, restaurantName, onReservationCr
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!date || !time || !partySize) return;
+    setError('');
+    if (!restaurantId) {
+      setError('Choose a restaurant to book a table.');
+      return;
+    }
+    if (!date || !time || !partySize) {
+      setError('Please choose a date, time and party size.');
+      return;
+    }
 
     setLoading(true);
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       const response = await fetch(`${API_URL}/v2/reservations`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           restaurantId: restaurantId,
           date: format(date, 'yyyy-MM-dd'),
@@ -50,18 +62,25 @@ export function ReservationModal({ restaurantId, restaurantName, onReservationCr
           partySize: parseInt(partySize),
           specialRequests,
         }),
+        signal: AbortSignal.timeout(25000),
       });
 
-      if (response.ok) {
-        setOpen(false);
-        setDate(undefined);
-        setTime('');
-        setPartySize('');
-        setSpecialRequests('');
-        onReservationCreated?.();
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        setError(body?.message || `Could not create the reservation (${response.status}).`);
+        return;
       }
-    } catch (error) {
-      console.error('Failed to create reservation:', error);
+
+      setOpen(false);
+      setDate(undefined);
+      setTime('');
+      setPartySize('');
+      setSpecialRequests('');
+      onReservationCreated?.();
+    } catch (err: any) {
+      setError(err?.name === 'TimeoutError' || err?.name === 'AbortError'
+        ? 'The request timed out. Please try again.'
+        : 'Network error. Check your connection and try again.');
     } finally {
       setLoading(false);
     }
@@ -149,6 +168,10 @@ export function ReservationModal({ restaurantId, restaurantName, onReservationCr
               rows={3}
             />
           </div>
+
+          {error && (
+            <p className="text-sm text-[#D32F2F] bg-[#FEF2F2] border border-[#FCA5A5] rounded-xl px-4 py-3">{error}</p>
+          )}
 
           <Button
             type="submit"
