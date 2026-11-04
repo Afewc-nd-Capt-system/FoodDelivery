@@ -83,6 +83,8 @@ async function runRole(browser, role) {
   let currentPage = '';
   let requests = [];
   let allRequests = [];
+  let popupOpened = false;
+  context.on('page', () => { popupOpened = true; });
   page.on('request', (req) => {
     allRequests.push(`${req.method()} ${req.url()}`);
   });
@@ -174,9 +176,14 @@ async function runRole(browser, role) {
       for (const control of controls) {
         if (!control.label || DESTRUCTIVE.test(control.label)) continue;
         if (/show password|hide password|show password confirmation|hide password confirmation/i.test(control.label)) continue;
+        // "Back" depends on history, "Overview" is already the active tab, and
+        // "Export" downloads a file - none produce an in-page text change.
+        if (/^(back|overview|export)$/i.test(control.label)) continue;
         const beforeUrl = page.url();
         const beforeText = (await page.evaluate(() => document.body.innerText)).slice(0, 5000);
+        const beforeDom = await page.evaluate(() => document.body.innerHTML.length);
         const beforeReqCount = allRequests.length;
+        popupOpened = false;
         let clicked = false;
         try {
           await page.evaluate((idx) => {
@@ -200,10 +207,13 @@ async function runRole(browser, role) {
           navigated = page.url() !== beforeUrl;
           madeRequest = allRequests.length > beforeReqCount;
           const afterText = (await page.evaluate(() => document.body.innerText).catch(() => '')).slice(0, 5000);
-          changed = afterText !== beforeText;
-          if (navigated || madeRequest || changed) break;
+          const afterDom = await page.evaluate(() => document.body.innerHTML.length).catch(() => beforeDom);
+          // Class/style toggles (filters, tabs, selection chips) change the DOM
+          // even when the visible text stays identical.
+          changed = afterText !== beforeText || Math.abs(afterDom - beforeDom) > 20;
+          if (navigated || madeRequest || changed || popupOpened) break;
         }
-        if (clicked && !changed && !navigated && !madeRequest) {
+        if (clicked && !changed && !navigated && !madeRequest && !popupOpened) {
           issues.push({ page: currentPage, type: 'dead control', detail: control.label });
         }
         // Stop after a navigation: the remaining control indices belong to the

@@ -117,22 +117,7 @@ export default function DeliveryCompanyDashboardPage() {
                   </div>
                 )}
               </div>
-            <div className="flex items-center gap-3">
-              <button style={{
-                padding: '10px 20px', borderRadius: '12px', border: 'none',
-                background: '#E8621A', color: 'white', fontWeight: '700', fontSize: '14px',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'
-              }}>
-                <Plus size={16} /> Add Rider
-              </button>
-              <button style={{
-                padding: '10px 20px', borderRadius: '12px', border: 'none',
-                background: 'rgba(255,255,255,0.1)', color: 'white', fontWeight: '600', fontSize: '14px',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'
-              }}>
-                <Settings size={16} /> Settings
-              </button>
-            </div>
+            <div className="flex items-center gap-3" />
           </div>
         </div>
       </div>

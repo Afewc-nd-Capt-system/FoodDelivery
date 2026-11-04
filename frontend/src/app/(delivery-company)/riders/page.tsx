@@ -70,10 +70,6 @@ export default function DeliveryCompanyRidersPage() {
               <h1 className="text-2xl font-black text-white mb-1">Riders Management</h1>
               <p className="text-white/40 text-sm">Manage your delivery fleet</p>
             </div>
-            <Button className="bg-[#E8621A] text-white hover:bg-[#C4501A]">
-              <Plus className="w-4 h-4 mr-2" />
-              Add New Rider
-            </Button>
           </div>
         </div>
       </div>
