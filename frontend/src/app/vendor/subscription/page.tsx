@@ -36,7 +36,7 @@ export default function VendorSubscriptionPage() {
     try {
       const response = await fetch(`${API_V2}/subscriptions/plans?type=vendor`);
       const data = await response.json();
-      setPlans(data.plans);
+      setPlans(Array.isArray(data?.plans) ? data.plans : []);
     } catch (error) {
       console.error('Error fetching plans:', error);
     } finally {

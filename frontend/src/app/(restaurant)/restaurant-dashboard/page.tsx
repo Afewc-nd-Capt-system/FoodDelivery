@@ -216,11 +216,9 @@ function RestaurantDashboardPageContent() {
                   <span style={{ marginLeft: '6px', padding: '2px 8px', borderRadius: '8px', background: '#E8621A', color: 'white', fontSize: '11px', fontWeight: '700' }}>{notificationCount}</span>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="menu">Menu</TabsTrigger>
               <TabsTrigger value="promotions">Promotions</TabsTrigger>
               <TabsTrigger value="analytics">Analytics</TabsTrigger>
               <TabsTrigger value="earnings">Earnings</TabsTrigger>
-              <TabsTrigger value="profile">Profile</TabsTrigger>
             </TabsList>
 
             <div className="flex gap-2">

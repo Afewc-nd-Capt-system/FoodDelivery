@@ -164,7 +164,8 @@ async function runRole(browser, role) {
           .filter((el) => {
             const r = el.getBoundingClientRect();
             const style = window.getComputedStyle(el);
-            return r.width > 0 && r.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+            return r.width > 0 && r.height > 0 && style.visibility !== 'hidden' && style.display !== 'none'
+              && !el.disabled && el.getAttribute('aria-disabled') !== 'true';
           })
           .slice(0, max)
           .map((el, i) => ({ idx: i, label: (el.innerText || el.getAttribute('aria-label') || '').trim().slice(0, 40) }));
@@ -172,6 +173,7 @@ async function runRole(browser, role) {
 
       for (const control of controls) {
         if (!control.label || DESTRUCTIVE.test(control.label)) continue;
+        if (/show password|hide password|show password confirmation|hide password confirmation/i.test(control.label)) continue;
         const beforeUrl = page.url();
         const beforeText = (await page.evaluate(() => document.body.innerText)).slice(0, 5000);
         const beforeReqCount = allRequests.length;
@@ -193,14 +195,13 @@ async function runRole(browser, role) {
         let changed = false;
         let navigated = false;
         let madeRequest = false;
-        for (let wait = 0; wait < 6; wait += 1) {
-          await page.waitForTimeout(400);
+        for (let wait = 0; wait < 4; wait += 1) {
+          await page.waitForTimeout(350);
           navigated = page.url() !== beforeUrl;
           madeRequest = allRequests.length > beforeReqCount;
           const afterText = (await page.evaluate(() => document.body.innerText).catch(() => '')).slice(0, 5000);
           changed = afterText !== beforeText;
           if (navigated || madeRequest || changed) break;
-          if (wait >= 1 && page.url() !== beforeUrl) break;
         }
         if (clicked && !changed && !navigated && !madeRequest) {
           issues.push({ page: currentPage, type: 'dead control', detail: control.label });

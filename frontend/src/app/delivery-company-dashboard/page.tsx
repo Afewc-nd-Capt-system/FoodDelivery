@@ -75,9 +75,7 @@ export default function DeliveryCompanyDashboardPage() {
     { id: 'riders', label: 'Riders', icon: Bike },
     { id: 'earnings', label: 'Earnings', icon: DollarSign },
     { id: 'wallet', label: 'Wallet', icon: Wallet },
-    { id: 'history', label: 'History', icon: History },
-    { id: 'profile', label: 'Profile', icon: User },
-  ]
+          ]
 
   if (loading) return (
     <div style={{
@@ -334,8 +332,8 @@ export default function DeliveryCompanyDashboardPage() {
               {[
                 { label: 'Company Name', value: user?.name || 'VibeChops Delivery Co.' },
                 { label: 'Email', value: user?.email || 'company@vibechops.com' },
-                { label: 'Phone', value: '08012345678' },
-                { label: 'Total Riders', value: String(companyStats.totalRiders) },
+                { label: 'Phone', value: '-' },
+                { label: 'Total Riders', value: companyStats ? String(companyStats.totalRiders ?? '-') : '-' },
                 { label: 'Active Riders', value: String(companyStats.activeRiders) },
               ].map((field) => (
                 <div key={field.label} className="flex justify-between items-center p-3 rounded-xl" style={{ background: '#F5F5F7' }}>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { API_V2 } from '@/lib/apiBase';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,7 @@ const statusSteps = [
 ];
 
 export default function OrdersPage() {
+  const router = useRouter();
   const { user, token } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -145,10 +147,37 @@ export default function OrdersPage() {
               </div>
 
               <div className="flex gap-2 mt-4">
-                <Button className="bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white text-xs px-4 py-2">
+                <Button
+                  onClick={() => {
+                    const restaurantId = typeof order.restaurant === 'object' ? (order.restaurant as any)?._id : order.restaurant;
+                    if (restaurantId) router.push(`/restaurants/${restaurantId}`);
+                  }}
+                  className="bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white text-xs px-4 py-2"
+                >
                   Reorder
                 </Button>
-                <Button className="bg-[#F5F5F5] text-[#636366] hover:bg-[#E8E8E8] text-xs px-4 py-2">
+                <Button
+                  onClick={() => {
+                    const items = (order.items || []).map((i: any) =>
+                      `<tr><td>${i.quantity}× ${i.name}</td><td style="text-align:right">₦${Number(i.price * i.quantity).toLocaleString()}</td></tr>`
+                    ).join('');
+                    const html = `<!doctype html><html><head><title>Receipt ${order._id}</title>
+                      <style>body{font-family:system-ui;padding:32px;max-width:480px;margin:auto}h1{font-size:20px}table{width:100%;border-collapse:collapse}td{padding:6px 0;border-bottom:1px solid #eee}.total{font-weight:700}</style>
+                      </head><body>
+                      <h1>VibeChops Receipt</h1>
+                      <p>Order ${order._id}<br/>${new Date(order.createdAt).toLocaleString()}</p>
+                      <table>${items}<tr class="total"><td>Total</td><td style="text-align:right">₦${Number(order.totalAmount).toLocaleString()}</td></tr></table>
+                      <p style="margin-top:24px;font-size:12px;color:#777">Status: ${order.status}</p>
+                      </body></html>`;
+                    const w = window.open('', '_blank', 'width=520,height=700');
+                    if (!w) return;
+                    w.document.write(html);
+                    w.document.close();
+                    w.focus();
+                    w.print();
+                  }}
+                  className="bg-[#F5F5F5] text-[#636366] hover:bg-[#E8E8E8] text-xs px-4 py-2"
+                >
                   Receipt
                 </Button>
               </div>

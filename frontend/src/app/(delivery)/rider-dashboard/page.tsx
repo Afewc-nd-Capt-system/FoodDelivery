@@ -272,7 +272,7 @@ export default function DeliveryDashboardPage() {
               Active Orders
               <Badge className="ml-2 bg-[#FFF1E8] text-[#E8621A]">{orders.length}</Badge>
             </h2>
-            <Link href="/delivery/history">
+            <Link href="/history">
               <Button className="bg-[#F5F5F5] text-[#636366] hover:bg-[#E8E8E8] text-xs">
                 View All
               </Button>
@@ -376,7 +376,7 @@ export default function DeliveryDashboardPage() {
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Link href="/delivery/earnings">
+          <Link href="/earnings">
             <Card className="p-6 hover:shadow-lg transition-all cursor-pointer group">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-[#FFF1E8] flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -390,7 +390,7 @@ export default function DeliveryDashboardPage() {
             </Card>
           </Link>
 
-          <Link href="/delivery/history">
+          <Link href="/history">
             <Card className="p-6 hover:shadow-lg transition-all cursor-pointer group">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-[#EFF6FF] flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -404,7 +404,7 @@ export default function DeliveryDashboardPage() {
             </Card>
           </Link>
 
-          <Link href="/delivery/profile">
+          <Link href="/profile">
             <Card className="p-6 hover:shadow-lg transition-all cursor-pointer group">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-[#F0FDF4] flex items-center justify-center group-hover:scale-110 transition-transform">

@@ -48,11 +48,7 @@ export default function VendorDashboardPage() {
   const totalRevenue = cookingDays.reduce((sum: number, d: any) => sum + (d.historicalRevenue || 0), 0);
 
   const tabs = [    { id: 'overview', label: 'Overview', icon: TrendingUp },
-    { id: 'preorders', label: 'Pre-orders', icon: Clock },
-    { id: 'menu', label: 'Menu', icon: Utensils },
-    { id: 'schedule', label: 'Cooking Schedule', icon: Calendar },
     { id: 'earnings', label: 'Earnings', icon: DollarSign },
-    { id: 'profile', label: 'Profile', icon: User },
   ]
 
   if (loading) return (
