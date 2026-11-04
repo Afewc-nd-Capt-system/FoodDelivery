@@ -1,5 +1,6 @@
 const rateLimit = require('express-rate-limit');
 const { getClient } = require('./redis');
+const { RedisRateLimitStore } = require('./rateLimitStore');
 
 const production = process.env.NODE_ENV === 'production';
 if (production && process.env.DISABLE_RATE_LIMIT === 'true') {
@@ -133,6 +134,7 @@ const loginLimiter = disabled
       standardHeaders: true,
       legacyHeaders: false,
       skipSuccessfulRequests: true,
+      store: new RedisRateLimitStore('rl:login:'),
     });
 
 module.exports = { bruteForceProtection, loginLimiter };

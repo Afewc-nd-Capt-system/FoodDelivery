@@ -1,4 +1,5 @@
 const rateLimit = require('express-rate-limit');
+const { RedisRateLimitStore } = require('./rateLimitStore');
 
 const production = process.env.NODE_ENV === 'production';
 if (production && process.env.DISABLE_RATE_LIMIT === 'true') {
@@ -30,6 +31,7 @@ const authLimiter = disabled
       // lockout (middleware/bruteForce.js) is the per-account guard.
       skipSuccessfulRequests: true,
       handler: limitHandler('Too many attempts.'),
+      store: new RedisRateLimitStore('rl:auth:'),
       standardHeaders: true,
       legacyHeaders: false,
     });
@@ -40,6 +42,7 @@ const apiLimiter = disabled
       windowMs: 15 * 60 * 1000,
       max: 100,
       handler: limitHandler('Too many requests.'),
+      store: new RedisRateLimitStore('rl:api:'),
       standardHeaders: true,
       legacyHeaders: false,
     });
@@ -50,6 +53,7 @@ const strictLimiter = disabled
       windowMs: 60 * 1000,
       max: 10,
       handler: limitHandler('Rate limit exceeded.'),
+      store: new RedisRateLimitStore('rl:strict:'),
       standardHeaders: true,
       legacyHeaders: false,
     });
