@@ -297,14 +297,14 @@ async function main() {
   });
 
   await requestStep('register API: limiter 429 carries CORS and a retry window', async () => {
-    // The auth limiter is per-IP (20/15min). Probe with a throwaway spoofed IP
-    // so the shared production budget is not consumed. Reuse ONE email so the
-    // probe creates at most a single account (first 201, then duplicate 409s).
-    const spoofIp = `203.0.113.${120 + (Date.now() % 120)}`;
-    const probeEmail = `limiter-register-${spoofIp}@example.com`;
+    // Probe on a throwaway spoofed IP so the shared production IP budget is not
+    // consumed (and smoke can run immediately afterwards). One email only, so
+    // at most a single account is created (201, then duplicate 409s).
+    const spoofIp = `203.0.113.${30 + (Date.now() % 200)}`;
+    const probeEmail = `limiter-register-${Date.now()}@example.com`;
     let saw429 = null;
     let probeUserId = null;
-    for (let attempt = 0; attempt < 24; attempt += 1) {
+    for (let attempt = 0; attempt < 26; attempt += 1) {
       const result = await api('/auth/register', {
         method: 'POST',
         headers: { 'X-Forwarded-For': spoofIp },
