@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiPost } from '@/lib/apiClient';
@@ -16,14 +16,25 @@ export default function DeliveryCompanyRegisterPage() {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [inviteToken, setInviteToken] = useState('');
+  useEffect(() => {
+    setInviteToken(new URLSearchParams(window.location.search).get('invite') || '');
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (!inviteToken) {
+      setError('Registration is invite-only. Use the link from your approval email.');
+      return;
+    }
     setLoading(true);
 
     try {
-      const data = await apiPost('/delivery-company/register', formData);
+      const data = await apiPost('/delivery-company/register', {
+        ...formData,
+        invitationToken: inviteToken,
+      });
 
       if (data?.token) {
         localStorage.setItem('token', data.token);

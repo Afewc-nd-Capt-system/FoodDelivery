@@ -5,6 +5,8 @@ const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const authMiddleware = require('../../middleware/auth');
 const { validateDocumentMagic } = require('../../utils/upload');
+const { verifyAccessToken } = require('../../security/tokenService');
+const { verifyInvitation } = require('../../services/partnerInvitation');
 const {
   storeDocument,
   decodeReference,
@@ -48,12 +50,28 @@ const upload = multer({
 });
 
 // POST /api/v2/restaurants/upload-docs
-router.post('/upload-docs', authMiddleware, upload.fields([
+// Accepts either a signed-in restaurant user OR an unused restaurant
+// invitation token (pre-registration document upload).
+router.post('/upload-docs', upload.fields([
   { name: 'cacCertificate', maxCount: 1 },
   { name: 'governmentApproval', maxCount: 1 },
 ]), validateDocumentMagic, async (req, res) => {
   try {
     const { tinNumber, rcNumber } = req.body;
+
+    let authorized = false;
+    const bearer = req.header('Authorization')?.replace('Bearer ', '');
+    if (bearer) {
+      const decoded = verifyAccessToken(bearer);
+      authorized = Boolean(decoded && ['restaurant', 'admin'].includes(decoded.role));
+    }
+    if (!authorized && req.body.invitationToken) {
+      const invite = await verifyInvitation(req.body.invitationToken, 'restaurant');
+      authorized = !invite.error;
+    }
+    if (!authorized) {
+      return res.status(401).json({ message: 'Sign in or use a valid invitation link to upload documents' });
+    }
 
     if (!tinNumber || !rcNumber) {
       return res.status(400).json({ message: 'TIN and RC Number are required' });

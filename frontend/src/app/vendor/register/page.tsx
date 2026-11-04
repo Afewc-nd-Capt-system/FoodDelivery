@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiPost } from '@/lib/apiClient';
@@ -15,6 +15,10 @@ const nigerianStates = [
 
 export default function VendorRegisterPage() {
   const router = useRouter();
+  const [inviteToken, setInviteToken] = useState('');
+  useEffect(() => {
+    setInviteToken(new URLSearchParams(window.location.search).get('invite') || '');
+  }, []);
   const [formData, setFormData] = useState({
     businessName: '',
     ownerName: '',
@@ -83,6 +87,11 @@ export default function VendorRegisterPage() {
     setLoading(true);
 
     try {
+      if (!inviteToken) {
+        setError('Registration is invite-only. Use the link from your approval email.');
+        setLoading(false);
+        return;
+      }
       // Geocode the address to get coordinates
       const coords = await geocodeAddress(formData.address.street, formData.address.city);
       
@@ -96,6 +105,7 @@ export default function VendorRegisterPage() {
       const formattedAddress = `${formData.address.street}, ${formData.address.area}, ${formData.address.city}, ${formData.address.state}, Nigeria`;
       const data = await apiPost('/vendors/register', {
         ...formData,
+        invitationToken: inviteToken,
         address: {
           ...formData.address,
           formattedAddress

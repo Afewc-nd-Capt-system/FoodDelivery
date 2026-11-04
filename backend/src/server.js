@@ -170,8 +170,11 @@ app.use('/api/v2/catering', authMiddleware, require('./routes/v2/catering'));
 app.use('/api/v2/disputes', authMiddleware, require('./routes/v2/disputes'));
 app.use('/api/v2/admin/disputes', authMiddleware, require('./routes/v2/admin-disputes'));
 app.use('/api/v2/riders', authMiddleware, require('./routes/v2/riders'));
+app.use('/api/v2/riders', authMiddleware, require('./routes/v2/riderVerification'));
+app.use('/api/v2/admin/rider-verifications', require('./routes/v2/adminRiderVerifications'));
 app.use('/api/v2/earnings', authMiddleware, require('./routes/v2/earnings'));
 app.use('/api/v2/admin/approvals', authMiddleware, require('./routes/v2/admin-approvals'));
+app.use('/api/v2/admin/applications', require('./routes/v2/admin-applications'));
 app.use('/api/v2/admin/revenue', authMiddleware, require('./routes/v2/admin-revenue'));
 app.use('/api/v2/subscriptions', authMiddleware, require('./routes/v2/business-subscriptions'));
 app.use('/api/v2/ads', require('./routes/v2/ads'));
@@ -194,6 +197,9 @@ app.get('/health', (req, res) => {
     database: 'connected', // We could add actual DB check here
     redisConfigured: Boolean(process.env.REDIS_URL),
     redisConnected: getClient()?.status === 'ready',
+    // Diagnostic only: no secrets, used to verify proxy hop/IP behaviour.
+    clientIp: req.ip,
+    forwardedFor: req.headers['x-forwarded-for'] || null,
   };
   
   try {

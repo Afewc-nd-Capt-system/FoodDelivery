@@ -6,18 +6,40 @@ const { restaurantGuard, adminGuard } = require('../middleware/routeGuards');
 const { xssProtection } = require('../middleware/sanitize');
 const { sessionResponse } = require('../utils/session');
 const { sendWelcomeEmail } = require('../utils/email');
+const { verifyInvitation, consumeInvitation } = require('../services/partnerInvitation');
 
 const router = express.Router();
 
-// Public self-registration for restaurants. Creates the owner User account and
-// the Restaurant profile (pending verification) and returns a session so the
-// newly registered owner can upload documents and reach their dashboard.
+// Public self-registration for restaurants. Invitation-only (admin-approved
+// application) and requires CAC certificate + RC + TIN before the account is
+// created; it stays pending until an admin verifies the documents.
 router.post('/register', xssProtection, async (req, res) => {
+  let invitation = null;
+  let createdUser = null;
   try {
     const {
       name, email, password, phone, address, cuisine, description, location,
-      tinNumber, rcNumber, documents,
+      tinNumber, rcNumber, documents, invitationToken,
     } = req.body;
+
+    const inviteCheck = await verifyInvitation(invitationToken, 'restaurant');
+    if (inviteCheck.error) {
+      return res.status(inviteCheck.status).json({ message: inviteCheck.error });
+    }
+    invitation = inviteCheck.invitation;
+    if (invitation.email && email && String(email).trim().toLowerCase() !== invitation.email) {
+      return res.status(403).json({ message: 'This invitation was issued for a different email address.' });
+    }
+
+    if (!documents?.cacCertificate) {
+      return res.status(400).json({ message: 'CAC certificate document is required for restaurant registration' });
+    }
+    if (!rcNumber || !String(rcNumber).trim()) {
+      return res.status(400).json({ message: 'RC number is required for restaurant registration' });
+    }
+    if (!tinNumber || !String(tinNumber).trim()) {
+      return res.status(400).json({ message: 'TIN is required for restaurant registration' });
+    }
 
     if (!name || !String(name).trim()) {
       return res.status(400).json({ message: 'Restaurant name is required' });
@@ -53,6 +75,7 @@ router.post('/register', xssProtection, async (req, res) => {
       role: 'restaurant',
     });
     await user.save();
+    createdUser = user;
 
     const restaurant = new Restaurant({
       name: String(name).trim(),
@@ -64,13 +87,23 @@ router.post('/register', xssProtection, async (req, res) => {
       cuisine: Array.isArray(cuisine) ? cuisine : (cuisine ? [cuisine] : ['Nigerian']),
       owner: user._id,
       verificationStatus: 'pending_verification',
+      isApproved: false,
       isActive: true,
       isOpen: true,
       tinNumber,
       rcNumber,
-      documents: Array.isArray(documents) ? documents : undefined,
+      documents,
     });
     await restaurant.save();
+
+    const consumed = await consumeInvitation(invitation._id, user._id);
+    if (!consumed) {
+      await Promise.all([
+        Restaurant.deleteOne({ _id: restaurant._id }),
+        User.deleteOne({ _id: user._id }),
+      ]);
+      return res.status(409).json({ message: 'This invitation has already been used.' });
+    }
 
     sendWelcomeEmail(user.email, user.name).catch((emailError) => {
       console.error('Welcome email failed:', emailError.message);
@@ -79,9 +112,16 @@ router.post('/register', xssProtection, async (req, res) => {
     const session = await sessionResponse(res, user);
     res.status(201).json({
       ...session,
-      restaurant: { id: restaurant._id, name: restaurant.name },
+      restaurant: { id: restaurant._id, name: restaurant.name, verificationStatus: restaurant.verificationStatus },
     });
   } catch (error) {
+    if (invitation && createdUser) {
+      await require('../models/PartnerInvitation').findOneAndUpdate(
+        { _id: invitation._id, usedBy: createdUser._id },
+        { $set: { usedAt: null, usedBy: null } }
+      ).catch(() => {});
+      await User.deleteOne({ _id: createdUser._id }).catch(() => {});
+    }
     if (error.code === 11000) {
       return res.status(409).json({ message: 'An account with this email already exists.' });
     }

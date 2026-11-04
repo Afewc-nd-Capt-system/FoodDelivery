@@ -7,18 +7,29 @@ const { vendorGuard, adminGuard } = require('../middleware/routeGuards');
 const { xssProtection } = require('../middleware/sanitize');
 const { sessionResponse } = require('../utils/session');
 const { sendWelcomeEmail } = require('../utils/email');
+const { verifyInvitation, consumeInvitation } = require('../services/partnerInvitation');
 
 const router = express.Router();
 
-// Public self-registration for home cooks / vendors. Creates the owner User
-// account, the Vendor profile and returns a signed-in session — the same shape
-// as /auth/register, so the frontend can log the new vendor straight in.
+// Public self-registration for home cooks / vendors. Invitation-only: the
+// admin approves a /contact application, which emails a single-use 7-day token.
 router.post('/register', xssProtection, async (req, res) => {
+  let invitation = null;
+  let createdUser = null;
   try {
     const {
       businessName, ownerName, email, password, phone, address, cuisine, cookingDays,
-      location, description,
+      location, description, invitationToken,
     } = req.body;
+
+    const inviteCheck = await verifyInvitation(invitationToken, 'vendor');
+    if (inviteCheck.error) {
+      return res.status(inviteCheck.status).json({ message: inviteCheck.error });
+    }
+    invitation = inviteCheck.invitation;
+    if (invitation.email && email && String(email).trim().toLowerCase() !== invitation.email) {
+      return res.status(403).json({ message: 'This invitation was issued for a different email address.' });
+    }
 
     if (!businessName || !String(businessName).trim()) {
       return res.status(400).json({ message: 'Business name is required' });
@@ -62,6 +73,7 @@ router.post('/register', xssProtection, async (req, res) => {
       role: 'vendor',
     });
     await user.save();
+    createdUser = user;
 
     const vendor = new Vendor({
       businessName: String(businessName).trim(),
@@ -81,6 +93,15 @@ router.post('/register', xssProtection, async (req, res) => {
     });
     await vendor.save();
 
+    const consumed = await consumeInvitation(invitation._id, user._id);
+    if (!consumed) {
+      await Promise.all([
+        Vendor.deleteOne({ _id: vendor._id }),
+        User.deleteOne({ _id: user._id }),
+      ]);
+      return res.status(409).json({ message: 'This invitation has already been used.' });
+    }
+
     sendWelcomeEmail(user.email, user.name).catch((emailError) => {
       console.error('Welcome email failed:', emailError.message);
     });
@@ -91,6 +112,15 @@ router.post('/register', xssProtection, async (req, res) => {
       vendor: { id: vendor._id, businessName: vendor.businessName },
     });
   } catch (error) {
+    // If anything failed after the invite was consumed, release it so the
+    // applicant can retry with the same link.
+    if (invitation && createdUser) {
+      await require('../models/PartnerInvitation').findOneAndUpdate(
+        { _id: invitation._id, usedBy: createdUser._id },
+        { $set: { usedAt: null, usedBy: null } }
+      ).catch(() => {});
+      await User.deleteOne({ _id: createdUser._id }).catch(() => {});
+    }
     if (error.code === 11000) {
       return res.status(409).json({ message: 'An account with this email already exists.' });
     }

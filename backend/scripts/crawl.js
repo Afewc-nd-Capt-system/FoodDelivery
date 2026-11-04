@@ -1,0 +1,247 @@
+'use strict';
+
+/**
+ * Production crawl: visits every reachable page per role and reports
+ *   - dead controls (button/link with no navigation, request or visible change)
+ *   - 4xx/5xx requests
+ *   - console errors
+ *   - broken images
+ *   - "coming soon" / mock / lorem text
+ *
+ * Usage: BASE_URL=https://vibechops.com npm run test:crawl [-- --strict]
+ */
+
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env.e2e') });
+const { chromium } = require('playwright-core');
+const { authenticator } = require('otplib');
+
+const BASE = (process.env.BASE_URL || 'https://vibechops.com').replace(/\/+$/, '');
+const API = (process.env.CRAWL_API_URL || 'https://vibechops.onrender.com/api/v2').replace(/\/+$/, '');
+const CHROME = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
+const STRICT = process.argv.includes('--strict');
+const MAX_PAGES_PER_ROLE = Number(process.env.CRAWL_MAX_PAGES || 45);
+const MAX_CONTROLS_PER_PAGE = Number(process.env.CRAWL_MAX_CONTROLS || 35);
+
+const MOCK_TEXT = /coming soon|lorem ipsum|test_ref|Spice Garden|Burger Barn|Dragon Palace|Battery 85%|Signal Strong|Happy Customers|200\+ restaurants|50K\+/i;
+const DESTRUCTIVE = /delete|remove|cancel|logout|sign out|suspend|approve|reject|pay|place order|deactivate|block|unfriend|refund|top up|subscribe|checkout/i;
+
+const accounts = {
+  admin: ['E2E_ADMIN_EMAIL', 'E2E_ADMIN_PASSWORD'],
+  customer: ['E2E_CUSTOMER_EMAIL', 'E2E_CUSTOMER_PASSWORD'],
+  vendor: ['E2E_VENDOR_EMAIL', 'E2E_VENDOR_PASSWORD'],
+  restaurant: ['E2E_RESTAURANT_EMAIL', 'E2E_RESTAURANT_PASSWORD'],
+  rider: ['E2E_RIDER_EMAIL', 'E2E_RIDER_PASSWORD'],
+  delivery: ['E2E_DELIVERY_EMAIL', 'E2E_DELIVERY_PASSWORD'],
+};
+
+const SEEDS = {
+  guest: ['/', '/restaurants', '/vendors', '/vibepass', '/contact', '/login', '/register', '/forgot-password'],
+  customer: ['/', '/restaurants', '/orders', '/profile', '/wallet', '/loyalty', '/favorites', '/disputes', '/scheduled-orders', '/reservations', '/catering', '/referral', '/cart', '/vibepass'],
+  vendor: ['/vendor-dashboard', '/forecast', '/pod-settings', '/vendor/subscription'],
+  restaurant: ['/restaurant-dashboard', '/pod-config', '/restaurant/subscription', '/promotions'],
+  rider: ['/rider-dashboard', '/verification', '/earnings', '/history'],
+  delivery: ['/delivery-company-dashboard', '/riders'],
+  admin: ['/admin/dashboard', '/admin/restaurants', '/admin/companies', '/admin/revenue', '/users'],
+};
+
+async function apiLogin(role) {
+  const [emailKey, passKey] = accounts[role];
+  const email = process.env[emailKey];
+  const password = process.env[passKey];
+  if (!email || !password) return null;
+  let body = await (await fetch(`${API}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  })).json();
+  if (body.mfaRequired) {
+    const code = authenticator.generate(String(process.env.E2E_ADMIN_TOTP_SECRET || '').replace(/\s+/g, '').toUpperCase());
+    body = await (await fetch(`${API}/auth/mfa/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mfaToken: body.mfaToken, code }),
+    })).json();
+  }
+  if (!body.token) throw new Error(`crawl login failed for ${role}: ${JSON.stringify(body).slice(0, 120)}`);
+  return { token: body.token, user: body.user };
+}
+
+async function runRole(browser, role) {
+  const session = role === 'guest' ? null : await apiLogin(role);
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  if (session) {
+    await context.addInitScript(({ token, user }) => {
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('userRole', user.role);
+    }, session);
+  }
+  const page = await context.newPage();
+
+  const issues = [];
+  let currentPage = '';
+  let requests = [];
+  page.on('response', (res) => {
+    if (res.status() >= 400 && res.url().startsWith(BASE.replace('https://', 'https://'))) {
+      requests.push(`${res.status()} ${res.request().method()} ${res.url().replace(BASE, '')}`);
+    }
+  });
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') {
+      issues.push({ page: currentPage, type: 'console', detail: msg.text().slice(0, 160) });
+    }
+  });
+
+  const visited = new Set();
+  const queue = [...(SEEDS[role] || [])].map((p) => BASE + p);
+  const pagesSeen = [];
+
+  while (queue.length && visited.size < MAX_PAGES_PER_ROLE) {
+    const url = queue.shift();
+    if (visited.has(url)) continue;
+    visited.add(url);
+    currentPage = url.replace(BASE, '') || '/';
+    requests = [];
+
+    let ok = true;
+    try {
+      const res = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      if (res && res.status() >= 400) {
+        issues.push({ page: currentPage, type: `page ${res.status()}`, detail: '' });
+        ok = false;
+      }
+      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page.waitForTimeout(800);
+    } catch (error) {
+      issues.push({ page: currentPage, type: 'navigation', detail: error.message.slice(0, 120) });
+      continue;
+    }
+    pagesSeen.push(currentPage);
+
+    for (const req of requests.slice(0, 8)) {
+      issues.push({ page: currentPage, type: 'network', detail: req });
+    }
+
+    try {
+      const text = await page.evaluate(() => document.body.innerText);
+      if (MOCK_TEXT.test(text)) {
+        const match = text.match(MOCK_TEXT);
+        issues.push({ page: currentPage, type: 'mock/placeholder text', detail: match?.[0] || '' });
+      }
+
+      const broken = await page.evaluate(() =>
+        Array.from(document.images)
+          .filter((img) => img.complete && img.naturalWidth === 0 && img.getAttribute('src'))
+          .slice(0, 5)
+          .map((img) => img.getAttribute('src').slice(0, 100))
+      );
+      for (const src of broken) {
+        issues.push({ page: currentPage, type: 'broken image', detail: src });
+      }
+
+      // Collect internal links for BFS (do not visit the same page twice).
+      const links = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('a[href]'))
+          .map((a) => a.getAttribute('href'))
+          .filter((href) => href && href.startsWith('/') && !href.startsWith('//') && !href.startsWith('/api'))
+      );
+      for (const href of links) {
+        const clean = href.split('#')[0].split('?')[0];
+        if (!clean || clean === '/') continue;
+        const next = BASE + clean;
+        if (!visited.has(next) && queue.length + visited.size < MAX_PAGES_PER_ROLE) queue.push(next);
+      }
+
+      // Dead controls: visible buttons without href that produce no navigation,
+      // no request and no visible text change.
+      const controls = await page.evaluate((max) => {
+        return Array.from(document.querySelectorAll('button, [role="button"]'))
+          .filter((el) => {
+            const r = el.getBoundingClientRect();
+            const style = window.getComputedStyle(el);
+            return r.width > 0 && r.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+          })
+          .slice(0, max)
+          .map((el, i) => ({ idx: i, label: (el.innerText || el.getAttribute('aria-label') || '').trim().slice(0, 40) }));
+      }, MAX_CONTROLS_PER_PAGE);
+
+      for (const control of controls) {
+        if (!control.label || DESTRUCTIVE.test(control.label)) continue;
+        const beforeUrl = page.url();
+        const beforeText = (await page.evaluate(() => document.body.innerText)).slice(0, 5000);
+        requests = [];
+        let clicked = false;
+        try {
+          await page.evaluate((idx) => {
+            const els = Array.from(document.querySelectorAll('button, [role="button"]'))
+              .filter((el) => {
+                const r = el.getBoundingClientRect();
+                const style = window.getComputedStyle(el);
+                return r.width > 0 && r.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+              });
+            els[idx]?.click();
+          }, control.idx);
+          clicked = true;
+          await page.waitForTimeout(700);
+        } catch { /* element detached */ }
+
+        const afterUrl = page.url();
+        const afterText = (await page.evaluate(() => document.body.innerText).catch(() => '')).slice(0, 5000);
+        const changed = beforeText !== afterText;
+        const navigated = beforeUrl !== afterUrl;
+        if (clicked && !changed && !navigated && requests.length === 0) {
+          issues.push({ page: currentPage, type: 'dead control', detail: control.label });
+        }
+      }
+    } catch (error) {
+      issues.push({ page: currentPage, type: 'crawl error', detail: error.message.slice(0, 120) });
+    }
+  }
+
+  await context.close();
+  return { role, pages: pagesSeen, issues };
+}
+
+(async () => {
+  console.log(`Crawl target: ${BASE}`);
+  const browser = await chromium.launch({ headless: true, executablePath: CHROME });
+  const results = [];
+  for (const role of Object.keys(SEEDS)) {
+    process.stdout.write(`crawling ${role}… `);
+    try {
+      const result = await runRole(browser, role);
+      results.push(result);
+      console.log(`${result.pages.length} pages, ${result.issues.length} issue(s)`);
+    } catch (error) {
+      console.log(`FAILED: ${error.message}`);
+      results.push({ role, pages: [], issues: [{ type: 'role failed', detail: error.message }] });
+    }
+  }
+  await browser.close();
+
+  console.log('\nBy page:');
+  for (const result of results) {
+    const byPage = new Map();
+    for (const issue of result.issues) {
+      const key = issue.page || '(role)';
+      if (!byPage.has(key)) byPage.set(key, []);
+      byPage.get(key).push(issue);
+    }
+    for (const [pageName, list] of byPage) {
+      console.log(`\n[${result.role}] ${pageName}`);
+      for (const issue of list.slice(0, 12)) {
+        console.log(`  - ${issue.type}${issue.detail ? `: ${issue.detail}` : ''}`);
+      }
+    }
+  }
+
+  const totalPages = results.reduce((sum, r) => sum + r.pages.length, 0);
+  const totalIssues = results.reduce((sum, r) => sum + r.issues.length, 0);
+  const dead = results.reduce((sum, r) => sum + r.issues.filter((i) => i.type === 'dead control').length, 0);
+  console.log(`\nCRAWL pages=${totalPages} issues=${totalIssues} deadControls=${dead}`);
+  if (STRICT && totalIssues > 0) process.exit(1);
+})().catch((error) => {
+  console.error('CRAWL failed:', error.message);
+  process.exit(1);
+});

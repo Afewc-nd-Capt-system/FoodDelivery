@@ -7,9 +7,11 @@ const { getClient } = require('./redis');
 // exceed the limit by hitting a different instance. Falls back to a local map
 // only when Redis is unavailable (never fail-open).
 class RedisRateLimitStore {
-  constructor(prefix = 'rl:') {
+  constructor(prefix = 'rl:', options = {}) {
     this.prefix = prefix;
     this.local = new Map();
+    // Injectable for tests: a provider that returns an ioredis-like client.
+    this.clientProvider = options.clientProvider || getClient;
   }
 
   init(options) {
@@ -17,7 +19,7 @@ class RedisRateLimitStore {
   }
 
   #redisReady() {
-    const client = getClient();
+    const client = this.clientProvider();
     return client && client.status === 'ready' ? client : null;
   }
 
@@ -37,13 +39,17 @@ class RedisRateLimitStore {
     const redisKey = `${this.prefix}${key}`;
     const client = this.#redisReady();
     if (client) {
-      const total = await client.incr(redisKey);
-      if (total === 1) await client.pexpire(redisKey, this.windowMs);
-      const pttl = await client.pttl(redisKey);
-      return {
-        totalHits: total,
-        resetTime: new Date(Date.now() + Math.max(pttl, 0)),
-      };
+      try {
+        const total = await client.incr(redisKey);
+        if (total === 1) await client.pexpire(redisKey, this.windowMs);
+        const pttl = await client.pttl(redisKey);
+        return {
+          totalHits: total,
+          resetTime: new Date(Date.now() + Math.max(pttl, 0)),
+        };
+      } catch (error) {
+        console.error('[SECURITY] Redis rate-limit increment failed, using memory:', error.message);
+      }
     }
     const total = this.#localBump(key, 1);
     const entry = this.local.get(key);
@@ -54,9 +60,13 @@ class RedisRateLimitStore {
     const redisKey = `${this.prefix}${key}`;
     const client = this.#redisReady();
     if (client) {
-      const current = await client.get(redisKey);
-      if (current && Number(current) > 0) await client.decr(redisKey);
-      return;
+      try {
+        const current = await client.get(redisKey);
+        if (current && Number(current) > 0) await client.decr(redisKey);
+        return;
+      } catch (error) {
+        console.error('[SECURITY] Redis rate-limit decrement failed, using memory:', error.message);
+      }
     }
     this.#localBump(key, -1);
   }
@@ -65,8 +75,12 @@ class RedisRateLimitStore {
     const redisKey = `${this.prefix}${key}`;
     const client = this.#redisReady();
     if (client) {
-      await client.del(redisKey);
-      return;
+      try {
+        await client.del(redisKey);
+        return;
+      } catch (error) {
+        console.error('[SECURITY] Redis rate-limit reset failed, using memory:', error.message);
+      }
     }
     this.local.delete(key);
   }

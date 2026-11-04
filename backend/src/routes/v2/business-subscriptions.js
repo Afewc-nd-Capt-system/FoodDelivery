@@ -4,7 +4,45 @@ const Subscription = require('../../models/Subscription');
 const Restaurant = require('../../models/Restaurant');
 const Vendor = require('../../models/Vendor');
 const authMiddleware = require('../../middleware/auth');
+const { adminGuard } = require('../../middleware/routeGuards');
 const router = express.Router();
+
+// POST /api/v2/subscriptions/admin/audit-activations
+// Admin-only: find paid plans that were activated without a real, verified
+// Paystack reference (legacy 'test_ref' activations) and deactivate them.
+// Deactivation is reversible (status -> 'cancelled'), never a delete.
+router.post('/admin/audit-activations', authMiddleware, adminGuard, async (req, res) => {
+  try {
+    const plans = await BusinessSubscriptionPlan.find({ price: { $gt: 0 } }).select('_id name price');
+    const paidPlanIds = new Set(plans.map((p) => String(p._id)));
+    const planPrice = new Map(plans.map((p) => [String(p._id), Number(p.price) || 0]));
+
+    const subs = await Subscription.find({ status: 'active' });
+    const offenders = [];
+    for (const sub of subs) {
+      const price = planPrice.get(String(sub.plan));
+      if (!price || price <= 0) continue; // free plan — fine
+      const ref = String(sub.paystackReference || '').trim();
+      const invalid = !ref || ref === 'test_ref' || ref.startsWith('test_');
+      if (invalid) {
+        sub.status = 'cancelled';
+        sub.cancelledAt = new Date();
+        sub.autoRenew = false;
+        await sub.save();
+        offenders.push({ id: String(sub._id), plan: String(sub.plan), paystackReference: ref || null });
+      }
+    }
+
+    res.json({
+      success: true,
+      scanned: subs.length,
+      deactivated: offenders.length,
+      offenders,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 
 // GET /api/v2/subscriptions/plans?type=restaurant|vendor
 router.get('/plans', async (req, res) => {

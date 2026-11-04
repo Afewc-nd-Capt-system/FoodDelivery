@@ -8,6 +8,7 @@ const authMiddleware = require('../middleware/auth');
 const { deliveryCompanyGuard, adminGuard } = require('../middleware/routeGuards');
 const { sessionResponse } = require('../utils/session');
 const { sendWelcomeEmail } = require('../utils/email');
+const { verifyInvitation, consumeInvitation } = require('../services/partnerInvitation');
 
 const router = express.Router();
 
@@ -22,9 +23,17 @@ function getAuthenticatedUserId(req) {
   return decoded?.id || decoded?._id || null;
 }
 
-// Public registration endpoint
+// Public registration endpoint — invitation-only (admin-approved application).
 router.post('/register', async (req, res) => {
+  let invitation = null;
+  let owner = null;
   try {
+    const inviteCheck = await verifyInvitation(req.body.invitationToken, 'delivery');
+    if (inviteCheck.error) {
+      return res.status(inviteCheck.status).json({ message: inviteCheck.error });
+    }
+    invitation = inviteCheck.invitation;
+
     const existing = await DeliveryCompany.findOne({
       $or: [
         { email: req.body.email },
@@ -42,6 +51,9 @@ router.post('/register', async (req, res) => {
     if (!normalizedEmail) {
       return res.status(400).json({ message: 'Company email is required' });
     }
+    if (invitation.email && normalizedEmail !== invitation.email) {
+      return res.status(403).json({ message: 'This invitation was issued for a different email address.' });
+    }
     if (!req.body.password || String(req.body.password).length < 8
       || !/[a-z]/.test(req.body.password) || !/[A-Z]/.test(req.body.password)
       || !/[0-9]/.test(req.body.password) || !/[!@#$%^&*(),.?":{}|<>]/.test(req.body.password)) {
@@ -53,7 +65,7 @@ router.post('/register', async (req, res) => {
       return res.status(409).json({ message: 'An account with this email already exists. Try signing in instead.' });
     }
 
-    const owner = new User({
+    owner = new User({
       name: req.body.contactName || req.body.companyName || 'Delivery Company',
       email: normalizedEmail,
       password: req.body.password,
@@ -67,6 +79,15 @@ router.post('/register', async (req, res) => {
       email: normalizedEmail,
       owner: owner._id,
     });
+
+    const consumed = await consumeInvitation(invitation._id, owner._id);
+    if (!consumed) {
+      await Promise.all([
+        DeliveryCompany.deleteOne({ _id: company._id }),
+        User.deleteOne({ _id: owner._id }),
+      ]);
+      return res.status(409).json({ message: 'This invitation has already been used.' });
+    }
 
     sendWelcomeEmail(owner.email, owner.name).catch((emailError) => {
       console.error('Welcome email failed:', emailError.message);
@@ -83,6 +104,13 @@ router.post('/register', async (req, res) => {
       message: 'Company registered successfully. Pending verification.'
     });
   } catch (error) {
+    if (invitation && owner) {
+      await require('../models/PartnerInvitation').findOneAndUpdate(
+        { _id: invitation._id, usedBy: owner._id },
+        { $set: { usedAt: null, usedBy: null } }
+      ).catch(() => {});
+      await User.deleteOne({ _id: owner._id }).catch(() => {});
+    }
     if (error.code === 11000) {
       return res.status(409).json({ message: 'An account with this email already exists.' });
     }

@@ -23,8 +23,10 @@ export default function AdminDashboard() {
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
+    { id: 'applications', label: 'Applications' },
     { id: 'restaurants', label: 'Restaurants' },
     { id: 'vendors', label: 'Vendors' },
+    { id: 'riders', label: 'Rider Verification' },
     { id: 'orders', label: 'Orders' },
     { id: 'users', label: 'Users' },
     { id: 'disputes', label: 'Disputes' },
@@ -70,6 +72,8 @@ export default function AdminDashboard() {
           </div>
         </div>
         {activeTab === 'overview' && <OverviewTab token={token} />}
+        {activeTab === 'applications' && <ApplicationsTab token={token} />}
+        {activeTab === 'riders' && <RiderVerificationTab token={token} />}
         {activeTab === 'restaurants' && <RestaurantsTab token={token} />}
         {activeTab === 'vendors' && <VendorsTab token={token} />}
         {activeTab === 'orders' && <OrdersTab token={token} />}
@@ -1275,6 +1279,176 @@ function RevenueTab({ token }: { token: string }) {
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+
+/* Applications: /contact applications -> invite links */
+function ApplicationsTab({ token }: { token: string | null }) {
+  const [apps, setApps] = useState<any[]>([])
+  const [status, setStatus] = useState('pending')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [invite, setInvite] = useState('')
+
+  const load = async () => {
+    setLoading(true); setError('')
+    try {
+      const res = await fetch(`${API_V2}/admin/applications?status=${status}`, { headers: { Authorization: `Bearer ${token}` } })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) { setError(body?.message || 'Could not load applications'); return }
+      setApps(body?.data || [])
+    } catch { setError('Network error while loading applications') }
+    finally { setLoading(false) }
+  }
+  useEffect(() => { load() }, [status])
+
+  const approve = async (id: string) => {
+    setError(''); setInvite('')
+    try {
+      const res = await fetch(`${API_V2}/admin/applications/${id}/approve`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: '{}',
+      })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) { setError(body?.message || 'Approval failed'); return }
+      setInvite(body?.inviteUrl || 'Invitation created')
+      load()
+    } catch { setError('Network error during approval') }
+  }
+
+  const reject = async (id: string) => {
+    const reason = window.prompt('Reason for rejection:')
+    if (!reason) return
+    setError('')
+    try {
+      const res = await fetch(`${API_V2}/admin/applications/${id}/reject`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reason }),
+      })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) { setError(body?.message || 'Rejection failed'); return }
+      load()
+    } catch { setError('Network error during rejection') }
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '20px' }}>
+        {['pending', 'approved', 'rejected'].map(s => (
+          <button key={s} onClick={() => setStatus(s)} style={{
+            padding: '8px 16px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+            background: status === s ? '#E8621A' : 'white', color: status === s ? 'white' : '#636366', fontWeight: '700',
+          }}>{s}</button>
+        ))}
+      </div>
+      {error && <p style={{ color: '#D32F2F', marginBottom: '12px' }}>{error}</p>}
+      {invite && <p style={{ color: '#15803D', marginBottom: '12px', wordBreak: 'break-all' }}>Invite: {invite}</p>}
+      {loading ? <p>Loading...</p> : apps.length === 0 ? <p style={{ color: '#636366' }}>No {status} applications.</p> : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {apps.map(a => (
+            <div key={a._id} style={{ background: 'white', borderRadius: '16px', padding: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px' }}>
+                <div>
+                  <p style={{ fontWeight: '800' }}>{a.businessName} <span style={{ color: '#A0A0A0', fontWeight: '400' }}>({a.type})</span></p>
+                  <p style={{ fontSize: '13px', color: '#636366' }}>{a.name} | {a.email} | {a.phone} | {a.city}, {a.state}</p>
+                  {a.message && <p style={{ fontSize: '13px', color: '#636366', marginTop: '6px' }}>{a.message}</p>}
+                  {a.rejectionReason && <p style={{ fontSize: '13px', color: '#D32F2F', marginTop: '6px' }}>Reason: {a.rejectionReason}</p>}
+                </div>
+                {a.status === 'pending' && (
+                  <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                    <button onClick={() => approve(a._id)} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#16A34A', color: 'white', fontWeight: '700', cursor: 'pointer' }}>Approve</button>
+                    <button onClick={() => reject(a._id)} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#D32F2F', color: 'white', fontWeight: '700', cursor: 'pointer' }}>Reject</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* Rider verification review */
+function RiderVerificationTab({ token }: { token: string | null }) {
+  const [riders, setRiders] = useState<any[]>([])
+  const [status, setStatus] = useState('pending')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  const load = async () => {
+    setLoading(true); setError('')
+    try {
+      const res = await fetch(`${API_V2}/admin/rider-verifications?status=${status}`, { headers: { Authorization: `Bearer ${token}` } })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) { setError(body?.message || 'Could not load rider verifications'); return }
+      setRiders(body?.data || [])
+    } catch { setError('Network error while loading rider verifications') }
+    finally { setLoading(false) }
+  }
+  useEffect(() => { load() }, [status])
+
+  const viewDoc = async (url: string) => {
+    try {
+      const res = await fetch(`${API_BASE}${url}`, { headers: { Authorization: `Bearer ${token}` } })
+      if (!res.ok) { setError('Could not open the document'); return }
+      const blob = await res.blob()
+      window.open(URL.createObjectURL(blob), '_blank')
+    } catch { setError('Could not open the document') }
+  }
+
+  const act = async (id: string, action: 'approve' | 'reject') => {
+    setError('')
+    let body: any = {}
+    if (action === 'reject') {
+      const reason = window.prompt('Rejection reason:')
+      if (!reason) return
+      body = { reason }
+    }
+    try {
+      const res = await fetch(`${API_V2}/admin/rider-verifications/${id}/${action}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) { setError(data?.message || 'Action failed'); return }
+      load()
+    } catch { setError('Network error') }
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '20px' }}>
+        {['pending', 'approved', 'rejected', 'unverified'].map(s => (
+          <button key={s} onClick={() => setStatus(s)} style={{
+            padding: '8px 16px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+            background: status === s ? '#E8621A' : 'white', color: status === s ? 'white' : '#636366', fontWeight: '700',
+          }}>{s}</button>
+        ))}
+      </div>
+      {error && <p style={{ color: '#D32F2F', marginBottom: '12px' }}>{error}</p>}
+      {loading ? <p>Loading...</p> : riders.length === 0 ? <p style={{ color: '#636366' }}>No {status} riders.</p> : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {riders.map(r => (
+            <div key={r._id} style={{ background: 'white', borderRadius: '16px', padding: '20px' }}>
+              <p style={{ fontWeight: '800' }}>{r.name} <span style={{ color: '#A0A0A0', fontWeight: '400' }}>({r.email})</span></p>
+              <p style={{ fontSize: '13px', color: '#636366' }}>{r.phone} | {r.vehicleType || 'vehicle'} {r.vehicleNumber || ''}</p>
+              {r.verificationRejectionReason && <p style={{ fontSize: '13px', color: '#D32F2F' }}>Reason: {r.verificationRejectionReason}</p>}
+              <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
+                {r.verificationDocuments?.idDocument?.url && (
+                  <button onClick={() => viewDoc(r.verificationDocuments.idDocument.url)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #E8E8E8', background: 'white', cursor: 'pointer' }}>View ID</button>
+                )}
+                {r.verificationDocuments?.vehicleDocument?.url && (
+                  <button onClick={() => viewDoc(r.verificationDocuments.vehicleDocument.url)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #E8E8E8', background: 'white', cursor: 'pointer' }}>View vehicle doc</button>
+                )}
+                <button onClick={() => act(r._id, 'approve')} style={{ padding: '6px 12px', borderRadius: '8px', border: 'none', background: '#16A34A', color: 'white', fontWeight: '700', cursor: 'pointer' }}>Approve</button>
+                <button onClick={() => act(r._id, 'reject')} style={{ padding: '6px 12px', borderRadius: '8px', border: 'none', background: '#D32F2F', color: 'white', fontWeight: '700', cursor: 'pointer' }}>Reject</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -1,224 +1,151 @@
 'use client';
-import { API_V2 as API_URL } from '@/lib/apiBase';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Upload, FileText, CheckCircle, XCircle, Clock, Shield, AlertTriangle } from 'lucide-react';
+import { API_V2 } from '@/lib/apiBase';
 
-export default function DriverVerificationPage() {
-  const [verificationStatus, setVerificationStatus] = useState<any>(null);
-  const [documents, setDocuments] = useState<any[]>([]);
+interface VerificationState {
+  status: 'unverified' | 'pending' | 'approved' | 'rejected';
+  rejectionReason: string | null;
+  submittedAt: string | null;
+  documents: { idDocument: string | null; vehicleDocument: string | null };
+}
+
+export default function RiderVerificationPage() {
+  const [state, setState] = useState<VerificationState | null>(null);
+  const [idDocument, setIdDocument] = useState<File | null>(null);
+  const [vehicleDocument, setVehicleDocument] = useState<File | null>(null);
+  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
-  useEffect(() => {
-    fetchVerificationStatus();
-    fetchDocuments();
-  }, []);
-
-  const fetchVerificationStatus = async () => {
+  const load = async () => {
     try {
-      const response = await fetch(`${API_URL}/delivery/verification/status`, {
-        credentials: 'include',
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_V2}/riders/verification`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(20000),
       });
-      if (response.ok) {
-        const data = await response.json();
-        setVerificationStatus(data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch verification status:', error);
+      const body = await res.json().catch(() => null);
+      if (res.ok) setState(body?.data || null);
+      else setError(body?.message || 'Could not load your verification status.');
+    } catch {
+      setError('Network error while loading your verification status.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const fetchDocuments = async () => {
-    try {
-      const response = await fetch(`${API_URL}/delivery/verification/documents`, {
-        credentials: 'include',
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setDocuments(data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch documents:', error);
-    }
-  };
+  useEffect(() => { load(); }, []);
 
-  const handleFileUpload = async (documentType: string, file: File) => {
+  const upload = async () => {
+    setError('');
+    setNotice('');
+    if (!idDocument || !vehicleDocument) {
+      setError('Please choose both an ID document and a vehicle document.');
+      return;
+    }
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('documentType', documentType);
-
-      const response = await fetch(`${API_URL}/delivery/verification/upload`, {
+      const token = localStorage.getItem('token');
+      const form = new FormData();
+      form.append('idDocument', idDocument);
+      form.append('vehicleDocument', vehicleDocument);
+      const res = await fetch(`${API_V2}/riders/verification/documents`, {
         method: 'POST',
-        credentials: 'include',
-        body: formData,
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+        signal: AbortSignal.timeout(60000),
       });
-      if (response.ok) {
-        fetchDocuments();
-        fetchVerificationStatus();
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(body?.message || 'Upload failed. Please check the files and try again.');
+        return;
       }
-    } catch (error) {
-      console.error('Failed to upload document:', error);
+      setState(body?.data || null);
+      setNotice('Documents submitted. An admin will review them shortly.');
+      setIdDocument(null);
+      setVehicleDocument(null);
+    } catch {
+      setError('Network error while uploading. Please try again.');
     } finally {
       setUploading(false);
     }
   };
 
-  const documentTypes = [
-    { id: 'drivers_license', name: "Driver's License", required: true, icon: FileText },
-    { id: 'vehicle_registration', name: 'Vehicle Registration', required: true, icon: FileText },
-    { id: 'insurance', name: 'Insurance Proof', required: true, icon: Shield },
-    { id: 'bvn', name: 'BVN', required: false, icon: FileText },
-  ];
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'verified':
-        return <Badge className="bg-[#F0FDF4] text-[#16A34A]"><CheckCircle className="w-3 h-3 mr-1" />Verified</Badge>;
-      case 'pending':
-        return <Badge className="bg-[#FFF1E8] text-[#E8621A]"><Clock className="w-3 h-3 mr-1" />Pending</Badge>;
-      case 'rejected':
-        return <Badge className="bg-[#FEE2E2] text-[#D32F2F]"><XCircle className="w-3 h-3 mr-1" />Rejected</Badge>;
-      default:
-        return <Badge className="bg-[#F5F5F5] text-[#636366]">Not Submitted</Badge>;
-    }
-  };
+  const badge = (status: string) => ({
+    unverified: { text: 'Not submitted', bg: '#FFF1E8', color: '#B45309' },
+    pending: { text: 'Pending review', bg: '#EFF6FF', color: '#1D4ED8' },
+    approved: { text: 'Approved', bg: '#F0FDF4', color: '#15803D' },
+    rejected: { text: 'Rejected', bg: '#FEF2F2', color: '#D32F2F' },
+  }[status] || { text: status, bg: '#F5F5F5', color: '#636366' });
 
   return (
-    <div style={{ backgroundColor: '#FFF8F0', minHeight: '100vh' }}>
-      <div style={{ background: 'linear-gradient(135deg, #1C1C1E 0%, #2C1810 100%)' }} className="py-6">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-4">
-            <Link href="/delivery/profile">
-              <Button variant="ghost" className="text-white hover:bg-white/10">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
-              </Button>
-            </Link>
-            <h1 className="text-2xl font-black text-white">Driver Verification</h1>
-          </div>
+    <div className="min-h-screen bg-[#FFF8F0] py-10 px-4">
+      <div className="max-w-2xl mx-auto bg-white rounded-3xl p-8 border border-[#F0EAE0] shadow-[0_4px_20px_rgba(0,0,0,0.06)]">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-black text-[#1C1C1E]">Rider Verification</h1>
+          <Link href="/rider-dashboard" className="text-sm font-semibold text-[#E8621A]">Back to dashboard</Link>
         </div>
-      </div>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Verification Status */}
-        <Card className="p-6 mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-xl bg-[#FFF1E8] flex items-center justify-center">
-              <Shield className="w-6 h-6 text-[#E8621A]" />
+        {loading && <p className="text-sm text-[#636366]">Loading…</p>}
+
+        {!loading && state && (
+          <>
+            <div className="mb-6 p-4 rounded-2xl" style={{ background: badge(state.status).bg, color: badge(state.status).color }}>
+              <p className="font-bold">{badge(state.status).text}</p>
+              {state.status === 'rejected' && state.rejectionReason && (
+                <p className="text-sm mt-1">Reason: {state.rejectionReason}</p>
+              )}
+              {state.status === 'pending' && (
+                <p className="text-sm mt-1">Your documents are queued for admin review.</p>
+              )}
+              {state.status === 'approved' && (
+                <p className="text-sm mt-1">You can go online and accept deliveries.</p>
+              )}
             </div>
-            <div>
-              <h2 className="text-xl font-black text-[#1C1C1E]">Verification Status</h2>
-              {verificationStatus?.status && getStatusBadge(verificationStatus.status)}
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="text-xs text-[#A0A0A0] mb-1 block">ID document (PDF, JPEG or PNG, max 5MB)</label>
+                <input
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png"
+                  onChange={(e) => setIdDocument(e.target.files?.[0] || null)}
+                  className="block w-full text-sm"
+                />
+                {state.documents.idDocument && <p className="text-xs text-[#15803D] mt-1">A document is already on file.</p>}
+              </div>
+              <div>
+                <label className="text-xs text-[#A0A0A0] mb-1 block">Vehicle document (PDF, JPEG or PNG, max 5MB)</label>
+                <input
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png"
+                  onChange={(e) => setVehicleDocument(e.target.files?.[0] || null)}
+                  className="block w-full text-sm"
+                />
+                {state.documents.vehicleDocument && <p className="text-xs text-[#15803D] mt-1">A document is already on file.</p>}
+              </div>
             </div>
-          </div>
 
-          {verificationStatus?.status === 'pending' && (
-            <Alert className="bg-[#FFF1E8] border-[#E8621A]">
-              <AlertTriangle className="h-4 w-4 text-[#E8621A]" />
-              <AlertDescription className="text-[#1C1C1E]">
-                Your documents are under review. This typically takes 1-3 business days.
-              </AlertDescription>
-            </Alert>
-          )}
+            {error && (
+              <p role="alert" className="text-sm text-[#D32F2F] bg-[#FEF2F2] border border-[#FCA5A5] rounded-xl px-4 py-3 mb-4">{error}</p>
+            )}
+            {notice && (
+              <p role="status" className="text-sm text-[#15803D] bg-[#F0FDF4] border border-[#86EFAC] rounded-xl px-4 py-3 mb-4">{notice}</p>
+            )}
 
-          {verificationStatus?.status === 'rejected' && verificationStatus?.rejectionReason && (
-            <Alert className="bg-[#FEE2E2] border-[#D32F2F] mt-4">
-              <XCircle className="h-4 w-4 text-[#D32F2F]" />
-              <AlertDescription className="text-[#1C1C1E]">
-                <strong>Rejection Reason:</strong> {verificationStatus.rejectionReason}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {verificationStatus?.status === 'verified' && (
-            <Alert className="bg-[#F0FDF4] border-[#16A34A]">
-              <CheckCircle className="h-4 w-4 text-[#16A34A]" />
-              <AlertDescription className="text-[#1C1C1E]">
-                Your account has been verified! You can now start accepting orders.
-              </AlertDescription>
-            </Alert>
-          )}
-        </Card>
-
-        {/* Document Upload */}
-        <Card className="p-6">
-          <h3 className="text-xl font-black text-[#1C1C1E] mb-6">Required Documents</h3>
-          <div className="space-y-4">
-            {documentTypes.map((docType) => {
-              const Icon = docType.icon;
-              const existingDoc = documents.find(d => d.documentType === docType.id);
-              
-              return (
-                <Card key={docType.id} className="p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-[#F5F5F5] flex items-center justify-center">
-                        <Icon className="w-5 h-5 text-[#636366]" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-sm">{docType.name}</h4>
-                        <p className="text-xs text-[#636366]">
-                          {docType.required && <span className="text-[#D32F2F]">Required</span>}
-                          {!docType.required && <span>Optional</span>}
-                        </p>
-                      </div>
-                    </div>
-                    {existingDoc && getStatusBadge(existingDoc.status)}
-                  </div>
-
-                  {existingDoc ? (
-                    <div className="text-sm text-[#636366]">
-                      <p>Uploaded: {new Date(existingDoc.uploadedAt).toLocaleDateString()}</p>
-                      {existingDoc.status === 'rejected' && existingDoc.rejectionReason && (
-                        <p className="text-[#D32F2F] mt-1">{existingDoc.rejectionReason}</p>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      <Input
-                        type="file"
-                        accept="image/*,.pdf"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleFileUpload(docType.id, file);
-                        }}
-                        disabled={uploading}
-                        className="flex-1"
-                      />
-                      <Button
-                        size="sm"
-                        disabled={uploading}
-                        className="bg-[#E8621A] text-white"
-                      >
-                        <Upload className="w-4 h-4 mr-2" />
-                        Upload
-                      </Button>
-                    </div>
-                  )}
-                </Card>
-              );
-            })}
-          </div>
-
-          <div className="mt-6 p-4 bg-[#F5F5F5] rounded-xl">
-            <h4 className="font-bold text-sm mb-2">Document Requirements:</h4>
-            <ul className="text-xs text-[#636366] space-y-1">
-              <li>• Documents must be clear and readable</li>
-              <li>• Accepted formats: JPG, PNG, PDF</li>
-              <li>• Maximum file size: 5MB</li>
-              <li>• Documents must be valid and not expired</li>
-            </ul>
-          </div>
-        </Card>
+            <button
+              onClick={upload}
+              disabled={uploading || state.status === 'approved' || !idDocument || !vehicleDocument}
+              className="w-full py-3 rounded-xl text-white font-bold disabled:opacity-60"
+              style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}
+            >
+              {uploading ? 'Uploading…' : state.status === 'approved' ? 'Verified' : 'Submit Documents'}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

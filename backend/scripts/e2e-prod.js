@@ -368,6 +368,199 @@ async function main() {
     return `mode=${deleted.body.mode}`;
   });
 
+  // ---- Paid plans cannot be activated without a verified Paystack payment ----
+  await requestStep('paid plan activation without verified payment is rejected', async () => {
+    const plans = await api('/subscriptions/plans?type=restaurant');
+    assert(plans.status === 200, `plans returned ${plans.status}`);
+    const paid = (plans.body?.plans || []).find((p) => Number(p.price) > 0);
+    assert(paid, 'no paid restaurant plan found');
+    assert(paid._id, 'paid plan has no id');
+
+    const noRef = await api('/subscriptions/activate', {
+      method: 'POST',
+      token: tokens.restaurant,
+      body: { planId: paid._id },
+    });
+    assert(noRef.status === 402, `activate without ref returned ${noRef.status}: ${noRef.text}`);
+
+    const fakeRef = await api('/subscriptions/activate', {
+      method: 'POST',
+      token: tokens.restaurant,
+      body: { planId: paid._id, paystackRef: 'test_ref' },
+    });
+    assert(fakeRef.status === 402, `activate with test_ref returned ${fakeRef.status}: ${fakeRef.text}`);
+
+    const audit = await api('/subscriptions/admin/audit-activations', {
+      method: 'POST',
+      token: tokens.admin,
+      body: {},
+    });
+    assert(audit.status === 200, `audit returned ${audit.status}: ${audit.text}`);
+    const offenders = (audit.body?.offenders || []).map((o) => o.id).join(',') || 'none';
+    return `402 no-ref, 402 test_ref, audit deactivated=${audit.body?.deactivated ?? '?'} ids=${offenders}`;
+  });
+
+  // ---- Invite-only partner registration ----
+  await requestStep('partner registration without an invitation is rejected', async () => {
+    const vendor = await api('/vendors/register', {
+      method: 'POST',
+      body: { businessName: 'No Invite Vendor', ownerName: 'X', email: `noinvite-${Date.now()}@example.com`, password: 'NoInvite1!', phone: '+2348012345678', location: { type: 'Point', coordinates: [3.4, 6.5] } },
+    });
+    assert([401, 403].includes(vendor.status), `vendor no-token returned ${vendor.status}: ${vendor.text}`);
+
+    const restaurant = await api('/restaurants/register', {
+      method: 'POST',
+      body: { name: 'No Invite Restaurant', email: `noinvite-r-${Date.now()}@example.com`, password: 'NoInvite1!', phone: '+2348012345678', location: { type: 'Point', coordinates: [3.4, 6.5] } },
+    });
+    assert([401, 403].includes(restaurant.status), `restaurant no-token returned ${restaurant.status}: ${restaurant.text}`);
+
+    const company = await api('/delivery-company/register', {
+      method: 'POST',
+      body: { companyName: 'No Invite Co', email: `noinvite-c-${Date.now()}@example.com`, password: 'NoInvite1!', phone: '+2348012345678' },
+    });
+    assert([401, 403].includes(company.status), `company no-token returned ${company.status}: ${company.text}`);
+    return 'vendor/restaurant/company all 401/403';
+  });
+
+  const inviteEmail = `invite-e2e-${Date.now()}@example.com`;
+  let vendorInviteToken = null;
+  await requestStep('admin approves a /contact application and issues an invite', async () => {
+    const contact = await api('/contact', {
+      method: 'POST',
+      body: {
+        name: 'Invite E2E', email: inviteEmail, phone: '+2348012345678',
+        type: 'vendor', businessName: 'Invite E2E Kitchen', city: 'Lagos', state: 'Lagos',
+        message: 'e2e invitation test',
+      },
+    });
+    assert(contact.status === 200, `contact returned ${contact.status}: ${contact.text}`);
+
+    const listed = await api('/admin/applications?status=pending&limit=100', { token: tokens.admin });
+    assert(listed.status === 200, `applications list returned ${listed.status}`);
+    const application = (listed.body?.data || []).find((a) => a.email === inviteEmail);
+    assert(application, 'application was not stored');
+
+    const approved = await api(`/admin/applications/${application._id}/approve`, {
+      method: 'POST',
+      token: tokens.admin,
+      body: {},
+    });
+    assert(approved.status === 200, `approve returned ${approved.status}: ${approved.text}`);
+    assert(approved.body?.inviteUrl, 'approve returned no inviteUrl');
+    const token = new URL(approved.body.inviteUrl).searchParams.get('invite');
+    assert(token, 'invite URL has no token');
+    vendorInviteToken = token;
+    return `application=${application._id} invite issued`;
+  });
+
+  await requestStep('used and expired invitation tokens are rejected', async () => {
+    // Expired: create a second application, approve with a 1s TTL, wait it out.
+    const email = `invite-expired-${Date.now()}@example.com`;
+    await api('/contact', {
+      method: 'POST',
+      body: { name: 'Expired E2E', email, phone: '+2348012345678', type: 'vendor', businessName: 'Expired E2E Kitchen', city: 'Lagos', state: 'Lagos' },
+    });
+    const listed = await api('/admin/applications?status=pending&limit=100', { token: tokens.admin });
+    const application = (listed.body?.data || []).find((a) => a.email === email);
+    assert(application, 'expired-test application was not stored');
+    const approved = await api(`/admin/applications/${application._id}/approve`, {
+      method: 'POST',
+      token: tokens.admin,
+      body: { expiresInSeconds: 1 },
+    });
+    assert(approved.status === 200, `expired approve returned ${approved.status}`);
+    const expiredToken = new URL(approved.body.inviteUrl).searchParams.get('invite');
+    await new Promise((r) => setTimeout(r, 1500));
+
+    const expired = await api('/vendors/register', {
+      method: 'POST',
+      body: {
+        businessName: 'Expired Vendor', ownerName: 'X', email,
+        password: 'Expired1!', phone: '+2348012345678',
+        location: { type: 'Point', coordinates: [3.4, 6.5] },
+        invitationToken: expiredToken,
+      },
+    });
+    assert(expired.status === 403, `expired token returned ${expired.status}: ${expired.text}`);
+    assert(/expired/i.test(expired.body?.message || ''), `unclear expired message: ${expired.text}`);
+    return 'expired token 403';
+  });
+
+  await requestStep('fresh invitation registers a vendor, then cannot be reused', async () => {
+    const email = inviteEmail;
+    const register = await api('/vendors/register', {
+      method: 'POST',
+      body: {
+        businessName: 'E2E Invited Kitchen',
+        ownerName: 'Invite E2E',
+        email,
+        password: 'Invited1!',
+        phone: '+2348012345678',
+        address: { street: '1 Test Road', city: 'Lagos', state: 'Lagos', country: 'Nigeria' },
+        cuisine: ['Nigerian'],
+        cookingDays: ['Saturday'],
+        location: { type: 'Point', coordinates: [3.4, 6.5] },
+        invitationToken: vendorInviteToken,
+      },
+    });
+    assert(register.status === 201, `invited register returned ${register.status}: ${register.text}`);
+    assert(register.body?.token, 'invited register returned no session');
+
+    const reuse = await api('/vendors/register', {
+      method: 'POST',
+      body: {
+        businessName: 'E2E Invited Kitchen Again',
+        ownerName: 'Invite E2E',
+        email: `reuse-${Date.now()}@example.com`,
+        password: 'Invited1!',
+        phone: '+2348012345678',
+        location: { type: 'Point', coordinates: [3.4, 6.5] },
+        invitationToken: vendorInviteToken,
+      },
+    });
+    assert(reuse.status === 403 || reuse.status === 409, `reused token returned ${reuse.status}: ${reuse.text}`);
+    return '201 fresh, reuse rejected';
+  });
+
+  await requestStep('restaurant registration requires CAC/RC/TIN documents', async () => {
+    // Issue a restaurant invitation.
+    const email = `invite-restaurant-${Date.now()}@example.com`;
+    await api('/contact', {
+      method: 'POST',
+      body: { name: 'Restaurant E2E', email, phone: '+2348012345678', type: 'restaurant', businessName: 'Docs Required Restaurant', city: 'Lagos', state: 'Lagos' },
+    });
+    const listed = await api('/admin/applications?status=pending&limit=100', { token: tokens.admin });
+    const application = (listed.body?.data || []).find((a) => a.email === email);
+    assert(application, 'restaurant application was not stored');
+    const approved = await api(`/admin/applications/${application._id}/approve`, {
+      method: 'POST', token: tokens.admin, body: {},
+    });
+    assert(approved.status === 200, `restaurant approve returned ${approved.status}`);
+    const token = new URL(approved.body.inviteUrl).searchParams.get('invite');
+
+    const noDocs = await api('/restaurants/register', {
+      method: 'POST',
+      body: {
+        name: 'Docs Required Restaurant', email, password: 'Restaurant1!', phone: '+2348012345678',
+        location: { type: 'Point', coordinates: [3.4, 6.5] }, invitationToken: token,
+      },
+    });
+    assert(noDocs.status === 400, `restaurant without docs returned ${noDocs.status}: ${noDocs.text}`);
+
+    const withDocs = await api('/restaurants/register', {
+      method: 'POST',
+      body: {
+        name: 'Docs Required Restaurant', email, password: 'Restaurant1!', phone: '+2348012345678',
+        location: { type: 'Point', coordinates: [3.4, 6.5] }, invitationToken: token,
+        tinNumber: 'TIN-E2E-123', rcNumber: 'RC-E2E-123',
+        documents: { cacCertificate: { url: '/api/v2/restaurants/docs/fake-cac.pdf' }, governmentApproval: null },
+      },
+    });
+    assert(withDocs.status === 201, `restaurant with docs returned ${withDocs.status}: ${withDocs.text}`);
+    assert(/pending_verification/i.test(JSON.stringify(withDocs.body?.restaurant || {})), 'restaurant is not pending verification');
+    return '400 without docs, 201 pending with docs';
+  });
+
   // ---- CORS: exact allowlist, allowed origins only ----
   const allowedMatrixOrigins = [
     ['E2E origin', ORIGIN],

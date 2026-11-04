@@ -84,7 +84,21 @@ const deliveryPartnerSchema = new mongoose.Schema({
     type: String,
     enum: ['rider', 'dispatcher', 'manager'],
     default: 'rider'
-  }
+  },
+  verificationStatus: {
+    type: String,
+    enum: ['unverified', 'pending', 'approved', 'rejected'],
+    default: 'unverified',
+    index: true,
+  },
+  verificationDocuments: {
+    idDocument: { url: String, uploadedAt: Date },
+    vehicleDocument: { url: String, uploadedAt: Date },
+  },
+  verificationSubmittedAt: Date,
+  verificationReviewedAt: Date,
+  verificationRejectionReason: String,
+  verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
 
 deliveryPartnerSchema.pre('save', async function (next) {

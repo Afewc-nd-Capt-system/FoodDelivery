@@ -27,6 +27,14 @@ router.patch('/availability', authMiddleware, async (req, res) => {
       return res.status(404).json({ message: 'Rider not found' });
     }
 
+    // Riders cannot go online until an admin approves their documents.
+    if (isOnline && rider.verificationStatus !== 'approved') {
+      return res.status(403).json({
+        message: 'Your verification documents must be approved before you can go online.',
+        verificationStatus: rider.verificationStatus || 'unverified',
+      });
+    }
+
     rider.isOnline = isOnline;
     await rider.save();
 

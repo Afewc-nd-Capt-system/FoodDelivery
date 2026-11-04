@@ -1,77 +1,80 @@
 const express = require('express')
 const router = express.Router()
-const nodemailer = require('nodemailer')
-const { frontendUrl } = require('../../config/frontend')
+const PartnerApplication = require('../models/PartnerApplication')
+const { sendEmail } = require('../utils/email')
+const { frontendUrl } = require('../config/frontend')
 
-const transporter = nodemailer.createTransport({
-  service: process.env.EMAIL_SERVICE || 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  }
-})
+const typeLabels = {
+  restaurant: 'Restaurant Partner',
+  vendor: 'Home Cook / Vendor',
+  delivery: 'Delivery Company',
+  rider: 'Individual Rider',
+}
 
 router.post('/', async (req, res) => {
   try {
     const { name, email, phone, type, businessName, message, city, state } = req.body
 
-    const typeLabels = {
-      restaurant: 'Restaurant Partner',
-      vendor: 'Home Cook / Vendor',
-      delivery: 'Delivery Company',
-      rider: 'Individual Rider',
+    if (!name || !email || !phone || !businessName) {
+      return res.status(400).json({ success: false, message: 'Name, email, phone and business name are required.' })
+    }
+    if (!Object.prototype.hasOwnProperty.call(typeLabels, type)) {
+      return res.status(400).json({ success: false, message: 'Choose a valid partner type.' })
     }
 
-    await transporter.sendMail({
-      from: `"VibeChops Platform" <${process.env.EMAIL_USER}>`,
-      to: process.env.EMAIL_USER,
-      subject: `New Partner Application: ${typeLabels[type] || type} - ${businessName}`,
-      html: `
-        <h2>New Partner Application</h2>
-        <table style="border-collapse:collapse;width:100%">
-          <tr><td style="padding:8px;border:1px solid #ddd"><b>Type</b></td>
-              <td style="padding:8px;border:1px solid #ddd">${typeLabels[type]}</td></tr>
-          <tr><td style="padding:8px;border:1px solid #ddd"><b>Business</b></td>
-              <td style="padding:8px;border:1px solid #ddd">${businessName}</td></tr>
-          <tr><td style="padding:8px;border:1px solid #ddd"><b>Name</b></td>
-              <td style="padding:8px;border:1px solid #ddd">${name}</td></tr>
-          <tr><td style="padding:8px;border:1px solid #ddd"><b>Email</b></td>
-              <td style="padding:8px;border:1px solid #ddd">${email}</td></tr>
-          <tr><td style="padding:8px;border:1px solid #ddd"><b>Phone</b></td>
-              <td style="padding:8px;border:1px solid #ddd">${phone}</td></tr>
-          <tr><td style="padding:8px;border:1px solid #ddd"><b>Location</b></td>
-              <td style="padding:8px;border:1px solid #ddd">${city}, ${state}</td></tr>
-          <tr><td style="padding:8px;border:1px solid #ddd"><b>Message</b></td>
-              <td style="padding:8px;border:1px solid #ddd">${message || 'N/A'}</td></tr>
-        </table>
-        <p style="margin-top:20px">
-          <a href="${frontendUrl('/admin/login')}"
-             style="background:#E8621A;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold">
-            Review in Admin Dashboard
-          </a>
-        </p>
-      `
+    // Persist the application so admins can review and approve it. Approvals
+    // generate the single-use invitation that unlocks registration.
+    const application = await PartnerApplication.create({
+      type,
+      name: String(name).trim(),
+      email: String(email).trim().toLowerCase(),
+      phone: String(phone).trim(),
+      businessName: String(businessName).trim(),
+      city,
+      state,
+      message,
     })
 
-    await transporter.sendMail({
-      from: `"VibeChops" <${process.env.EMAIL_USER}>`,
+    // Emails are fire-and-forget: never fail the request because SMTP is down.
+    sendEmail({
+      to: process.env.EMAIL_USER,
+      subject: `New Partner Application: ${typeLabels[type]} - ${businessName}`,
+      html: `
+        <h2>New Partner Application</h2>
+        <p><b>Type:</b> ${typeLabels[type]}<br/>
+        <b>Business:</b> ${businessName}<br/>
+        <b>Name:</b> ${name}<br/>
+        <b>Email:</b> ${email}<br/>
+        <b>Phone:</b> ${phone}<br/>
+        <b>Location:</b> ${city || ''}, ${state || ''}<br/>
+        <b>Message:</b> ${message || 'N/A'}</p>
+        <p>Application ID: ${application._id}</p>
+        <p><a href="${frontendUrl('/admin/dashboard')}">Review in the Admin Dashboard → Applications</a></p>
+      `,
+    }).catch((err) => console.error('Contact notification email failed:', err.message))
+
+    sendEmail({
       to: email,
       subject: 'We received your VibeChops partner application!',
       html: `
         <h2>Application Received! 🎉</h2>
         <p>Hi ${name},</p>
         <p>Thank you for applying to be a <b>${typeLabels[type]}</b> partner with VibeChops.</p>
-        <p>We've received your application for <b>${businessName}</b> in ${city}, ${state}.</p>
-        <p>Our team will review your application and reach out within <b>24-48 hours</b> with next steps including your registration link.</p>
-        <p>If you have any questions, reply to this email.</p>
-        <p>Best regards,<br>The VibeChops Team</p>
-      `
-    })
+        <p>We received your application for <b>${businessName}</b> in ${city || ''}, ${state || ''}.</p>
+        <p>Our team reviews applications within 24-48 hours. If approved, you will receive a
+        single-use registration link that expires in 7 days.</p>
+        <p>Best regards,<br/>The VibeChops Team</p>
+      `,
+    }).catch((err) => console.error('Contact acknowledgement email failed:', err.message))
 
-    res.json({ success: true, message: 'Application received. Check your email!' })
+    res.json({
+      success: true,
+      message: 'Application received. We will email you a registration link if approved.',
+      applicationId: application._id,
+    })
   } catch (err) {
     console.error('Contact form error:', err)
-    res.json({ success: true })
+    res.status(500).json({ success: false, message: 'Could not submit your application. Please try again.' })
   }
 })
 

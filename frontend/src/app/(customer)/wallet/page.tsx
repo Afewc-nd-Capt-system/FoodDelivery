@@ -16,6 +16,75 @@ export default function WalletPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [toppingUp, setToppingUp] = useState(false);
+  const [topupError, setTopupError] = useState('');
+  const [topupNotice, setTopupNotice] = useState('');
+
+  const handleTopUp = async () => {
+    setTopupError('');
+    setTopupNotice('');
+    const amount = Number(customAmount || selectedAmount);
+    if (!Number.isFinite(amount) || amount < 100) {
+      setTopupError('Enter an amount of at least ₦100.');
+      return;
+    }
+    setToppingUp(true);
+    try {
+      const res = await fetch(`${API_V2}/wallet/topup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        credentials: 'include',
+        body: JSON.stringify({ amount }),
+        signal: AbortSignal.timeout(30000),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        setTopupError(body?.message || 'Could not start the top-up. Please try again.');
+        return;
+      }
+      if (body?.data?.authorizationUrl) {
+        window.location.href = body.data.authorizationUrl;
+        return;
+      }
+      setTopupError('Payment could not be initialized. Please try again.');
+    } catch (err: any) {
+      setTopupError(err?.name === 'TimeoutError' || err?.name === 'AbortError'
+        ? 'The request timed out. Please try again.'
+        : 'Network error. Check your connection and try again.');
+    } finally {
+      setToppingUp(false);
+    }
+  };
+
+  // Returning from Paystack: verify the reference server-side before crediting.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const reference = new URLSearchParams(window.location.search).get('reference');
+    if (!reference) return;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`${API_V2}/wallet/topup/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          credentials: 'include',
+          body: JSON.stringify({ reference }),
+          signal: AbortSignal.timeout(30000),
+        });
+        const body = await res.json().catch(() => null);
+        if (res.ok) {
+          setTopupNotice(`Wallet topped up with ₦${Number(body?.data?.amount || body?.amount || 0).toLocaleString()}.`);
+        } else {
+          setTopupError(body?.message || 'We could not verify that payment.');
+        }
+      } catch {
+        setTopupError('Could not verify the payment. Please contact support with your reference.');
+      } finally {
+        window.history.replaceState({}, '', '/wallet');
+        await fetchTransactions();
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     fetchTransactions();
@@ -108,10 +177,20 @@ export default function WalletPage() {
             onChange={(e) => { setCustomAmount(e.target.value); setSelectedAmount(''); }}
             className="flex-1"
           />
-          <Button className="bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white">
-            Top Up
+          <Button
+            onClick={handleTopUp}
+            disabled={toppingUp}
+            className="bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white disabled:opacity-60"
+          >
+            {toppingUp ? 'Starting…' : 'Top Up'}
           </Button>
         </div>
+        {topupError && (
+          <p role="alert" className="text-sm text-[#D32F2F] bg-[#FEF2F2] border border-[#FCA5A5] rounded-xl px-4 py-2 mb-3">{topupError}</p>
+        )}
+        {topupNotice && (
+          <p role="status" className="text-sm text-[#15803D] bg-[#F0FDF4] border border-[#86EFAC] rounded-xl px-4 py-2 mb-3">{topupNotice}</p>
+        )}
         <p className="text-xs text-[#A0A0A0]">Powered by Paystack</p>
       </Card>
 
