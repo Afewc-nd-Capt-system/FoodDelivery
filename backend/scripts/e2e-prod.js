@@ -319,17 +319,16 @@ async function main() {
   });
 
   await requestStep('register API: limiter 429 carries CORS and a retry window', async () => {
-    // Probe on a throwaway spoofed IP so the shared production IP budget is not
-    // consumed (and smoke can run immediately afterwards). One email only, so
-    // at most a single account is created (201, then duplicate 409s).
-    const spoofIp = `203.0.113.${30 + (Date.now() % 200)}`;
+    // Probe from the real client IP. Render's edge treats forged
+    // X-Forwarded-For inconsistently across instances (split buckets), which
+    // makes a spoofed probe flaky. This intentionally consumes the auth budget
+    // for ~15 min; every auth-dependent check above already ran.
     const probeEmail = `limiter-register-${Date.now()}@example.com`;
     let saw429 = null;
     let probeUserId = null;
     for (let attempt = 0; attempt < 26; attempt += 1) {
       const result = await api('/auth/register', {
         method: 'POST',
-        headers: { 'X-Forwarded-For': spoofIp },
         body: {
           name: 'Limiter Probe',
           email: probeEmail,
