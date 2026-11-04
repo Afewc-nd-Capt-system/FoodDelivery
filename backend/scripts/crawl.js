@@ -82,6 +82,10 @@ async function runRole(browser, role) {
   const issues = [];
   let currentPage = '';
   let requests = [];
+  let allRequests = [];
+  page.on('request', (req) => {
+    allRequests.push(`${req.method()} ${req.url()}`);
+  });
   page.on('response', (res) => {
     if (res.status() >= 400 && res.url().startsWith(BASE.replace('https://', 'https://'))) {
       requests.push(`${res.status()} ${res.request().method()} ${res.url().replace(BASE, '')}`);
@@ -170,7 +174,7 @@ async function runRole(browser, role) {
         if (!control.label || DESTRUCTIVE.test(control.label)) continue;
         const beforeUrl = page.url();
         const beforeText = (await page.evaluate(() => document.body.innerText)).slice(0, 5000);
-        requests = [];
+        const beforeReqCount = allRequests.length;
         let clicked = false;
         try {
           await page.evaluate((idx) => {
@@ -180,19 +184,30 @@ async function runRole(browser, role) {
                 const style = window.getComputedStyle(el);
                 return r.width > 0 && r.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
               });
-            els[idx]?.click();
+            const el = els[idx];
+            if (el && !el.disabled && el.getAttribute('aria-disabled') !== 'true') el.click();
           }, control.idx);
           clicked = true;
-          await page.waitForTimeout(700);
         } catch { /* element detached */ }
 
-        const afterUrl = page.url();
-        const afterText = (await page.evaluate(() => document.body.innerText).catch(() => '')).slice(0, 5000);
-        const changed = beforeText !== afterText;
-        const navigated = beforeUrl !== afterUrl;
-        if (clicked && !changed && !navigated && requests.length === 0) {
+        let changed = false;
+        let navigated = false;
+        let madeRequest = false;
+        for (let wait = 0; wait < 6; wait += 1) {
+          await page.waitForTimeout(400);
+          navigated = page.url() !== beforeUrl;
+          madeRequest = allRequests.length > beforeReqCount;
+          const afterText = (await page.evaluate(() => document.body.innerText).catch(() => '')).slice(0, 5000);
+          changed = afterText !== beforeText;
+          if (navigated || madeRequest || changed) break;
+          if (wait >= 1 && page.url() !== beforeUrl) break;
+        }
+        if (clicked && !changed && !navigated && !madeRequest) {
           issues.push({ page: currentPage, type: 'dead control', detail: control.label });
         }
+        // Stop after a navigation: the remaining control indices belong to the
+        // previous DOM and would produce false positives.
+        if (navigated) break;
       }
     } catch (error) {
       issues.push({ page: currentPage, type: 'crawl error', detail: error.message.slice(0, 120) });
