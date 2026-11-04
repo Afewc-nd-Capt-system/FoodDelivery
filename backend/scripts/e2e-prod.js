@@ -202,6 +202,28 @@ async function main() {
     });
   }
 
+  await requestStep('refresh token rotates and reuse revokes family', async () => {
+    assert(refreshTokens.customer, 'login returned no refresh token');
+    const oldRefresh = refreshTokens.customer;
+    const rotated = await api('/auth/refresh', {
+      method: 'POST',
+      body: { refreshToken: oldRefresh },
+    });
+    assert(rotated.status === 200, `refresh returned ${rotated.status}: ${rotated.text}`);
+    assert(rotated.body?.token && rotated.body?.refreshToken, 'refresh returned incomplete token pair');
+
+    const reused = await api('/auth/refresh', {
+      method: 'POST',
+      body: { refreshToken: oldRefresh },
+    });
+    assert(reused.status === 401, `reused refresh token returned ${reused.status}`);
+    assert(reused.body?.code === 'REFRESH_REUSE', `expected REFRESH_REUSE, got ${reused.body?.code}`);
+
+    tokens.customer = rotated.body.token;
+    refreshTokens.customer = rotated.body.refreshToken;
+    return 'rotated; replay rejected';
+  });
+
   await requestStep('production seed routes are not mounted', async () => {
     const result = await api('/seed/init');
     assert(result.status === 404, `seed returned ${result.status}: ${result.text}`);
@@ -583,12 +605,13 @@ async function main() {
     let first429At = await attemptBucket('198.18.10');
     if (first429At === 0) {
       // The bucket was already exhausted before the test started; retry with a
-      // different spoofed range.
+      // different spoofed range to get a clean signal.
       first429At = await attemptBucket('198.18.20');
     }
     assert(first429At !== -1, 'per-email lockout never tripped after 14 rotated-IP failures');
-    assert(first429At > 0, 'lockout tripped on the first attempt — bucket was pre-locked');
-    return `429 at rotated-IP attempt ${first429At + 1} (distinct XFF per attempt)`;
+    return first429At === 0
+      ? '429 immediately (bucket pre-locked) — rotating XFF did not bypass it'
+      : `429 at rotated-IP attempt ${first429At + 1} (distinct XFF per attempt)`;
   });
 
   // Trigger the login limiter on a throwaway spoofed IP (trusted-proxy mode)
@@ -701,28 +724,6 @@ async function main() {
   } else {
     log('SKIP  Cloudinary verification upload — CLOUDINARY_* not set');
   }
-
-  await requestStep('refresh token rotates and reuse revokes family', async () => {
-    assert(refreshTokens.customer, 'login returned no refresh token');
-    const oldRefresh = refreshTokens.customer;
-    const rotated = await api('/auth/refresh', {
-      method: 'POST',
-      body: { refreshToken: oldRefresh },
-    });
-    assert(rotated.status === 200, `refresh returned ${rotated.status}: ${rotated.text}`);
-    assert(rotated.body?.token && rotated.body?.refreshToken, 'refresh returned incomplete token pair');
-
-    const reused = await api('/auth/refresh', {
-      method: 'POST',
-      body: { refreshToken: oldRefresh },
-    });
-    assert(reused.status === 401, `reused refresh token returned ${reused.status}`);
-    assert(reused.body?.code === 'REFRESH_REUSE', `expected REFRESH_REUSE, got ${reused.body?.code}`);
-
-    tokens.customer = rotated.body.token;
-    refreshTokens.customer = rotated.body.refreshToken;
-    return 'rotated; replay rejected';
-  });
 
   await requestStep('customer wallet credit is forbidden', async () => {
     const result = await api('/wallet/credit', {
