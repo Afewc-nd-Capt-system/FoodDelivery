@@ -1,11 +1,102 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const Vendor = require('../models/Vendor');
+const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
 const { vendorGuard, adminGuard } = require('../middleware/routeGuards');
 const { xssProtection } = require('../middleware/sanitize');
+const { sessionResponse } = require('../utils/session');
+const { sendWelcomeEmail } = require('../utils/email');
 
 const router = express.Router();
+
+// Public self-registration for home cooks / vendors. Creates the owner User
+// account, the Vendor profile and returns a signed-in session — the same shape
+// as /auth/register, so the frontend can log the new vendor straight in.
+router.post('/register', xssProtection, async (req, res) => {
+  try {
+    const {
+      businessName, ownerName, email, password, phone, address, cuisine, cookingDays,
+      location, description,
+    } = req.body;
+
+    if (!businessName || !String(businessName).trim()) {
+      return res.status(400).json({ message: 'Business name is required' });
+    }
+    if (!ownerName || !String(ownerName).trim()) {
+      return res.status(400).json({ message: 'Owner name is required' });
+    }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) {
+      return res.status(400).json({ message: 'Valid email required' });
+    }
+    if (!password || String(password).length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters' });
+    }
+    if (!phone || !String(phone).trim()) {
+      return res.status(400).json({ message: 'Phone number is required' });
+    }
+    if (!location?.coordinates || location.coordinates.length !== 2) {
+      return res.status(400).json({ message: 'A valid business location is required' });
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const existingUser = await User.findOne({ email: normalizedEmail });
+    if (existingUser) {
+      return res.status(409).json({ message: 'An account with this email already exists. Try signing in instead.' });
+    }
+    const existingVendor = await Vendor.findOne({ email: normalizedEmail });
+    if (existingVendor) {
+      return res.status(409).json({ message: 'A vendor with this email is already registered.' });
+    }
+
+    if (password && !(/[a-z]/.test(password) && /[A-Z]/.test(password)
+      && /[0-9]/.test(password) && /[!@#$%^&*(),.?":{}|<>]/.test(password))) {
+      return res.status(400).json({ message: 'Password must include upper, lower, number and special character' });
+    }
+
+    const user = new User({
+      name: String(ownerName).trim(),
+      email: normalizedEmail,
+      password,
+      phone: String(phone).trim(),
+      role: 'vendor',
+    });
+    await user.save();
+
+    const vendor = new Vendor({
+      businessName: String(businessName).trim(),
+      ownerName: String(ownerName).trim(),
+      email: normalizedEmail,
+      phone: String(phone).trim(),
+      description: description || 'Home-cooked meals made with love',
+      image: req.body.image || undefined,
+      cuisine: Array.isArray(cuisine) ? cuisine : (cuisine ? [cuisine] : ['Nigerian']),
+      cookingDays: Array.isArray(cookingDays) ? cookingDays : [],
+      address,
+      location,
+      owner: user._id,
+      verificationStatus: 'pending_verification',
+      isActive: true,
+      isOpen: true,
+    });
+    await vendor.save();
+
+    sendWelcomeEmail(user.email, user.name).catch((emailError) => {
+      console.error('Welcome email failed:', emailError.message);
+    });
+
+    const session = await sessionResponse(res, user);
+    res.status(201).json({
+      ...session,
+      vendor: { id: vendor._id, businessName: vendor.businessName },
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({ message: 'An account with this email already exists.' });
+    }
+    res.status(400).json({ message: error.message || 'Vendor registration failed' });
+  }
+});
 
 router.get('/', async (req, res) => {
   try {
@@ -205,6 +296,25 @@ router.delete('/:id', async (req, res) => {
     res.json({ message: 'Vendor deleted' });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+});
+
+// Read POD configuration for vendor
+router.get('/:id/pod-config', vendorGuard, async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.params.id);
+    if (!vendor) {
+      return res.status(404).json({ message: 'Vendor not found' });
+    }
+    const isOwner = vendor.owner
+      ? String(vendor.owner) === String(req.user.id)
+      : String(vendor.email).toLowerCase() === String(req.user.email || '').toLowerCase();
+    if (req.user.role !== 'admin' && !isOwner) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+    res.json({ config: vendor.payOnDeliveryConfig || {} });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
   }
 });
 

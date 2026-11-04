@@ -713,6 +713,7 @@ function AdminProfileTab({ user, token }: { user: any, token: string }) {
   const [phone, setPhone] = useState(user?.phone || '')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [oldPassword, setOldPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -808,18 +809,22 @@ function AdminProfileTab({ user, token }: { user: any, token: string }) {
 
   const handleSave = async () => {
     setSaving(true)
+    setSaveError('')
     try {
-      await fetch(
-        `${API_V2}/users/profile`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({ name, phone })
-        }
-      )
+      const res = await fetch(`${API_V2}/auth/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ name, phone }),
+        signal: AbortSignal.timeout(25000),
+      })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) {
+        setSaveError(body?.message || 'Could not save your profile.')
+        return
+      }
       setSaved(true)
       if (typeof window !== 'undefined') {
         const stored = JSON.parse(localStorage.getItem('user') || '{}')
@@ -828,7 +833,11 @@ function AdminProfileTab({ user, token }: { user: any, token: string }) {
         }))
       }
       setTimeout(() => setSaved(false), 2000)
-    } catch {} finally { setSaving(false) }
+    } catch (err: any) {
+      setSaveError(err?.name === 'TimeoutError' || err?.name === 'AbortError'
+        ? 'The request timed out. Please try again.'
+        : 'Network error. Check your connection and try again.')
+    } finally { setSaving(false) }
   }
 
   const handlePasswordChange = async () => {
@@ -1024,6 +1033,9 @@ function AdminProfileTab({ user, token }: { user: any, token: string }) {
               }}>
               {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Changes'}
             </button>
+            {saveError && (
+              <span role="alert" style={{ color: '#D32F2F', fontSize: '13px', marginLeft: '12px' }}>{saveError}</span>
+            )}
           </div>
         </div>
       )}

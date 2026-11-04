@@ -20,7 +20,14 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const response = await api.post('/auth/login', { email, password });
-      const { token, refreshToken, user } = response.data;
+      const data = response.data;
+
+      if (data.mfaRequired) {
+        router.push({ pathname: '/(auth)/mfa', params: { mfaToken: data.mfaToken } });
+        return;
+      }
+
+      const { token, refreshToken, user } = data;
 
       await SecureStore.setItemAsync('jwt_token', token);
       if (refreshToken) await SecureStore.setItemAsync('refresh_token', refreshToken);

@@ -90,27 +90,9 @@ export default function RestaurantRegisterPage() {
 
       // Create formatted address
       const formattedAddress = `${formData.address.street}, ${formData.address.area}, ${formData.address.city}, ${formData.address.state}, Nigeria`;
-      // Upload documents first
-      const formDataUpload = new FormData();
-      formDataUpload.append('cacCertificate', cacCertificate);
-      if (governmentApproval) {
-        formDataUpload.append('governmentApproval', governmentApproval);
-      }
-      formDataUpload.append('tinNumber', formData.tinNumber);
-      formDataUpload.append('rcNumber', formData.rcNumber);
 
-      const uploadResponse = await fetch(`${API_V2}/restaurants/upload-docs`, {
-        method: 'POST',
-        body: formDataUpload,
-      });
-
-      const uploadData = await uploadResponse.json();
-
-      if (!uploadResponse.ok) {
-        throw new Error(uploadData.message || 'Document upload failed');
-      }
-
-      // Register restaurant with document URLs
+      // 1) Register first so we own a session, 2) upload documents with that
+      // token (the upload endpoint is authenticated), 3) finish on the dashboard.
       const data = await apiPost('/restaurants/register', {
         ...formData,
         address: {
@@ -121,11 +103,46 @@ export default function RestaurantRegisterPage() {
           type: 'Point',
           coordinates: [coords.lng, coords.lat]
         },
-        ...uploadData,
         verificationStatus: 'pending_verification',
       });
 
-      router.push('/restaurant/login?status=pending_verification');
+      if (data?.token) {
+        localStorage.setItem('token', data.token);
+        if (data.user) {
+          localStorage.setItem('user', JSON.stringify(data.user));
+          localStorage.setItem('userRole', data.user.role || 'restaurant');
+        }
+      }
+
+      if (cacCertificate) {
+        const formDataUpload = new FormData();
+        formDataUpload.append('cacCertificate', cacCertificate);
+        if (governmentApproval) {
+          formDataUpload.append('governmentApproval', governmentApproval);
+        }
+        formDataUpload.append('tinNumber', formData.tinNumber);
+        formDataUpload.append('rcNumber', formData.rcNumber);
+        try {
+          const uploadResponse = await fetch(`${API_V2}/restaurants/upload-docs`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${data?.token || ''}` },
+            body: formDataUpload,
+            signal: AbortSignal.timeout(60000),
+          });
+          if (!uploadResponse.ok) {
+            const uploadData = await uploadResponse.json().catch(() => ({}));
+            setError(uploadData.message || 'Account created, but document upload failed. You can retry from your dashboard.');
+            router.push('/restaurant-dashboard');
+            return;
+          }
+        } catch {
+          setError('Account created, but document upload failed. You can retry from your dashboard.');
+          router.push('/restaurant-dashboard');
+          return;
+        }
+      }
+
+      router.push('/restaurant-dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
     } finally {

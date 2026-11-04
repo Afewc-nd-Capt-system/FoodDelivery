@@ -9,18 +9,47 @@ export default function ContactPage() {
   })
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const handleSubmit = async () => {
+    setError('')
+    if (!form.name.trim() || !form.email.trim() || !form.phone.trim() || !form.businessName.trim()) {
+      setError('Please fill in your name, email, phone and business name.')
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      setError('Please enter a valid email address.')
+      return
+    }
     setLoading(true)
     try {
-      await fetch(`${API_V2}/contact`, {
+      const res = await fetch(`${API_V2}/contact`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify(form),
+        signal: AbortSignal.timeout(25000),
       })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) {
+        if (res.status === 429) {
+          const minutes = (body?.message || '').match(/(\d+)\s*minute/i)?.[1]
+          setError(minutes
+            ? `Too many submissions. Please try again in ${minutes} minute${minutes === '1' ? '' : 's'}.`
+            : 'Too many submissions. Please wait a few minutes and try again.')
+        } else if (res.status >= 500) {
+          setError('Something went wrong on our side. Please try again shortly.')
+        } else {
+          setError(body?.message || 'We could not submit your application. Please check your details.')
+        }
+        return
+      }
       setSubmitted(true)
-    } catch {
-      setSubmitted(true)
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'TimeoutError') {
+        setError('The request timed out. Check your connection and try again.')
+      } else {
+        setError('Network error. Check your connection and try again.')
+      }
     } finally {
       setLoading(false)
     }
@@ -110,6 +139,15 @@ export default function ContactPage() {
               }}
             />
           </div>
+
+          {error && (
+            <div role="alert" aria-live="polite" style={{
+              marginBottom: '16px', borderRadius: '12px', border: '1px solid #FCA5A5',
+              background: '#FEF2F2', padding: '12px 16px', color: '#D32F2F', fontSize: '14px',
+            }}>
+              {error}
+            </div>
+          )}
 
           <button
             onClick={handleSubmit}

@@ -449,6 +449,89 @@ async function fetchRestaurants() {
     }
   }
 
+  // ---- Round 3: real customer registration through the UI ----
+  try {
+    const { page } = await newPage(browser);
+    const email = `smoke-register-${Date.now()}@example.com`;
+    const password = 'SmokePass1!';
+
+    await page.goto(BASE + '/register', { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+    await page.waitForSelector('input[type=password]', { state: 'visible', timeout: 30000 });
+    await page.waitForTimeout(1500);
+
+    let registered = false;
+    for (let attempt = 0; attempt < 3 && !registered; attempt += 1) {
+      await page.fill('input[placeholder="John Doe"]', 'Smoke Tester');
+      await page.fill('input[type=email]', email);
+      await page.fill('input[placeholder="+234 800 000 0000"]', '+2348012345678');
+      const pwds = page.locator('input[type=password]');
+      await pwds.nth(0).fill(password);
+      await pwds.nth(1).fill(password);
+      const checkbox = page.locator('input[type=checkbox]').first();
+      if (!(await checkbox.isChecked())) await checkbox.check();
+      await page.locator('button', { hasText: 'Create Account' }).first().click();
+
+      for (let i = 0; i < 40; i += 1) {
+        await page.waitForTimeout(500);
+        const token = await page.evaluate(() => localStorage.getItem('token'));
+        if (token) { registered = true; break; }
+        const text = await bodyText(page);
+        if (/too many attempts|already exists|valid|required|must/i.test(text)) break;
+      }
+    }
+    check('register a new customer through the UI', registered, registered ? email : 'no token issued');
+
+    if (registered) {
+      const me = await page.evaluate(() => JSON.parse(localStorage.getItem('user') || '{}'));
+      const newUserId = me?.id || me?._id;
+
+      // Sign out, then sign back in with the new account.
+      await page.evaluate(() => localStorage.clear());
+      await page.goto(BASE + '/login', { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await page.waitForTimeout(2000);
+      await page.fill('input[type=email]', email);
+      await page.fill('input[type=password]', password);
+      await page.locator('button', { hasText: /Sign In/i }).first().click();
+      let signedIn = false;
+      for (let i = 0; i < 40; i += 1) {
+        await page.waitForTimeout(500);
+        signedIn = await page.evaluate(() => !!localStorage.getItem('token'));
+        if (signedIn) break;
+      }
+      check('new customer can sign in again', signedIn, email);
+
+      // My Orders for the brand-new account must load honestly (empty state).
+      await page.goto(BASE + '/orders', { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await page.waitForFunction(
+        () => /No orders yet|Order #|₦/.test(document.body.innerText),
+        { timeout: 25000 }
+      ).catch(() => {});
+      const ordersText = await bodyText(page);
+      check('new customer sees My Orders', /No orders yet|Order #|₦/.test(ordersText),
+        `chars=${ordersText.length}`);
+
+      // Admin cleanup: delete the throwaway account.
+      if (newUserId && sessions.admin) {
+        const adminToken = await sessions.admin.page.evaluate(() => localStorage.getItem('token'));
+        const cleanup = await fetch(`${API_V2}/users/${newUserId}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${adminToken}`, Origin: BASE },
+        });
+        check('admin cleanup deletes the test account', cleanup.ok, `status=${cleanup.status}`);
+      } else {
+        check('admin cleanup deletes the test account', false, 'missing user id or admin session');
+      }
+    } else {
+      check('new customer can sign in again', false, 'registration did not complete');
+      check('new customer sees My Orders', false, 'registration did not complete');
+      check('admin cleanup deletes the test account', false, 'registration did not complete');
+    }
+    await page.context().close().catch(() => {});
+  } catch (error) {
+    check('register a new customer through the UI', false, error.message);
+  }
+
   // ---- Deployment contract: direct Render API, never the same-origin proxy ----
   const directApiRequests = apiRequests.filter((url) => url.startsWith(API_ORIGIN));
   const proxyApiRequests = apiRequests.filter((url) => url.startsWith(BASE) && /\/api\/v2\//.test(url));

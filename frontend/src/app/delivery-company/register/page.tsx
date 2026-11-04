@@ -23,8 +23,15 @@ export default function DeliveryCompanyRegisterPage() {
     setLoading(true);
 
     try {
-      const data = await apiPost('/delivery-companies/register', formData);
+      const data = await apiPost('/delivery-company/register', formData);
 
+      if (data?.token) {
+        localStorage.setItem('token', data.token);
+        if (data.user) {
+          localStorage.setItem('user', JSON.stringify(data.user));
+          localStorage.setItem('userRole', data.user.role || 'delivery_company');
+        }
+      }
       router.push('/delivery-company-dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');

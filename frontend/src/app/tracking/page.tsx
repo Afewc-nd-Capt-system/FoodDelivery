@@ -128,6 +128,8 @@ export default function OrderTrackingPage() {
   const [eta, setEta] = useState(12);
   const [showRating, setShowRating] = useState(false);
   const [rating, setRating] = useState(0);
+  const [ratingSaving, setRatingSaving] = useState(false);
+  const [ratingError, setRatingError] = useState('');
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -529,11 +531,43 @@ export default function OrderTrackingPage() {
               ))}
             </div>
             <Button
-              onClick={() => setShowRating(false)}
+              onClick={async () => {
+                if (!rating) {
+                  setRatingError('Please choose a star rating.');
+                  return;
+                }
+                setRatingSaving(true);
+                setRatingError('');
+                try {
+                  const res = await fetch(`${apiBase}/orders/${orderId}/rating`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      ...(typeof window !== 'undefined' && localStorage.getItem('token')
+                        ? { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                        : {}),
+                    },
+                    body: JSON.stringify({ rating }),
+                    signal: AbortSignal.timeout(25000),
+                  });
+                  const body = await res.json().catch(() => null);
+                  if (!res.ok) {
+                    setRatingError(body?.message || 'Could not submit your rating. Please try again.');
+                    return;
+                  }
+                  setShowRating(false);
+                } catch {
+                  setRatingError('Network error. Check your connection and try again.');
+                } finally {
+                  setRatingSaving(false);
+                }
+              }}
+              disabled={ratingSaving}
               className="w-full bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white"
             >
-              Submit Rating
+              {ratingSaving ? 'Submitting…' : 'Submit Rating'}
             </Button>
+            {ratingError && <p className="mt-3 text-sm text-[#D32F2F]">{ratingError}</p>}
             <button
               onClick={() => setShowRating(false)}
               className="mt-3 text-sm text-[#A0A0A0] hover:text-[#636366]"

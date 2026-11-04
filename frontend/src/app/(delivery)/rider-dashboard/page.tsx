@@ -716,23 +716,125 @@ function RiderHistoryTab() {
 
 function RiderProfileTab({ authUser }: { authUser: any }) {
   const [editMode, setEditMode] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [saveNotice, setSaveNotice] = useState('')
+  const [pwdCurrent, setPwdCurrent] = useState('')
+  const [pwdNew, setPwdNew] = useState('')
+  const [pwdSaving, setPwdSaving] = useState(false)
+  const [pwdError, setPwdError] = useState('')
+  const [pwdNotice, setPwdNotice] = useState('')
   const [profile, setProfile] = useState({
-    name: authUser?.name || 'Emmanuel Okafor',
-    phone: authUser?.phone || '08012345678',
-    email: authUser?.email || 'emmanuel@example.com',
-    vehicleType: 'Bike',
-    plateNumber: 'LAG-1234-XYZ',
-    totalDeliveries: 245,
-    rating: 4.8,
-    memberSince: 'January 2024',
-    verificationStatus: 'verified' as 'verified' | 'pending' | 'unverified',
+    name: authUser?.name || '',
+    phone: authUser?.phone || '',
+    email: authUser?.email || '',
+    vehicleType: '',
+    plateNumber: '',
+    totalDeliveries: 0,
+    rating: null as number | null,
+    memberSince: '',
+    verificationStatus: 'pending' as 'verified' | 'pending' | 'unverified',
   })
   const [editing, setEditing] = useState({ ...profile })
 
-  const handleSave = () => {
-    setProfile({ ...editing })
-    setEditMode(false)
-    alert('Profile updated!')
+  // Load the real signed-in profile and delivery count.
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    if (!token) return
+    const headers = { Authorization: `Bearer ${token}` }
+    fetch(`${API_V2}/auth/profile`, { headers, signal: AbortSignal.timeout(20000) })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data) return
+        const vehicle = localStorage.getItem('riderVehicleType') || ''
+        const plate = localStorage.getItem('riderPlateNumber') || ''
+        setProfile((prev) => ({
+          ...prev,
+          name: data.name || prev.name,
+          phone: data.phone || '',
+          email: data.email || prev.email,
+          vehicleType: vehicle,
+          plateNumber: plate,
+          memberSince: data.createdAt ? new Date(data.createdAt).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : '',
+        }))
+        setEditing((prev) => ({
+          ...prev,
+          name: data.name || prev.name,
+          phone: data.phone || '',
+          email: data.email || prev.email,
+          vehicleType: vehicle,
+          plateNumber: plate,
+        }))
+      })
+      .catch(() => {})
+    fetch(`${API_V2}/riders/deliveries/completed?limit=1`, { headers, signal: AbortSignal.timeout(20000) })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const count = data?.pagination?.total ?? (Array.isArray(data?.data) ? data.data.length : null)
+        if (count !== null && count !== undefined) {
+          setProfile((prev) => ({ ...prev, totalDeliveries: count }))
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  const handleSave = async () => {
+    setSaving(true)
+    setSaveError('')
+    setSaveNotice('')
+    try {
+      const token = localStorage.getItem('token')
+      const res = await fetch(`${API_V2}/auth/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name: editing.name, phone: editing.phone }),
+        signal: AbortSignal.timeout(25000),
+      })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) {
+        setSaveError(body?.message || 'Could not save your profile. Please try again.')
+        return
+      }
+      // Vehicle details are not in the backend model; keep them on this device.
+      localStorage.setItem('riderVehicleType', editing.vehicleType || '')
+      localStorage.setItem('riderPlateNumber', editing.plateNumber || '')
+      setProfile({ ...editing })
+      setEditMode(false)
+      setSaveNotice('Profile saved.')
+    } catch (err: any) {
+      setSaveError(err?.name === 'TimeoutError' || err?.name === 'AbortError'
+        ? 'The request timed out. Please try again.'
+        : 'Network error. Check your connection and try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleChangePassword = async () => {
+    setPwdSaving(true)
+    setPwdError('')
+    setPwdNotice('')
+    try {
+      const token = localStorage.getItem('token')
+      const res = await fetch(`${API_V2}/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ currentPassword: pwdCurrent, newPassword: pwdNew }),
+        signal: AbortSignal.timeout(25000),
+      })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) {
+        setPwdError(body?.message || 'Could not update your password.')
+        return
+      }
+      setPwdCurrent('')
+      setPwdNew('')
+      setPwdNotice('Password updated.')
+    } catch {
+      setPwdError('Network error. Check your connection and try again.')
+    } finally {
+      setPwdSaving(false)
+    }
   }
 
   const handleLogout = () => {
@@ -769,8 +871,8 @@ function RiderProfileTab({ authUser }: { authUser: any }) {
       <div className="grid grid-cols-3 gap-4 mb-6">
         {[
           { label: 'Total Deliveries', value: profile.totalDeliveries, color: '#2563EB' },
-          { label: 'Rating', value: profile.rating, color: '#F59E0B', suffix: '★' },
-          { label: 'Member Since', value: profile.memberSince, color: '#636366' },
+          { label: 'Rating', value: profile.rating ?? '—', color: '#F59E0B', suffix: profile.rating ? '★' : '' },
+          { label: 'Member Since', value: profile.memberSince || '—', color: '#636366' },
         ].map(s => (
           <div key={s.label} className="p-4 rounded-xl text-center" style={{ background: '#F5F5F7' }}>
             <p className="text-2xl font-black" style={{ color: s.color }}>{s.value}{s.suffix || ''}</p>
@@ -800,27 +902,42 @@ function RiderProfileTab({ authUser }: { authUser: any }) {
         ))}
       </div>
 
+      {saveNotice && (
+        <div className="p-3 rounded-xl mb-3" style={{ background: '#F0FDF4', color: '#15803D', border: '1px solid #86EFAC', fontSize: '14px' }}>{saveNotice}</div>
+      )}
+      {saveError && (
+        <div className="p-3 rounded-xl mb-3" style={{ background: '#FEF2F2', color: '#D32F2F', border: '1px solid #FCA5A5', fontSize: '14px' }}>{saveError}</div>
+      )}
+
       {editMode && (
-        <button onClick={handleSave} style={{
+        <button onClick={handleSave} disabled={saving} style={{
           width: '100%', padding: '14px', borderRadius: '12px', border: 'none',
           background: 'linear-gradient(135deg, #16A34A, #15803D)', color: 'white',
-          fontWeight: '700', fontSize: '16px', cursor: 'pointer', marginBottom: '12px'
-        }}>Save Changes</button>
+          fontWeight: '700', fontSize: '16px', cursor: 'pointer', marginBottom: '12px',
+          opacity: saving ? 0.7 : 1,
+        }}>{saving ? 'Saving…' : 'Save Changes'}</button>
       )}
 
       {profile.verificationStatus !== 'verified' && (
         <div className="p-4 rounded-xl mb-4" style={{ background: '#FFF1E8', border: '1px solid rgba(232,98,26,0.2)' }}>
           <p className="font-bold text-sm mb-1" style={{ color: '#E8621A' }}>Upload Documents</p>
           <p className="text-xs mb-3" style={{ color: '#636366' }}>Upload your ID, driver's license, and vehicle documents to get verified.</p>
-          <button style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#E8621A', color: 'white', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>Upload Documents</button>
+          <Link href="/verification" style={{ display: 'inline-block', padding: '8px 16px', borderRadius: '8px', background: '#E8621A', color: 'white', fontWeight: '600', fontSize: '13px' }}>Upload Documents</Link>
         </div>
       )}
 
       <div className="p-4 rounded-xl mb-4" style={{ background: '#F5F5F7' }}>
         <p className="font-bold text-sm mb-2" style={{ color: '#1C1C1E' }}>Change Password</p>
-        <input type="password" placeholder="Current password" style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E8E8E8', fontSize: '14px', marginBottom: '8px', outline: 'none' }} />
-        <input type="password" placeholder="New password" style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E8E8E8', fontSize: '14px', marginBottom: '8px', outline: 'none' }} />
-        <button style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#1C1C1E', color: 'white', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>Update Password</button>
+        {pwdNotice && <p className="text-xs mb-2" style={{ color: '#15803D' }}>{pwdNotice}</p>}
+        {pwdError && <p className="text-xs mb-2" style={{ color: '#D32F2F' }}>{pwdError}</p>}
+        <input type="password" placeholder="Current password" value={pwdCurrent} onChange={(e) => setPwdCurrent(e.target.value)}
+          style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E8E8E8', fontSize: '14px', marginBottom: '8px', outline: 'none' }} />
+        <input type="password" placeholder="New password" value={pwdNew} onChange={(e) => setPwdNew(e.target.value)}
+          style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E8E8E8', fontSize: '14px', marginBottom: '8px', outline: 'none' }} />
+        <button onClick={handleChangePassword} disabled={pwdSaving || !pwdCurrent || !pwdNew} style={{
+          padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#1C1C1E', color: 'white',
+          fontWeight: '600', fontSize: '13px', cursor: 'pointer', opacity: pwdSaving || !pwdCurrent || !pwdNew ? 0.6 : 1,
+        }}>{pwdSaving ? 'Updating…' : 'Update Password'}</button>
       </div>
 
       <button onClick={handleLogout} style={{

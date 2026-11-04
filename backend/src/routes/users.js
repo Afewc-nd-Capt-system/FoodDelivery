@@ -6,6 +6,32 @@ const { adminGuard } = require('../middleware/routeGuards');
 
 const router = express.Router();
 
+// Admin cleanup: permanently remove a test/abuse account. Only users with no
+// linked orders are hard-deleted so business history is never orphaned.
+router.delete('/:id', authMiddleware, adminGuard, async (req, res) => {
+  try {
+    if (req.params.id === String(req.user.id)) {
+      return res.status(400).json({ message: 'Admins cannot delete their own account' });
+    }
+    const Order = require('../models/Order');
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    const orderCount = await Order.countDocuments({ user: user._id });
+    if (orderCount > 0) {
+      // Deactivate instead of destroying order history.
+      user.deletedAt = new Date();
+      await user.save();
+      return res.json({ success: true, mode: 'deactivated', message: 'User has orders; account deactivated' });
+    }
+    await User.deleteOne({ _id: user._id });
+    res.json({ success: true, mode: 'deleted', message: 'User deleted' });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
 // Get trust profile (user can view own profile, admin can view any)
 router.get('/:id/trust-profile', authMiddleware, async (req, res) => {
   try {

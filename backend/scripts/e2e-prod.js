@@ -208,6 +208,125 @@ async function main() {
     return '404';
   });
 
+  // ---- Registration API contract ----
+  let registeredUserId = null;
+  const registerEmail = `e2e-register-${Date.now()}@example.com`;
+  const registerPassword = 'E2eStrong1!';
+
+  await requestStep('register API: success returns a session (email is fire-and-forget)', async () => {
+    const started = Date.now();
+    const result = await api('/auth/register', {
+      method: 'POST',
+      body: {
+        name: 'E2E Register',
+        email: registerEmail,
+        phone: '+2348012345678',
+        password: registerPassword,
+        confirmPassword: registerPassword,
+        dietaryPreferences: ['Halal'],
+      },
+    });
+    const elapsed = Date.now() - started;
+    assert(result.status === 201, `register returned ${result.status}: ${result.text}`);
+    assert(result.body?.token, 'register returned no token');
+    assert(
+      result.response.headers.get('access-control-allow-origin') === ORIGIN,
+      'register 201 missing ACAO'
+    );
+    registeredUserId = result.body?.user?._id || result.body?.user?.id || null;
+    // Welcome email must never block the response.
+    assert(elapsed < 5000, `register took ${elapsed}ms — email is blocking the response`);
+    return `201 in ${elapsed}ms, user=${(registeredUserId || '').slice(-6)}`;
+  });
+
+  await requestStep('register API: duplicate email returns 409 with ACAO', async () => {
+    const result = await api('/auth/register', {
+      method: 'POST',
+      body: { name: 'Dup', email: registerEmail, password: registerPassword, confirmPassword: registerPassword },
+    });
+    assert(result.status === 409, `duplicate register returned ${result.status}: ${result.text}`);
+    assert(/already exists/i.test(result.body?.message || ''), `unclear duplicate message: ${result.text}`);
+    assert(
+      result.response.headers.get('access-control-allow-origin') === ORIGIN,
+      'duplicate 409 missing ACAO'
+    );
+    return '409 + clear message + ACAO';
+  });
+
+  await requestStep('register API: weak password and bad phone are rejected clearly', async () => {
+    const weak = await api('/auth/register', {
+      method: 'POST',
+      body: { name: 'Weak', email: `weak-${Date.now()}@example.com`, password: 'password', confirmPassword: 'password' },
+    });
+    assert(weak.status === 400, `weak password returned ${weak.status}`);
+    assert(/password must/i.test(weak.body?.message || ''), `unclear weak-password error: ${weak.text}`);
+
+    const badPhone = await api('/auth/register', {
+      method: 'POST',
+      body: {
+        name: 'Bad Phone',
+        email: `phone-${Date.now()}@example.com`,
+        phone: '12345',
+        password: registerPassword,
+        confirmPassword: registerPassword,
+      },
+    });
+    assert(badPhone.status === 400, `bad phone returned ${badPhone.status}`);
+    assert(/phone/i.test(badPhone.body?.message || ''), `unclear phone error: ${badPhone.text}`);
+    return '400 weak password + 400 bad phone';
+  });
+
+  await requestStep('register API: limiter 429 carries CORS and a retry window', async () => {
+    // The auth limiter is per-IP (20/15min). Probe with a throwaway spoofed IP
+    // so the shared production budget is not consumed. Reuse ONE email so the
+    // probe creates at most a single account (first 201, then duplicate 409s).
+    const spoofIp = `203.0.113.${120 + (Date.now() % 120)}`;
+    const probeEmail = `limiter-register-${spoofIp}@example.com`;
+    let saw429 = null;
+    let probeUserId = null;
+    for (let attempt = 0; attempt < 24; attempt += 1) {
+      const result = await api('/auth/register', {
+        method: 'POST',
+        headers: { 'X-Forwarded-For': spoofIp },
+        body: {
+          name: 'Limiter Probe',
+          email: probeEmail,
+          password: registerPassword,
+          confirmPassword: registerPassword,
+        },
+      });
+      if (result.status === 201) {
+        probeUserId = result.body?.user?._id || result.body?.user?.id || null;
+      }
+      if (result.status === 429) {
+        saw429 = result;
+        break;
+      }
+    }
+    assert(saw429, 'register limiter never returned 429');
+    assert(
+      saw429.response.headers.get('access-control-allow-origin') === ORIGIN,
+      'register 429 missing ACAO'
+    );
+    assert(/try again in \d+ minute/i.test(saw429.body?.message || ''), `429 lacks retry window: ${saw429.text}`);
+
+    if (probeUserId) {
+      await api(`/users/${probeUserId}`, { method: 'DELETE', token: tokens.admin });
+    }
+    return '429 + ACAO + retry minutes';
+  });
+
+  await requestStep('admin cleanup deletes the registered test account', async () => {
+    assert(registeredUserId, 'no registered user id to clean up');
+    const deleted = await api(`/users/${registeredUserId}`, {
+      method: 'DELETE',
+      token: tokens.admin,
+    });
+    assert(deleted.status === 200, `cleanup returned ${deleted.status}: ${deleted.text}`);
+    assert(['deleted', 'deactivated'].includes(deleted.body?.mode), `unexpected cleanup mode: ${deleted.text}`);
+    return `mode=${deleted.body.mode}`;
+  });
+
   // ---- CORS: exact allowlist, allowed origins only ----
   const allowedMatrixOrigins = [
     ['E2E origin', ORIGIN],

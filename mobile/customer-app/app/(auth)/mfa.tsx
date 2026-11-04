@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../../../shared/api';
 
 export default function MFAScreen() {
+  const params = useLocalSearchParams<{ mfaToken?: string }>();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -13,10 +15,22 @@ export default function MFAScreen() {
       Alert.alert('Error', 'Please enter a valid 6-digit code');
       return;
     }
+    if (!params.mfaToken) {
+      Alert.alert('Error', 'Your verification session expired. Please sign in again.');
+      router.replace('/(auth)/login');
+      return;
+    }
 
     setLoading(true);
     try {
-      await api.post('/auth/verify-mfa', { code });
+      const response = await api.post('/auth/mfa/verify', {
+        mfaToken: params.mfaToken,
+        code,
+      });
+      const { token, refreshToken, user } = response.data;
+      await SecureStore.setItemAsync('jwt_token', token);
+      if (refreshToken) await SecureStore.setItemAsync('refresh_token', refreshToken);
+      if (user?._id) await SecureStore.setItemAsync('user_id', user._id);
       Alert.alert('Success', 'Verification successful');
       router.replace('/(main)');
     } catch (error: any) {
@@ -27,12 +41,7 @@ export default function MFAScreen() {
   };
 
   const handleResend = async () => {
-    try {
-      await api.post('/auth/resend-mfa');
-      Alert.alert('Success', 'New code sent to your email');
-    } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to resend code');
-    }
+    Alert.alert('Authenticator code', 'Open your authenticator app to get the current 6-digit code.');
   };
 
   return (

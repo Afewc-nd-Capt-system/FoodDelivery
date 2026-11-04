@@ -1,9 +1,93 @@
 const express = require('express');
 const Restaurant = require('../models/Restaurant');
+const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
 const { restaurantGuard, adminGuard } = require('../middleware/routeGuards');
+const { xssProtection } = require('../middleware/sanitize');
+const { sessionResponse } = require('../utils/session');
+const { sendWelcomeEmail } = require('../utils/email');
 
 const router = express.Router();
+
+// Public self-registration for restaurants. Creates the owner User account and
+// the Restaurant profile (pending verification) and returns a session so the
+// newly registered owner can upload documents and reach their dashboard.
+router.post('/register', xssProtection, async (req, res) => {
+  try {
+    const {
+      name, email, password, phone, address, cuisine, description, location,
+      tinNumber, rcNumber, documents,
+    } = req.body;
+
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ message: 'Restaurant name is required' });
+    }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) {
+      return res.status(400).json({ message: 'Valid email required' });
+    }
+    if (!password || String(password).length < 8
+      || !/[a-z]/.test(password) || !/[A-Z]/.test(password)
+      || !/[0-9]/.test(password) || !/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      return res.status(400).json({ message: 'Password must be 8+ characters with upper, lower, number and special character' });
+    }
+    if (!phone || !String(phone).trim()) {
+      return res.status(400).json({ message: 'Phone number is required' });
+    }
+    if (!location?.coordinates || location.coordinates.length !== 2) {
+      return res.status(400).json({ message: 'A valid restaurant location is required' });
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    if (await User.findOne({ email: normalizedEmail })) {
+      return res.status(409).json({ message: 'An account with this email already exists. Try signing in instead.' });
+    }
+    if (await Restaurant.findOne({ email: normalizedEmail })) {
+      return res.status(409).json({ message: 'A restaurant with this email is already registered.' });
+    }
+
+    const user = new User({
+      name: String(name).trim(),
+      email: normalizedEmail,
+      password,
+      phone: String(phone).trim(),
+      role: 'restaurant',
+    });
+    await user.save();
+
+    const restaurant = new Restaurant({
+      name: String(name).trim(),
+      description: description || 'Great food, delivered fast',
+      email: normalizedEmail,
+      phone: String(phone).trim(),
+      address,
+      location,
+      cuisine: Array.isArray(cuisine) ? cuisine : (cuisine ? [cuisine] : ['Nigerian']),
+      owner: user._id,
+      verificationStatus: 'pending_verification',
+      isActive: true,
+      isOpen: true,
+      tinNumber,
+      rcNumber,
+      documents: Array.isArray(documents) ? documents : undefined,
+    });
+    await restaurant.save();
+
+    sendWelcomeEmail(user.email, user.name).catch((emailError) => {
+      console.error('Welcome email failed:', emailError.message);
+    });
+
+    const session = await sessionResponse(res, user);
+    res.status(201).json({
+      ...session,
+      restaurant: { id: restaurant._id, name: restaurant.name },
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({ message: 'An account with this email already exists.' });
+    }
+    res.status(400).json({ message: error.message || 'Restaurant registration failed' });
+  }
+});
 
 router.get('/', async (req, res) => {
   try {
@@ -199,6 +283,22 @@ router.post('/:id/reviews', async (req, res) => {
 
     await restaurant.save();
     res.json(restaurant);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Read POD configuration
+router.get('/:id/pod-config', authMiddleware, restaurantGuard, async (req, res) => {
+  try {
+    const restaurant = await Restaurant.findById(req.params.id);
+    if (!restaurant) {
+      return res.status(404).json({ message: 'Restaurant not found' });
+    }
+    if (req.user.role !== 'admin' && String(restaurant.owner) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+    res.json({ config: restaurant.payOnDeliveryConfig || {} });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }

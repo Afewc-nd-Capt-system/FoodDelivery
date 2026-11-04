@@ -7,6 +7,20 @@ if (production && process.env.DISABLE_RATE_LIMIT === 'true') {
 // Limiter bypass is a local-development convenience only.
 const disabled = !production && process.env.DISABLE_RATE_LIMIT === 'true';
 
+// Every limiter response states exactly when the caller may retry, so the UI
+// can show "try again in N minutes" instead of a generic failure.
+function limitHandler(message) {
+  return (req, res) => {
+    const retryAfter = Number(res.getHeader('Retry-After')) || 0;
+    const minutes = Math.max(1, Math.ceil(retryAfter / 60));
+    res.status(429).json({
+      success: false,
+      message: `${message} Please try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`,
+      retryAfterSeconds: retryAfter,
+    });
+  };
+}
+
 const authLimiter = disabled
   ? (req, res, next) => next()
   : rateLimit({
@@ -15,7 +29,7 @@ const authLimiter = disabled
       // Successful logins should not consume the shared budget; brute-force
       // lockout (middleware/bruteForce.js) is the per-account guard.
       skipSuccessfulRequests: true,
-      message: { success: false, message: 'Too many attempts, please try again later' },
+      handler: limitHandler('Too many attempts.'),
       standardHeaders: true,
       legacyHeaders: false,
     });
@@ -25,7 +39,7 @@ const apiLimiter = disabled
   : rateLimit({
       windowMs: 15 * 60 * 1000,
       max: 100,
-      message: { success: false, message: 'Too many requests' },
+      handler: limitHandler('Too many requests.'),
       standardHeaders: true,
       legacyHeaders: false,
     });
@@ -35,7 +49,7 @@ const strictLimiter = disabled
   : rateLimit({
       windowMs: 60 * 1000,
       max: 10,
-      message: { success: false, message: 'Rate limit exceeded' },
+      handler: limitHandler('Rate limit exceeded.'),
       standardHeaders: true,
       legacyHeaders: false,
     });

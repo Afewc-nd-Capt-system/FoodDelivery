@@ -22,14 +22,22 @@ export async function apiCall(
     headers['Authorization'] = `Bearer ${token}`
   }
 
-  let res = await fetch(url, { ...options, headers })
+  let res = await fetch(url, {
+    ...options,
+    signal: options.signal || AbortSignal.timeout(25000),
+    headers,
+  })
 
   if (res.status === 401 && !(options as any).__retried && !path.startsWith('/auth/')) {
     const refreshed = await refreshAccessToken()
     if (refreshed) {
       const retryOptions = { ...options, __retried: true } as RequestInit
       const retryHeaders = { ...headers, Authorization: `Bearer ${refreshed}` }
-      res = await fetch(url, { ...retryOptions, headers: retryHeaders })
+      res = await fetch(url, {
+        ...retryOptions,
+        signal: AbortSignal.timeout(25000),
+        headers: retryHeaders,
+      })
     } else {
       redirectToLogin()
     }
@@ -40,7 +48,9 @@ export async function apiCall(
     throw new Error(error.message || `Request failed: ${res.status}`)
   }
 
-  return res.json()
+  // 204/empty bodies must not break a form that only needs the status.
+  const text = await res.text()
+  return text ? JSON.parse(text) : null
 }
 
 export async function apiGet(path: string) {

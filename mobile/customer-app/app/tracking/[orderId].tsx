@@ -1,15 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MapPin, Phone, MessageSquare, Star } from 'lucide-react-native';
 import { getTrackingSocket } from '../../../shared/socket';
 import { LinearGradient } from 'expo-linear-gradient';
+import { api } from '../../../shared/api';
 
 export default function TrackingScreen() {
   const { orderId } = useLocalSearchParams();
   const [status, setStatus] = useState('confirmed');
   const [eta, setEta] = useState(25);
   const [rider, setRider] = useState<any>(null);
+  const [rating, setRating] = useState(0);
+  const [ratingSaving, setRatingSaving] = useState(false);
+
+  const submitRating = async () => {
+    if (!rating) {
+      Alert.alert('Rating', 'Please tap a star to rate your order.');
+      return;
+    }
+    setRatingSaving(true);
+    try {
+      await api.post(`/orders/${orderId}/rating`, { rating });
+      Alert.alert('Thank you!', 'Your rating has been submitted.');
+    } catch (error: any) {
+      Alert.alert('Could not submit rating', error.response?.data?.message || 'Please try again.');
+    } finally {
+      setRatingSaving(false);
+    }
+  };
 
   useEffect(() => {
     const socket = getTrackingSocket();
@@ -120,13 +139,13 @@ export default function TrackingScreen() {
             <Text style={styles.ratingTitle}>Rate Your Order</Text>
             <View style={styles.starsContainer}>
               {[1, 2, 3, 4, 5].map((star) => (
-                <TouchableOpacity key={star}>
-                  <Star size={32} color="#E8621A" fill="#E8621A" />
+                <TouchableOpacity key={star} onPress={() => setRating(star)}>
+                  <Star size={32} color={star <= rating ? '#E8621A' : '#D1D1D6'} fill={star <= rating ? '#E8621A' : 'transparent'} />
                 </TouchableOpacity>
               ))}
             </View>
-            <TouchableOpacity style={styles.submitButton}>
-              <Text style={styles.submitButtonText}>Submit Rating</Text>
+            <TouchableOpacity style={styles.submitButton} onPress={submitRating} disabled={ratingSaving}>
+              <Text style={styles.submitButtonText}>{ratingSaving ? 'Submitting…' : 'Submit Rating'}</Text>
             </TouchableOpacity>
           </View>
         )}

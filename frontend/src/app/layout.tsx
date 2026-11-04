@@ -6,6 +6,7 @@ import { CartProvider } from '@/context/CartContext';
 import { LocationProvider } from '@/context/LocationContext';
 import { SocketProvider } from '@/context/SocketContext';
 import { ThemeProvider } from 'next-themes';
+import { FetchTimeoutProvider } from '@/components/FetchTimeoutProvider';
 
 const plusJakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -53,6 +54,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${plusJakarta.className} bg-[#FFF8F0]`}>
+        <FetchTimeoutProvider>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
           <AuthProvider>
             <CartProvider>
@@ -64,6 +66,7 @@ export default function RootLayout({
             </CartProvider>
           </AuthProvider>
         </ThemeProvider>
+        </FetchTimeoutProvider>
       </body>
     </html>
   );

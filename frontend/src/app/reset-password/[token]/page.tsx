@@ -5,16 +5,20 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Lock, Eye, EyeOff, CheckCircle } from 'lucide-react';
+import { Lock, Eye, EyeOff, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
+import { API_V2 } from '@/lib/apiBase';
 
 export default function ResetPasswordPage() {
   const params = useParams();
   const router = useRouter();
+  const token = String(params?.token || '');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [reset, setReset] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   const passwordStrength = (pwd: string) => {
     let score = 0;
@@ -29,11 +33,59 @@ export default function ResetPasswordPage() {
   const strengthColors = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-green-500'];
   const strengthLabels = ['Weak', 'Fair', 'Good', 'Strong'];
 
-  const handleReset = () => {
-    setReset(true);
-    setTimeout(() => {
-      router.push('/login');
-    }, 2000);
+  const handleReset = async () => {
+    if (submitting) return;
+    setError('');
+
+    if (!token) {
+      setError('This reset link is invalid. Request a new one from the forgot-password page.');
+      return;
+    }
+    if (password.length < 8 || !/[a-z]/.test(password) || !/[A-Z]/.test(password)
+      || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+      setError('Password must be 8+ characters with upper, lower, number and special character.');
+      return;
+    }
+    if (password !== confirm) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${API_V2}/auth/reset-password/${encodeURIComponent(token)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+        signal: AbortSignal.timeout(25000),
+      });
+      const body = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        if (res.status === 429) {
+          const minutes = (body?.message || '').match(/(\d+)\s*minute/i)?.[1];
+          setError(minutes
+            ? `Too many attempts. Please try again in ${minutes} minute${minutes === '1' ? '' : 's'}.`
+            : 'Too many attempts. Please wait a few minutes and try again.');
+        } else if (res.status >= 500) {
+          setError('Something went wrong on our side. Please try again shortly.');
+        } else {
+          setError(body?.message || 'This reset link is invalid or has expired.');
+        }
+        return;
+      }
+
+      setReset(true);
+      setTimeout(() => router.push('/login'), 2000);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'TimeoutError') {
+        setError('The request timed out. Check your connection and try again.');
+      } else {
+        setError('Network error. Check your connection and try again.');
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (reset) {
@@ -65,6 +117,13 @@ export default function ResetPasswordPage() {
 
         <h2 className="text-2xl font-black text-center mb-1">Set New Password</h2>
         <p className="text-sm text-[#636366] text-center mb-6">Create a strong password for your account</p>
+
+        {error && (
+          <div role="alert" aria-live="polite" className="flex items-start gap-2 mb-4 rounded-xl border border-[#FCA5A5] bg-[#FEF2F2] px-4 py-3 text-sm text-[#D32F2F]">
+            <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
 
         <div className="space-y-4">
           <div>
@@ -113,9 +172,12 @@ export default function ResetPasswordPage() {
 
           <Button
             onClick={handleReset}
-            className="w-full bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white py-4 rounded-2xl font-black hover:scale-105 active:scale-95 transition-all shadow-[0_6px_20px_rgba(232,98,26,0.35)]"
+            disabled={submitting}
+            className="w-full bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white py-4 rounded-2xl font-black hover:scale-105 active:scale-95 transition-all shadow-[0_6px_20px_rgba(232,98,26,0.35)] disabled:opacity-70"
           >
-            Reset Password
+            {submitting ? (
+              <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Resetting…</span>
+            ) : 'Reset Password'}
           </Button>
         </div>
       </div>

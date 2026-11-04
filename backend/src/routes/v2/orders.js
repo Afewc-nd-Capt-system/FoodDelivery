@@ -727,4 +727,37 @@ router.post('/:id/confirm-delivery', authMiddleware, async (req, res) => {
   }
 });
 
+// Customer rating for a completed order. Once only; 1-5 stars + optional note.
+router.post('/:id/rating', authMiddleware, async (req, res) => {
+  try {
+    const rating = Number(req.body?.rating);
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      return res.status(400).json({ message: 'Rating must be a whole number between 1 and 5' });
+    }
+    const comment = typeof req.body?.comment === 'string'
+      ? req.body.comment.trim().slice(0, 1000)
+      : undefined;
+
+    const order = await Order.findOne({ _id: req.params.id, user: req.user.id });
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+    if (order.status !== 'completed') {
+      return res.status(400).json({ message: 'You can only rate completed orders' });
+    }
+    if (order.rating) {
+      return res.status(409).json({ message: 'This order has already been rated' });
+    }
+
+    order.rating = rating;
+    order.reviewComment = comment;
+    order.ratedAt = new Date();
+    await order.save();
+
+    res.json({ success: true, order: { _id: order._id, rating: order.rating, reviewComment: order.reviewComment } });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
 module.exports = router;

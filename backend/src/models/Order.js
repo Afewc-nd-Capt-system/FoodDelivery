@@ -128,6 +128,10 @@ const orderSchema = new mongoose.Schema({
   },
   promoCode: String,
   deliveredAt: Date,
+  // Customer feedback, collected once per order after delivery.
+  rating: { type: Number, min: 1, max: 5 },
+  reviewComment: { type: String, trim: true, maxlength: 1000 },
+  ratedAt: Date,
   walletAmountUsed: {
     type: Number,
     default: 0,

@@ -25,14 +25,17 @@ const DELIVERY_PRESETS = ['Home', 'Work', "Partner's"];
 export default function CartPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const { items, updateQuantity, removeItem, clearCart, subtotal, promoCode, applyPromoCode, discount } = useCart();
+  const { items, updateQuantity, removeItem, clearCart, subtotal, discount } = useCart();
 
   const [promoInput, setPromoInput] = useState('');
   const [promoStatus, setPromoStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [promoMessage, setPromoMessage] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discount: number } | null>(null);
   const [address, setAddress] = useState('12 Allen Avenue, Ikeja, Lagos');
   const [paymentMethod, setPaymentMethod] = useState('paystack');
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [placing, setPlacing] = useState(false);
+  const [orderError, setOrderError] = useState('');
   const [placed, setPlaced] = useState(false);
 
   // Guest checkout state
@@ -54,8 +57,51 @@ export default function CartPage() {
   const [storeFees, setStoreFees] = useState<{ deliveryFee: number; serviceFee: number } | null>(null);
   const deliveryFee = storeFees ? storeFees.deliveryFee : 40;
   const serviceFee = storeFees ? storeFees.serviceFee : 0;
-  const discountAmount = Math.round(subtotal * discount);
+  const discountAmount = appliedPromo ? appliedPromo.discount : Math.round(subtotal * discount);
   const total = subtotal - discountAmount + deliveryFee + serviceFee;
+
+  // Promo codes are validated by the server; the same code is sent with the
+  // order so the charged total matches the discount shown here.
+  const handlePromo = async () => {
+    const code = promoInput.trim().toUpperCase();
+    if (!code) {
+      setPromoStatus('error');
+      setPromoMessage('Enter a promo code.');
+      return;
+    }
+    setPromoStatus('idle');
+    setPromoMessage('');
+    try {
+      const res = await fetch(`${API_V2}/promo-codes/validate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code,
+          orderAmount: subtotal,
+          restaurantId: items[0]?.restaurantId,
+        }),
+        signal: AbortSignal.timeout(20000),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        setPromoStatus('error');
+        setPromoMessage(body?.message || 'Could not validate that promo code.');
+        return;
+      }
+      if (body?.valid) {
+        setAppliedPromo({ code: body.promo?.code || code, discount: Math.round(Number(body.discount) || 0) });
+        setPromoStatus('success');
+        setPromoMessage('');
+      } else {
+        setAppliedPromo(null);
+        setPromoStatus('error');
+        setPromoMessage(body?.message || 'Invalid promo code.');
+      }
+    } catch {
+      setPromoStatus('error');
+      setPromoMessage('Network error while validating the code. Please try again.');
+    }
+  };
 
   // Load the fee configuration from the restaurant(s) in the cart.
   useEffect(() => {
@@ -76,13 +122,9 @@ export default function CartPage() {
       .catch(() => setStoreFees({ deliveryFee: 40, serviceFee: 0 }));
   }, [items]);
 
-  const handlePromo = () => {
-    const ok = applyPromoCode(promoInput);
-    setPromoStatus(ok ? 'success' : 'error');
-  };
-
   const handlePlaceOrder = async () => {
     setPlacing(true);
+    setOrderError('');
     try {
       // Build order payload. The server validates every option against the
       // menu in the database and computes prices; we only send selections.
@@ -102,6 +144,7 @@ export default function CartPage() {
           ? { vendorId: firstItem.vendorId }
           : { restaurantId: firstItem?.restaurantId }),
         restaurantName: firstItem?.restaurantName || 'Restaurant',
+        ...(appliedPromo?.code ? { promoCode: appliedPromo.code } : {}),
       };
 
       // Call API to create order
@@ -113,11 +156,12 @@ export default function CartPage() {
         method: 'POST',
         headers,
         body: JSON.stringify(orderPayload),
+        signal: AbortSignal.timeout(30000),
       });
 
       if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.message || 'Failed to create order');
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.message || `Could not place order (${res.status}). Please try again.`);
       }
 
       const orderData = await res.json();
@@ -132,6 +176,7 @@ export default function CartPage() {
             amount: total,
             email: user?.email || 'guest@vibechops.com',
           }),
+          signal: AbortSignal.timeout(30000),
         });
 
         if (paystackRes.ok) {
@@ -174,7 +219,12 @@ export default function CartPage() {
       setPlaced(true);
       setTimeout(() => router.push(`/tracking/${orderData._id || orderData.order?._id}`), 1600);
     } catch (err: any) {
-      alert(err.message || 'Failed to place order. Please try again.');
+      const timedOut = err?.name === 'TimeoutError' || err?.name === 'AbortError';
+      setOrderError(
+        timedOut
+          ? 'The request timed out. Check your connection and try again.'
+          : (err?.message || 'Failed to place order. Please try again.')
+      );
       setPlacing(false);
     }
   };
@@ -309,18 +359,45 @@ export default function CartPage() {
                 onClick={async () => {
                   setAuthLoading(true); setAuthError('');
                   try {
-                      if (guestInfo.createAccount) {
-                        const regData = await apiPost('/auth/register', {
-                          name: guestInfo.name,
-                          email: guestInfo.email,
-                          phone: guestInfo.phone,
-                          password: guestInfo.password,
-                          role: 'customer'
-                        });
-                        localStorage.setItem('token', regData.token);
+                    if (!guestInfo.createAccount) {
+                      setAuthError('Please sign in or create an account to continue.');
+                      return;
                     }
-                    router.push('/checkout');
-                  } catch (err: any) { setAuthError(err.message) }
+                    if (!guestInfo.name.trim() || !guestInfo.email.trim() || !guestInfo.phone.trim()) {
+                      setAuthError('Please enter your name, email and phone number.');
+                      return;
+                    }
+                    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestInfo.email.trim())) {
+                      setAuthError('Please enter a valid email address.');
+                      return;
+                    }
+                    if (guestInfo.password !== guestInfo.confirmPassword) {
+                      setAuthError('Passwords do not match.');
+                      return;
+                    }
+                    if (guestInfo.password.length < 8) {
+                      setAuthError('Password must be at least 8 characters.');
+                      return;
+                    }
+                    const regData = await apiPost('/auth/register', {
+                      name: guestInfo.name,
+                      email: guestInfo.email,
+                      phone: guestInfo.phone,
+                      password: guestInfo.password,
+                      confirmPassword: guestInfo.confirmPassword,
+                      role: 'customer'
+                    });
+                    if (!regData?.token) {
+                      setAuthError('Account created, but the session could not start. Please sign in.');
+                      return;
+                    }
+                    localStorage.setItem('token', regData.token);
+                    if (regData.user) {
+                      localStorage.setItem('user', JSON.stringify(regData.user));
+                      localStorage.setItem('userRole', regData.user.role || 'customer');
+                    }
+                    router.push('/orders/checkout');
+                  } catch (err: any) { setAuthError(err?.message || 'Could not start checkout. Please try again.') }
                   finally { setAuthLoading(false) }
                 }}
                 disabled={authLoading}
@@ -372,6 +449,10 @@ export default function CartPage() {
                   try {
                     const data = await apiPost('/auth/login', { email: loginEmail, password: loginPassword });
                     localStorage.setItem('token', data.token);
+                    if (data.user) {
+                      localStorage.setItem('user', JSON.stringify(data.user));
+                      localStorage.setItem('userRole', data.user.role || 'customer');
+                    }
                     window.location.reload();
                   } catch (err: any) { setAuthError(err.message) }
                   finally { setAuthLoading(false) }
@@ -531,14 +612,14 @@ export default function CartPage() {
                 <Tag size={18} style={{ color: '#E8621A' }} /> Promo Code
               </h2>
 
-              {promoCode ? (
+              {appliedPromo ? (
                 <div
                   className="flex items-center gap-3 p-4 rounded-2xl"
                   style={{ backgroundColor: '#F0FDF4', border: '1.5px solid #86EFAC' }}
                 >
                   <CheckCircle size={18} className="text-green-500 shrink-0" />
                   <span className="text-sm font-bold text-green-700">
-                    <strong>{promoCode}</strong> applied — {(discount * 100).toFixed(0)}% off your order!
+                    <strong>{appliedPromo.code}</strong> applied — ₦{appliedPromo.discount.toLocaleString()} off your order!
                   </span>
                 </div>
               ) : (
@@ -566,21 +647,9 @@ export default function CartPage() {
                   </div>
                   {promoStatus === 'error' && (
                     <p className="text-xs text-red-500 mt-2">
-                      Invalid code. Try <strong>VIBES20</strong>, <strong>FIRSTORDER</strong>, or <strong>NAIJA10</strong>
+                      {promoMessage || 'That promo code could not be applied.'}
                     </p>
                   )}
-                  <div className="flex gap-2 mt-3 flex-wrap">
-                    {['VIBES20', 'FIRSTORDER', 'NAIJA10'].map(code => (
-                      <button
-                        key={code}
-                        onClick={() => { setPromoInput(code); setPromoStatus('idle'); }}
-                        className="px-3 py-1.5 rounded-xl text-xs font-bold transition-colors"
-                        style={{ backgroundColor: '#FFF1E8', color: '#E8621A' }}
-                      >
-                        {code}
-                      </button>
-                    ))}
-                  </div>
                 </>
               )}
             </div>
@@ -739,6 +808,12 @@ export default function CartPage() {
                   Estimated arrival: <strong style={{ color: '#1C1C1E' }}>25–35 min</strong>
                 </span>
               </div>
+
+              {orderError && (
+                <div className="mb-4 p-3 rounded-xl text-sm" style={{ backgroundColor: '#FEF2F2', color: '#D32F2F', border: '1px solid #FCA5A5' }}>
+                  {orderError}
+                </div>
+              )}
 
               <button
                 onClick={handlePlaceOrder}

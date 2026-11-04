@@ -89,4 +89,40 @@ async function sendDeliveryNotification({ to, orderNumber, verificationCode, res
   }
 }
 
-module.exports = { sendOrderConfirmation, sendOrderStatusUpdate, sendDeliveryNotification };
+async function sendEmail({ to, subject, html }) {
+  // Generic transactional send used by password reset, welcome and other
+  // auth flows. Throws so callers can log; never call it synchronously inside
+  // a response path that must stay fast (use fire-and-forget there).
+  await transporter.sendMail({ from: transporter.options.auth?.user, to, subject, html });
+}
+
+async function sendWelcomeEmail(to, name) {
+  const safeName = String(name || 'there').replace(/[<>&]/g, '');
+  await sendEmail({
+    to,
+    subject: 'Welcome to VibeChops!',
+    html: `
+      <h1>Welcome to VibeChops, ${safeName}!</h1>
+      <p>Your account is ready. Order food you love from the best kitchens near you.</p>
+      <p>Start exploring: <a href="${frontendUrlSafe()}">vibechops.com</a></p>
+      <p style="font-size: 12px; color: #999;">If you did not create this account, please ignore this email.</p>
+    `,
+  });
+}
+
+function frontendUrlSafe() {
+  try {
+    const { frontendUrl } = require('../config/frontend');
+    return frontendUrl();
+  } catch {
+    return 'https://vibechops.com';
+  }
+}
+
+module.exports = {
+  sendEmail,
+  sendWelcomeEmail,
+  sendOrderConfirmation,
+  sendOrderStatusUpdate,
+  sendDeliveryNotification,
+};

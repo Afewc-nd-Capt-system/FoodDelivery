@@ -11,21 +11,48 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async () => {
-    if (!email) return;
+    setError('');
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
     setLoading(true);
     try {
-      await fetch(`${API_V2}/auth/forgot-password`, {
+      const res = await fetch(`${API_V2}/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
+        signal: AbortSignal.timeout(25000),
       });
-    } catch {
-      // The endpoint intentionally returns the same response for every address.
+
+      if (res.status === 429) {
+        const body = await res.json().catch(() => null);
+        const minutes = (body?.message || '').match(/(\d+)\s*minute/i)?.[1];
+        setError(minutes
+          ? `Too many attempts. Please try again in ${minutes} minute${minutes === '1' ? '' : 's'}.`
+          : 'Too many attempts. Please wait a few minutes and try again.');
+        return;
+      }
+      if (!res.ok) {
+        // Anti-enumeration: 400 (unknown/invalid email) still looks like a
+        // normal success. Real server failures must be visible.
+        if (res.status >= 500) {
+          setError('Something went wrong on our side. Please try again shortly.');
+          return;
+        }
+      }
+      setSent(true);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'TimeoutError') {
+        setError('The request timed out. Check your connection and try again.');
+      } else {
+        setError('Network error. Check your connection and try again.');
+      }
     } finally {
       setLoading(false);
-      setSent(true);
     }
   };
 
@@ -61,6 +88,12 @@ export default function ForgotPasswordPage() {
           <>
             <h2 className="text-2xl font-black text-center mb-1">Reset Password</h2>
             <p className="text-sm text-[#636366] text-center mb-6">Enter your email to receive a reset link</p>
+
+            {error && (
+              <div role="alert" aria-live="polite" className="mb-4 rounded-xl border border-[#FCA5A5] bg-[#FEF2F2] px-4 py-3 text-sm text-[#D32F2F]">
+                {error}
+              </div>
+            )}
 
             <div className="space-y-4">
               <div>

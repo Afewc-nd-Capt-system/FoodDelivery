@@ -107,8 +107,15 @@ export default function VendorRegisterPage() {
         verificationStatus: 'pending_verification',
       });
 
-      // JWT is stored in cookies by the backend
-      router.push('/vendor/dashboard');
+      // The API returns a signed-in session for the new vendor owner.
+      if (data?.token) {
+        localStorage.setItem('token', data.token);
+        if (data.user) {
+          localStorage.setItem('user', JSON.stringify(data.user));
+          localStorage.setItem('userRole', data.user.role || 'vendor');
+        }
+      }
+      router.push('/vendor-dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
     } finally {

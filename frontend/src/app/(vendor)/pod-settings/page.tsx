@@ -11,24 +11,42 @@ export default function VendorPODConfigPage() {
     requireTrustedCustomers: false,
     podPenaltyEnabled: true,
   })
+  const [vendorId, setVendorId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     if (!token) return
-    apiGet('/vendors/pod-config')
-      .then(d => setConfig(d.config || config))
-      .catch(() => {})
+    setError('')
+    // The config is stored on the vendor document; resolve the signed-in
+    // owner's vendor id first (never trust a client-supplied business id).
+    apiGet('/vendor-forecast/me')
+      .then((me) => {
+        const id = me?.data?.vendorId
+        if (!id) throw new Error('Could not resolve your vendor account')
+        setVendorId(id)
+        return apiGet(`/vendors/${id}/pod-config`)
+      })
+      .then((d) => {
+        if (d?.config) setConfig(d.config)
+      })
+      .catch((err) => setError(err?.message || 'Could not load your POD settings.'))
   }, [token])
 
   const handleSave = async () => {
+    if (!vendorId) {
+      setError('Your vendor account could not be resolved. Please reload the page.')
+      return
+    }
     setSaving(true)
+    setError('')
     try {
-      await apiPut('/vendors/pod-config', config)
+      await apiPut(`/vendors/${vendorId}/pod-config`, config)
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
-    } catch (err) {
-      console.error(err)
+    } catch (err: any) {
+      setError(err?.message || 'Could not save your settings. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -154,6 +172,14 @@ export default function VendorPODConfigPage() {
           >
             {saving ? 'Saving...' : saved ? '✓ Saved!' : 'Save Settings'}
           </button>
+
+          {error && (
+            <div role="alert" style={{
+              marginTop: '16px', padding: '12px 16px', borderRadius: '12px',
+              background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#D32F2F',
+              fontSize: '14px',
+            }}>{error}</div>
+          )}
         </div>
       </div>
     </div>

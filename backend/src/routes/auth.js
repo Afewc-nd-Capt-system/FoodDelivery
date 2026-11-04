@@ -5,44 +5,16 @@ const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
 const { bruteForceProtection, loginLimiter } = require('../middleware/bruteForce');
 const { xssProtection } = require('../middleware/sanitize');
-const { sendEmail } = require('../utils/email');
+const { sendEmail, sendWelcomeEmail } = require('../utils/email');
 const { addToBlacklist } = require('../utils/tokenBlacklist');
 const tokens = require('../security/tokenService');
 const mfaService = require('../security/mfaService');
 const { frontendUrl } = require('../config/frontend');
+const { sessionResponse, setTokenCookie, publicUser } = require('../utils/session');
 
 const router = express.Router();
 
-const setTokenCookie = (res, token) => {
-  res.cookie('token', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: 15 * 60 * 1000, // access token: 15 minutes
-  });
-};
-
-function publicUser(user) {
-  return {
-    id: user._id,
-    _id: user._id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    mfaEnabled: Boolean(user.mfaEnabled),
-  };
-}
-
-async function sessionResponse(res, user) {
-  const issued = await tokens.issueTokens(user);
-  setTokenCookie(res, issued.accessToken);
-  return {
-    token: issued.accessToken,
-    accessToken: issued.accessToken,
-    refreshToken: issued.refreshToken,
-    user: publicUser(user),
-  };
-}
+const NIGERIAN_PHONE_RE = /^(\+?234|0)[\s-]?\d{3}[\s-]?\d{3}[\s-]?\d{4}$/;
 
 router.post('/register', [
   body('name').trim().notEmpty().withMessage('Name is required'),
@@ -53,6 +25,14 @@ router.post('/register', [
     .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
     .matches(/[0-9]/).withMessage('Password must contain at least one number')
     .matches(/[!@#$%^&*(),.?":{}|<>]/).withMessage('Password must contain at least one special character'),
+  body('phone').optional({ nullable: true }).custom((value) => {
+    if (value === undefined || value === null || String(value).trim() === '') return true;
+    if (!NIGERIAN_PHONE_RE.test(String(value).trim())) {
+      throw new Error('Please enter a valid Nigerian phone number (e.g. +2348012345678)');
+    }
+    return true;
+  }),
+  body('dietaryPreferences').optional().isArray().withMessage('Dietary preferences must be a list'),
 ], xssProtection, async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -60,20 +40,41 @@ router.post('/register', [
       return res.status(400).json({ message: errors.array()[0].msg });
     }
 
-    const { name, email, password, phone } = req.body;
+    const { name, email, password, phone, confirmPassword } = req.body;
+
+    if (confirmPassword !== undefined && confirmPassword !== password) {
+      return res.status(400).json({ message: 'Passwords do not match' });
+    }
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ message: 'Unable to create an account with those details' });
+      return res.status(409).json({ message: 'An account with this email already exists. Try signing in instead.' });
     }
 
-    const user = new User({ name, email, password, phone });
+    const allowedPreferences = ['Vegetarian', 'Vegan', 'Halal', 'Gluten-free'];
+    const dietaryPreferences = Array.isArray(req.body.dietaryPreferences)
+      ? req.body.dietaryPreferences.filter((pref) => allowedPreferences.includes(pref))
+      : [];
+
+    const user = new User({
+      name,
+      email,
+      phone: phone && String(phone).trim() ? String(phone).trim() : undefined,
+      password,
+      dietaryPreferences,
+    });
     await user.save();
+
+    // Fire-and-forget: a slow or misconfigured SMTP server must never delay or
+    // fail the registration response.
+    sendWelcomeEmail(user.email, user.name).catch((emailError) => {
+      console.error('Welcome email failed:', emailError.message);
+    });
 
     res.status(201).json(await sessionResponse(res, user));
   } catch (error) {
     if (error.code === 11000) {
-      return res.status(400).json({ message: 'Unable to create an account with those details' });
+      return res.status(409).json({ message: 'An account with this email already exists. Try signing in instead.' });
     }
     res.status(400).json({ message: error.message || 'Registration failed' });
   }
@@ -97,6 +98,10 @@ router.post('/login', bruteForceProtection, loginLimiter, [
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    if (user.deletedAt) {
+      return res.status(403).json({ message: 'This account has been deactivated. Please contact support.' });
     }
 
     const isMatch = await user.comparePassword(password);
@@ -181,6 +186,41 @@ router.put('/profile', authMiddleware, [
     });
   } catch (error) {
     res.status(400).json({ message: error.message || 'Update failed' });
+  }
+});
+
+// Change password for the signed-in user (admin and rider dashboards use it).
+router.post('/change-password', authMiddleware, [
+  body('currentPassword').notEmpty().withMessage('Current password is required'),
+  body('newPassword')
+    .isLength({ min: 8 }).withMessage('New password must be at least 8 characters')
+    .matches(/[a-z]/).withMessage('New password must contain at least one lowercase letter')
+    .matches(/[A-Z]/).withMessage('New password must contain at least one uppercase letter')
+    .matches(/[0-9]/).withMessage('New password must contain at least one number')
+    .matches(/[!@#$%^&*(),.?":{}|<>]/).withMessage('New password must contain at least one special character'),
+], xssProtection, async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: errors.array()[0].msg });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Current password is incorrect' });
+    }
+
+    user.password = newPassword;
+    await user.save();
+    res.json({ success: true, message: 'Password updated' });
+  } catch (error) {
+    res.status(400).json({ message: error.message || 'Password update failed' });
   }
 });
 

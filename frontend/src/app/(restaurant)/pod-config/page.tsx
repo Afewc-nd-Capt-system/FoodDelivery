@@ -13,22 +13,39 @@ export default function PODConfigPage() {
   })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [restaurantId, setRestaurantId] = useState<string | null>(null)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     if (!token) return
-    apiGet('/restaurants/pod-config')
-      .then(d => setConfig(d.config || config))
-      .catch(() => {})
+    setError('')
+    // Resolve the owner's restaurant first; the config lives on that document.
+    apiGet('/analytics/me')
+      .then((me) => {
+        const id = me?.data?.restaurantId
+        if (!id) throw new Error('Could not resolve your restaurant account')
+        setRestaurantId(id)
+        return apiGet(`/restaurants/${id}/pod-config`)
+      })
+      .then((d) => {
+        if (d?.config) setConfig(d.config)
+      })
+      .catch((err) => setError(err?.message || 'Could not load your POD settings.'))
   }, [token])
 
   const handleSave = async () => {
+    if (!restaurantId) {
+      setError('Your restaurant account could not be resolved. Please reload the page.')
+      return
+    }
     setSaving(true)
+    setError('')
     try {
-      await apiPut('/restaurants/pod-config', config)
+      await apiPut(`/restaurants/${restaurantId}/pod-config`, config)
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
-    } catch (err) {
-      console.error(err)
+    } catch (err: any) {
+      setError(err?.message || 'Could not save your settings. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -154,6 +171,14 @@ export default function PODConfigPage() {
           >
             {saving ? 'Saving...' : saved ? '✓ Saved!' : 'Save Settings'}
           </button>
+
+          {error && (
+            <div role="alert" style={{
+              marginTop: '16px', padding: '12px 16px', borderRadius: '12px',
+              background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#D32F2F',
+              fontSize: '14px',
+            }}>{error}</div>
+          )}
         </div>
       </div>
     </div>

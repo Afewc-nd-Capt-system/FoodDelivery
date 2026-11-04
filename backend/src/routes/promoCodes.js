@@ -53,7 +53,7 @@ router.post('/validate', [
     if (orderAmount < promo.minOrderAmount) {
       return res.json({ 
         valid: false, 
-        message: `Minimum order amount is ₹${promo.minOrderAmount}` 
+        message: `Minimum order amount is ₦${promo.minOrderAmount}` 
       });
     }
 

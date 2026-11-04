@@ -1,10 +1,13 @@
 const express = require('express');
 const DeliveryCompany = require('../models/DeliveryCompany');
+const User = require('../models/User');
 const { verifyAccessToken } = require('../security/tokenService');
 const DeliveryPartner = require('../models/DeliveryPartner');
 const DeliveryCompanyService = require('../services/DeliveryCompanyService');
 const authMiddleware = require('../middleware/auth');
 const { deliveryCompanyGuard, adminGuard } = require('../middleware/routeGuards');
+const { sessionResponse } = require('../utils/session');
+const { sendWelcomeEmail } = require('../utils/email');
 
 const router = express.Router();
 
@@ -30,17 +33,48 @@ router.post('/register', async (req, res) => {
     });
 
     if (existing) {
-      return res.status(400).json({ 
-        message: 'Company with this email or registration number already exists' 
+      return res.status(409).json({
+        message: 'A company with this email or registration number already exists. Try signing in instead.'
       });
     }
 
+    const normalizedEmail = String(req.body.email || '').trim().toLowerCase();
+    if (!normalizedEmail) {
+      return res.status(400).json({ message: 'Company email is required' });
+    }
+    if (!req.body.password || String(req.body.password).length < 8
+      || !/[a-z]/.test(req.body.password) || !/[A-Z]/.test(req.body.password)
+      || !/[0-9]/.test(req.body.password) || !/[!@#$%^&*(),.?":{}|<>]/.test(req.body.password)) {
+      return res.status(400).json({ message: 'Password must be 8+ characters with upper, lower, number and special character' });
+    }
+
+    const existingUser = await User.findOne({ email: normalizedEmail });
+    if (existingUser) {
+      return res.status(409).json({ message: 'An account with this email already exists. Try signing in instead.' });
+    }
+
+    const owner = new User({
+      name: req.body.contactName || req.body.companyName || 'Delivery Company',
+      email: normalizedEmail,
+      password: req.body.password,
+      phone: req.body.phone,
+      role: 'delivery_company',
+    });
+    await owner.save();
+
     const company = await DeliveryCompanyService.registerCompany({
       ...req.body,
-      owner: getAuthenticatedUserId(req) || undefined
+      email: normalizedEmail,
+      owner: owner._id,
     });
 
+    sendWelcomeEmail(owner.email, owner.name).catch((emailError) => {
+      console.error('Welcome email failed:', emailError.message);
+    });
+
+    const session = await sessionResponse(res, owner);
     res.status(201).json({
+      ...session,
       company: {
         _id: company._id,
         companyName: company.companyName,
@@ -49,6 +83,9 @@ router.post('/register', async (req, res) => {
       message: 'Company registered successfully. Pending verification.'
     });
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({ message: 'An account with this email already exists.' });
+    }
     res.status(400).json({ message: error.message });
   }
 });
