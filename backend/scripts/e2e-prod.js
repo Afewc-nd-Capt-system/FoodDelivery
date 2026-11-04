@@ -234,9 +234,30 @@ async function main() {
       'register 201 missing ACAO'
     );
     registeredUserId = result.body?.user?._id || result.body?.user?.id || null;
-    // Welcome email must never block the response.
-    assert(elapsed < 5000, `register took ${elapsed}ms — email is blocking the response`);
-    return `201 in ${elapsed}ms, user=${(registeredUserId || '').slice(-6)}`;
+    // Welcome email must never block the response. The SMTP client is configured
+    // with 10-15s timeouts and the send is fire-and-forget, so a blocked send
+    // would push this response past those timeouts. Allow up to 15s for a
+    // Render cold start; the second registration below is the tight check.
+    assert(elapsed < 15000, `register took ${elapsed}ms — email is blocking the response`);
+
+    const warmStarted = Date.now();
+    const warm = await api('/auth/register', {
+      method: 'POST',
+      body: {
+        name: 'E2E Register Warm',
+        email: `e2e-register-warm-${Date.now()}@example.com`,
+        password: registerPassword,
+        confirmPassword: registerPassword,
+      },
+    });
+    const warmElapsed = Date.now() - warmStarted;
+    assert(warm.status === 201, `warm register returned ${warm.status}: ${warm.text}`);
+    assert(warmElapsed < 5000, `warm register took ${warmElapsed}ms — email is blocking the response`);
+    const warmUserId = warm.body?.user?._id || warm.body?.user?.id;
+    if (warmUserId) {
+      await api(`/users/${warmUserId}`, { method: 'DELETE', token: tokens.admin });
+    }
+    return `201 in ${elapsed}ms (cold) / ${warmElapsed}ms (warm), user=${(registeredUserId || '').slice(-6)}`;
   });
 
   await requestStep('register API: duplicate email returns 409 with ACAO', async () => {
