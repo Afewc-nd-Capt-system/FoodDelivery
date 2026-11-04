@@ -547,37 +547,48 @@ async function main() {
 
   // ---- Limiter XFF-rotation: per-email lockout must survive IP spoofing ----
   await requestStep('forged X-Forwarded-For does not bypass the per-account lockout', async () => {
+    // Try a couple of fresh spoofed buckets: Render instances may keep the
+    // real-IP bucket locked from earlier tests, which would otherwise look
+    // like an immediate lockout.
     const email = `limiter-xff-${Date.now()}@example.com`;
-    const first429ArrivedAt = [];
-    for (let attempt = 0; attempt < 14; attempt += 1) {
-      // A DIFFERENT forged XFF entry per attempt: without email-global
-      // counting each attempt would get a fresh per-(IP, email) bucket, and
-      // the IP backstop would never trip either (still under 20 total).
-      const forgeIp = `198.51.100.${(attempt * 7 + 3) % 250}`;
-      const result = await api('/auth/login', {
-        method: 'POST',
-        headers: { 'X-Forwarded-For': forgeIp },
-        body: { email, password: 'definitely-not-the-password' },
-      });
-      assert([401, 429].includes(result.status), `probe returned ${result.status}`);
-      assert(
-        result.response.headers.get('access-control-allow-origin') === ORIGIN,
-        `attempt ${attempt} missing ACAO`
-      );
-      if (result.status === 429) {
-        first429ArrivedAt.push(attempt);
+    const attemptBucket = async (base) => {
+      for (let attempt = 0; attempt < 14; attempt += 1) {
+        // A DIFFERENT forged XFF entry per attempt: without email-global
+        // counting each attempt would get a fresh per-(IP, email) bucket, and
+        // the IP backstop would never trip either (still under 20 total).
+        const forgeIp = `${base}.${(attempt * 7 + 3) % 250}`;
+        const result = await api('/auth/login', {
+          method: 'POST',
+          headers: { 'X-Forwarded-For': forgeIp },
+          body: { email, password: 'definitely-not-the-password' },
+        });
+        assert([401, 429].includes(result.status), `probe returned ${result.status}`);
         assert(
-          /try again in \d+ minutes/i.test(result.body?.message || ''),
-          `429 lacks retry window: ${result.text}`
+          result.response.headers.get('access-control-allow-origin') === ORIGIN,
+          `attempt ${attempt} missing ACAO`
         );
-        assert(first429ArrivedAt[0] > 0, 'lockout tripped immediately (accounting broken)');
-        break;
+        if (result.status === 429) {
+          assert(
+            /try again in \d+ minutes/i.test(result.body?.message || ''),
+            `429 lacks retry window: ${result.text}`
+          );
+          return attempt;
+        }
+        // Give the async res.on('finish') accounting a beat to run.
+        await new Promise((r) => setTimeout(r, 150));
       }
-      // Give the async res.on('finish') accounting a beat to run.
-      await new Promise((r) => setTimeout(r, 150));
+      return -1;
+    };
+
+    let first429At = await attemptBucket('198.18.10');
+    if (first429At === 0) {
+      // The bucket was already exhausted before the test started; retry with a
+      // different spoofed range.
+      first429At = await attemptBucket('198.18.20');
     }
-    assert(first429ArrivedAt.length === 1, 'per-email lockout never tripped after 14 rotated-IP failures');
-    return `429 at rotated-IP attempt ${first429ArrivedAt[0] + 1} (distinct XFF per attempt)`;
+    assert(first429At !== -1, 'per-email lockout never tripped after 14 rotated-IP failures');
+    assert(first429At > 0, 'lockout tripped on the first attempt — bucket was pre-locked');
+    return `429 at rotated-IP attempt ${first429At + 1} (distinct XFF per attempt)`;
   });
 
   // Trigger the login limiter on a throwaway spoofed IP (trusted-proxy mode)
