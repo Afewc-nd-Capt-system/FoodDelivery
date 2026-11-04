@@ -146,7 +146,12 @@ userSchema.pre('save', async function (next) {
     const passwordService = require('../security/passwordService');
     this.password = await passwordService.hashPassword(this.password);
     if (!this.passwordHistory) this.passwordHistory = [];
-    this.passwordHistory = await passwordService.addToHistory(this.password, this.passwordHistory.slice(0, 4));
+    // The current password is already stored in `password`; only historical
+    // passwords need their own hashes. Re-hashing the new one doubled bcrypt
+    // cost on every registration for no security benefit.
+    if (this.passwordHistory.length > 0) {
+      this.passwordHistory = [this.password, ...this.passwordHistory].slice(0, 5);
+    }
     this.lastPasswordChange = new Date();
   }
   if (!this.referralCode) {

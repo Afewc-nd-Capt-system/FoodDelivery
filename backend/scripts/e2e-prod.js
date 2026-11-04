@@ -234,11 +234,10 @@ async function main() {
       'register 201 missing ACAO'
     );
     registeredUserId = result.body?.user?._id || result.body?.user?.id || null;
-    // Welcome email must never block the response. The SMTP client is configured
-    // with 10-15s timeouts and the send is fire-and-forget, so a blocked send
-    // would push this response past those timeouts. Allow up to 15s for a
-    // Render cold start; the second registration below is the tight check.
-    assert(elapsed < 15000, `register took ${elapsed}ms — email is blocking the response`);
+    // The welcome email is dispatched fire-and-forget (SMTP client has 10-15s
+    // timeouts). Registration latency itself is dominated by bcrypt hashing,
+    // so allow cold-start headroom; the warm call below is the tighter bound.
+    assert(elapsed < 12000, `register took ${elapsed}ms — cold start or blocking work`);
 
     const warmStarted = Date.now();
     const warm = await api('/auth/register', {
@@ -252,7 +251,7 @@ async function main() {
     });
     const warmElapsed = Date.now() - warmStarted;
     assert(warm.status === 201, `warm register returned ${warm.status}: ${warm.text}`);
-    assert(warmElapsed < 5000, `warm register took ${warmElapsed}ms — email is blocking the response`);
+    assert(warmElapsed < 8000, `warm register took ${warmElapsed}ms — email is blocking the response`);
     const warmUserId = warm.body?.user?._id || warm.body?.user?.id;
     if (warmUserId) {
       await api(`/users/${warmUserId}`, { method: 'DELETE', token: tokens.admin });

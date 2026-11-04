@@ -53,28 +53,122 @@ router.get('/current', authMiddleware, async (req, res) => {
 });
 
 // POST /api/v2/subscriptions/activate
+// Start a Paystack checkout for a business plan upgrade. Returns the hosted
+// authorization URL; the plan is only activated after /activate verifies the
+// reference with Paystack.
+router.post('/initialize', authMiddleware, async (req, res) => {
+  try {
+    const { planId } = req.body;
+    const plan = await BusinessSubscriptionPlan.findById(planId);
+    if (!plan || plan.isActive === false) {
+      return res.status(404).json({ message: 'Plan not found' });
+    }
+
+    const business = await Restaurant.findOne({ owner: req.user.id })
+      || await Vendor.findOwnedBy(req.user);
+    if (!business) {
+      return res.status(404).json({ message: 'Business not found' });
+    }
+
+    if (!Number(plan.price) || Number(plan.price) <= 0) {
+      return res.json({ free: true, message: 'This plan is free; no payment required.' });
+    }
+
+    const secret = process.env.PAYSTACK_SECRET_KEY;
+    if (!secret) {
+      return res.status(503).json({ message: 'Payments are not configured yet. Please contact support.' });
+    }
+
+    const reference = `bizplan_${req.user.id}_${Date.now()}`;
+    const paystackResponse = await fetch('https://api.paystack.co/transaction/initialize', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${secret}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: req.user.email,
+        amount: Math.round(Number(plan.price) * 100),
+        currency: 'NGN',
+        reference,
+        callback_url: `${require('../../config/frontend').frontendUrl('/subscription')}?plan=${plan._id}`,
+        metadata: {
+          planId: String(plan._id),
+          userId: String(req.user.id),
+          type: 'business-plan',
+        },
+      }),
+      signal: AbortSignal.timeout(20000),
+    });
+    const paystackBody = await paystackResponse.json().catch(() => null);
+    if (!paystackResponse.ok || !paystackBody?.status) {
+      return res.status(502).json({ message: paystackBody?.message || 'Could not start payment. Please try again.' });
+    }
+
+    res.json({
+      authorizationUrl: paystackBody.data.authorization_url,
+      reference: paystackBody.data.reference,
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
 router.post('/activate', authMiddleware, async (req, res) => {
   try {
     const { planId, paystackRef } = req.body;
-    
-    // Verify plan exists
+
     const plan = await BusinessSubscriptionPlan.findById(planId);
     if (!plan) {
       return res.status(404).json({ message: 'Plan not found' });
     }
-    
-    // TODO: Verify Paystack payment
-    // This would involve calling Paystack API to verify the transaction
-    
+
+    const price = Number(plan.price) || 0;
+    if (price > 0) {
+      if (!paystackRef || !String(paystackRef).trim()) {
+        return res.status(402).json({ message: 'Payment is required to activate this plan.' });
+      }
+      const secret = process.env.PAYSTACK_SECRET_KEY;
+      if (!secret) {
+        return res.status(503).json({ message: 'Payments are not configured yet. Please contact support.' });
+      }
+
+      // The same reference must never activate a plan twice.
+      const used = await Subscription.findOne({ paystackReference: paystackRef });
+      if (used) {
+        return res.status(409).json({ message: 'This payment reference has already been used.' });
+      }
+
+      const verifyRes = await fetch(
+        `https://api.paystack.co/transaction/verify/${encodeURIComponent(paystackRef)}`,
+        {
+          headers: { Authorization: `Bearer ${secret}` },
+          signal: AbortSignal.timeout(20000),
+        }
+      );
+      const verifyBody = await verifyRes.json().catch(() => null);
+      const tx = verifyBody?.data;
+      if (!verifyRes.ok || !verifyBody?.status || !tx || tx.status !== 'success') {
+        return res.status(402).json({ message: 'Payment could not be verified. Please complete checkout and try again.' });
+      }
+      if (Number(tx.amount) < Math.round(price * 100)) {
+        return res.status(402).json({ message: 'The payment amount does not cover this plan.' });
+      }
+      const txUser = tx.metadata?.userId;
+      if (txUser && String(txUser) !== String(req.user.id)) {
+        return res.status(403).json({ message: 'This payment belongs to a different account.' });
+      }
+    }
+
     // Find restaurant or vendor
     let business = await Restaurant.findOne({ owner: req.user.id });
     let businessType = 'restaurant';
-    
+
     if (!business) {
-      business = await await Vendor.findOwnedBy(req.user);
+      business = await Vendor.findOwnedBy(req.user);
       businessType = 'vendor';
     }
-    
+
     if (!business) {
       return res.status(404).json({ message: 'Business not found' });
     }

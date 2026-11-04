@@ -44,6 +44,11 @@ const subscriptionSchema = new mongoose.Schema({
   },
   paystackCustomerId: String,
   paystackSubscriptionId: String,
+  paystackReference: {
+    type: String,
+    unique: true,
+    sparse: true,
+  },
   autoRenew: {
     type: Boolean,
     default: true

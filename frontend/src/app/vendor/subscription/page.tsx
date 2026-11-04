@@ -24,6 +24,8 @@ export default function VendorSubscriptionPage() {
   const [currentPlan, setCurrentPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(true);
   const [upgrading, setUpgrading] = useState(false);
+  const [upgradeError, setUpgradeError] = useState('');
+  const [upgradeNotice, setUpgradeNotice] = useState('');
 
   useEffect(() => {
     fetchPlans();
@@ -60,29 +62,79 @@ export default function VendorSubscriptionPage() {
 
   const handleUpgrade = async (planId: string) => {
     setUpgrading(true);
+    setUpgradeError('');
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : '';
+      // Start a real Paystack checkout; activation happens only after the
+      // server verifies the payment reference.
+      const initRes = await fetch(`${API_V2}/subscriptions/initialize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ planId }),
+        signal: AbortSignal.timeout(30000),
+      });
+      const initBody = await initRes.json().catch(() => null);
+      if (!initRes.ok) {
+        setUpgradeError(initBody?.message || 'Could not start payment. Please try again.');
+        return;
+      }
+      if (initBody?.authorizationUrl) {
+        window.location.href = initBody.authorizationUrl;
+        return;
+      }
       const response = await fetch(`${API_V2}/subscriptions/activate`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`,
-        },
-        body: JSON.stringify({
-          planId,
-          paystackRef: 'test_ref',
-        }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ planId }),
+        signal: AbortSignal.timeout(30000),
       });
-
-      if (response.ok) {
-        alert('Plan activated successfully!');
-        fetchCurrentSubscription();
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        setUpgradeError(body?.message || 'Could not activate the plan. Please try again.');
+        return;
       }
-    } catch (error) {
-      console.error('Error upgrading plan:', error);
+      setUpgradeNotice('Plan activated successfully.');
+      fetchCurrentSubscription();
+    } catch (error: any) {
+      setUpgradeError(error?.name === 'TimeoutError' || error?.name === 'AbortError'
+        ? 'The request timed out. Please try again.'
+        : 'Network error. Check your connection and try again.');
     } finally {
       setUpgrading(false);
     }
   };
+
+  // Returning from Paystack: verify before claiming success.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const planId = params.get('plan');
+    const reference = params.get('reference') || params.get('trxref');
+    if (!planId || !reference) return;
+    (async () => {
+      setUpgrading(true);
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_V2}/subscriptions/activate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ planId, paystackRef: reference }),
+          signal: AbortSignal.timeout(30000),
+        });
+        const body = await res.json().catch(() => null);
+        if (!res.ok) {
+          setUpgradeError(body?.message || 'We could not verify your payment.');
+          return;
+        }
+        setUpgradeNotice('Payment confirmed — your plan is active.');
+        fetchCurrentSubscription();
+      } catch {
+        setUpgradeError('Could not verify the payment. Please contact support with your reference.');
+      } finally {
+        setUpgrading(false);
+      }
+    })();
+  }, []);
 
   const getPlanStyle = (index: number) => {
     if (index === 1) {
@@ -129,6 +181,17 @@ export default function VendorSubscriptionPage() {
             </div>
           )}
         </div>
+
+        {upgradeNotice && (
+          <div role="status" className="max-w-2xl mx-auto mb-6 rounded-xl border border-[#86EFAC] bg-[#F0FDF4] px-4 py-3 text-sm text-[#15803D]">
+            {upgradeNotice}
+          </div>
+        )}
+        {upgradeError && (
+          <div role="alert" className="max-w-2xl mx-auto mb-6 rounded-xl border border-[#FCA5A5] bg-[#FEF2F2] px-4 py-3 text-sm text-[#D32F2F]">
+            {upgradeError}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {plans.map((plan, index) => {
