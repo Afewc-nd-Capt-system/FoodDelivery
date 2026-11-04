@@ -326,7 +326,7 @@ async function main() {
     const probeEmail = `limiter-register-${Date.now()}@example.com`;
     let saw429 = null;
     let probeUserId = null;
-    for (let attempt = 0; attempt < 26; attempt += 1) {
+    for (let attempt = 0; attempt < 60; attempt += 1) {
       const result = await api('/auth/register', {
         method: 'POST',
         body: {
@@ -766,7 +766,7 @@ async function main() {
     // like an immediate lockout.
     const email = `limiter-xff-${Date.now()}@example.com`;
     const attemptBucket = async (base) => {
-      for (let attempt = 0; attempt < 14; attempt += 1) {
+      for (let attempt = 0; attempt < 30; attempt += 1) {
         // A DIFFERENT forged XFF entry per attempt: without email-global
         // counting each attempt would get a fresh per-(IP, email) bucket, and
         // the IP backstop would never trip either (still under 20 total).
