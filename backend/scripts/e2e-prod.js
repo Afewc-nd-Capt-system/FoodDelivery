@@ -378,15 +378,17 @@ async function main() {
     const paid = (plans.body?.plans || []).find((p) => Number(p.price) > 0);
 
     if (!paid) {
-      const audit = await api('/subscriptions/admin/audit-activations', {
+      const unknowable = await api('/subscriptions/activate', {
         method: 'POST',
-        token: tokens.admin,
-        body: {},
+        token: tokens.restaurant,
+        body: { planId: '5f0deadbeef5f0deadbeef5f0', paystackRef: 'test_ref' },
       });
-      assert(audit.status === 200, `audit returned ${audit.status}: ${audit.text}`);
-      assert(audit.body?.success !== false, 'audit endpoint errored');
-      return `no paid plans configured; audit ok, deactivated=${audit.body?.deactivated ?? 0}`;
-    }
+      assert(
+        [404, 402].includes(unknowable.status),
+        `unknown-plan activation returned ${unknowable.status}: ${unknowable.text}`
+      );
+      return 'no paid plans configured; unverified reference rejected';
+    },
 
     const noRef = await api('/subscriptions/activate', {
       method: 'POST',
