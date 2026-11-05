@@ -388,7 +388,7 @@ async function main() {
         `unknown-plan activation returned ${unknowable.status}: ${unknowable.text}`
       );
       return 'no paid plans configured; unverified reference rejected';
-    },
+    };
 
     const noRef = await api('/subscriptions/activate', {
       method: 'POST',
