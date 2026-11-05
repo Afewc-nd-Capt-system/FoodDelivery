@@ -381,7 +381,7 @@ async function main() {
       const unknowable = await api('/subscriptions/activate', {
         method: 'POST',
         token: tokens.restaurant,
-        body: { planId: '5f0deadbeef5f0deadbeef5f0', paystackRef: 'test_ref' },
+        body: { planId: '000000000000000000000000', paystackRef: 'test_ref' },
       });
       assert(
         [404, 402].includes(unknowable.status),
