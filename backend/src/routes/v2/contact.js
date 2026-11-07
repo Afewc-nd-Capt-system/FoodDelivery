@@ -1,8 +1,8 @@
-const express = require('express')
+﻿const express = require('express')
 const router = express.Router()
-const PartnerApplication = require('../models/PartnerApplication')
-const { sendEmail } = require('../utils/email')
-const { frontendUrl } = require('../config/frontend')
+const PartnerApplication = require('../../models/PartnerApplication')
+const { sendEmail } = require('../../utils/email')
+const { frontendUrl } = require('../../config/frontend')
 
 const typeLabels = {
   restaurant: 'Restaurant Partner',
@@ -49,7 +49,7 @@ router.post('/', async (req, res) => {
         <b>Location:</b> ${city || ''}, ${state || ''}<br/>
         <b>Message:</b> ${message || 'N/A'}</p>
         <p>Application ID: ${application._id}</p>
-        <p><a href="${frontendUrl('/admin/dashboard')}">Review in the Admin Dashboard → Applications</a></p>
+        <p><a href="${frontendUrl('/admin/dashboard')}">Review in the Admin Dashboard â†’ Applications</a></p>
       `,
     }).catch((err) => console.error('Contact notification email failed:', err.message))
 
@@ -57,7 +57,7 @@ router.post('/', async (req, res) => {
       to: email,
       subject: 'We received your VibeChops partner application!',
       html: `
-        <h2>Application Received! 🎉</h2>
+        <h2>Application Received! ðŸŽ‰</h2>
         <p>Hi ${name},</p>
         <p>Thank you for applying to be a <b>${typeLabels[type]}</b> partner with VibeChops.</p>
         <p>We received your application for <b>${businessName}</b> in ${city || ''}, ${state || ''}.</p>

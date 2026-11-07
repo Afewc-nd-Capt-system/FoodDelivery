@@ -24,7 +24,8 @@
     "security-audit": "npm audit --audit-level=high",
     "test:smoke": "node scripts/smoke.js",
     "test:limiter": "node scripts/test-limiter-fallback.js",
-    "test:crawl": "node scripts/crawl.js"
+    "test:crawl": "node scripts/crawl.js",
+    "test:boot": "node scripts/test-boot.js"
   },
   "dependencies": {
     "axios": "^1.16.0",
@@ -62,6 +63,8 @@
     "qs": "^6.16.1"
   },
   "devDependencies": {
+    "ioredis-mock": "^8.13.1",
+    "mongodb-memory-server": "^11.3.0",
     "playwright-core": "^1.64.1"
   }
 }

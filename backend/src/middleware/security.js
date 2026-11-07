@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+﻿const crypto = require('crypto');
 const helmet = require('helmet');
 const { z } = require('zod');
 
@@ -85,11 +85,12 @@ function validateEnvironment() {
       }
     }
 
+    const allowLocalhostServices = process.env.ALLOW_LOCALHOST_SERVICES === 'true';
     const mongoUri = String(process.env.MONGODB_URI || '');
     if (mongoUri && !/^mongodb(\+srv)?:\/\//.test(mongoUri)) {
       failures.push('MONGODB_URI is not a MongoDB connection string');
     }
-    if (/(?:localhost|127\.0\.0\.1)/i.test(mongoUri)) {
+    if (!allowLocalhostServices && /(?:localhost|127\.0\.0\.1)/i.test(mongoUri)) {
       failures.push('MONGODB_URI must not point at localhost in production');
     }
 
@@ -97,7 +98,7 @@ function validateEnvironment() {
     if (redisUrl && !/^rediss?:\/\//.test(redisUrl)) {
       failures.push('REDIS_URL must use redis:// or rediss://');
     }
-    if (/(?:localhost|127\.0\.0\.1)/i.test(redisUrl)) {
+    if (!allowLocalhostServices && /(?:localhost|127\.0\.0\.1)/i.test(redisUrl)) {
       failures.push('REDIS_URL must not point at localhost in production');
     }
 

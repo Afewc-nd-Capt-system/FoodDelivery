@@ -1,4 +1,4 @@
-require('dotenv').config();
+﻿require('dotenv').config();
 const { validateEnvironment } = require('./middleware/security');
 validateEnvironment();
 
@@ -114,7 +114,7 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/food-deli
   retryWrites: true,
   w: 'majority',
 })
-.then(() => console.log('MongoDB connected ✅'))
+.then(() => console.log('MongoDB connected âœ…'))
 .catch(err => {
   console.error('MongoDB connection error:', err.message)
 })
@@ -196,10 +196,10 @@ app.get('/health', (req, res) => {
     port: process.env.PORT || 5000,
     database: 'connected', // We could add actual DB check here
     redisConfigured: Boolean(process.env.REDIS_URL),
+    // Which version is running (Render injects RENDER_GIT_COMMIT).
+    commit: process.env.RENDER_GIT_COMMIT || 'unknown',
+    branch: process.env.RENDER_GIT_BRANCH || 'unknown',
     redisConnected: getClient()?.status === 'ready',
-    // Diagnostic only: no secrets, used to verify proxy hop/IP behaviour.
-    clientIp: req.ip,
-    forwardedFor: req.headers['x-forwarded-for'] || null,
   };
   
   try {
@@ -250,8 +250,8 @@ process.on('SIGINT', () => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-  console.log(`🌐 Frontend URL: ${getFrontendUrl()}`);
+  console.log(`ðŸš€ Server running on port ${PORT}`);
+  console.log(`ðŸ“Š Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`ðŸ”— Health check: http://localhost:${PORT}/health`);
+  console.log(`ðŸŒ Frontend URL: ${getFrontendUrl()}`);
 });
