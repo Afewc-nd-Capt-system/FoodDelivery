@@ -797,7 +797,7 @@ async function main() {
         );
         if (result.status === 429) {
           assert(
-            /try again in \d+ minutes/i.test(result.body?.message || ''),
+            /try again (?:in|after) \d+ minutes/i.test(result.body?.message || ''),
             `429 lacks retry window: ${result.text}`
           );
           return attempt;
@@ -843,7 +843,7 @@ async function main() {
           `429 message was: ${result.text}`
         );
         assert(
-          /try again in \d+ minutes/i.test(result.body?.message || ''),
+          /try again (?:in|after) \d+ minutes/i.test(result.body?.message || ''),
           `429 message lacks the retry window: ${result.text}`
         );
         return `429 after ${attempt + 1} failed attempts — ACAO + retry window OK`;
