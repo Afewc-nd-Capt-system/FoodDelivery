@@ -83,7 +83,9 @@ router.post('/register', xssProtection, async (req, res) => {
       description: description || 'Home-cooked meals made with love',
       image: req.body.image || undefined,
       cuisine: Array.isArray(cuisine) ? cuisine : (cuisine ? [cuisine] : ['Nigerian']),
-      cookingDays: Array.isArray(cookingDays) ? cookingDays : [],
+      cookingDays: Array.isArray(cookingDays)
+        ? cookingDays.map((d) => String(d).trim().toLowerCase()).filter((d) => ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].includes(d))
+        : [],
       address,
       location,
       owner: user._id,

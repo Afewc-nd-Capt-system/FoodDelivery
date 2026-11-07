@@ -347,7 +347,7 @@ router.post('/vendors', async (req, res) => {
           isOpen: true,
           isActive: true,
           verificationStatus: 'approved',
-          cookingDays: [['Saturday', 'Monday', 'Wednesday'], ['Tuesday', 'Thursday', 'Sunday'], ['Friday', 'Sunday'], ['Monday', 'Wednesday'], ['Thursday', 'Saturday'], ['Friday', 'Sunday'], ['Monday', 'Tuesday']][i % 7],
+          cookingDays: [['saturday', 'monday', 'wednesday'], ['tuesday', 'thursday', 'sunday'], ['friday', 'sunday'], ['monday', 'wednesday'], ['thursday', 'saturday'], ['friday', 'sunday'], ['monday', 'tuesday']][i % 7],
           deliveryTime: ['12pm - 2pm', '4pm - 7pm', '10am - 1pm', '2pm - 5pm', '5pm - 8pm', '11am - 2pm', '3pm - 6pm'][i % 7],
           minOrderForDelivery: 0,
           location: {
@@ -400,9 +400,9 @@ router.post('/vendors', async (req, res) => {
     // Normalize vendors seeded with the old placeholder schedule ('saturday'
     // only / '12pm - 2pm') to a capitalized, varied schedule.
     const schedulePresets = [
-      ['Saturday', 'Monday', 'Wednesday'], ['Tuesday', 'Thursday', 'Sunday'],
-      ['Friday', 'Sunday'], ['Monday', 'Wednesday'], ['Thursday', 'Saturday'],
-      ['Friday', 'Sunday'], ['Monday', 'Tuesday'],
+      ['saturday', 'monday', 'wednesday'], ['tuesday', 'thursday', 'sunday'],
+      ['friday', 'sunday'], ['monday', 'wednesday'], ['thursday', 'saturday'],
+      ['friday', 'sunday'], ['monday', 'tuesday'],
     ];
     const timePresets = ['12pm - 2pm', '4pm - 7pm', '10am - 1pm', '2pm - 5pm', '5pm - 8pm', '11am - 2pm', '3pm - 6pm'];
     const staleSchedule = await Vendor.find({ cookingDays: ['saturday'] });
