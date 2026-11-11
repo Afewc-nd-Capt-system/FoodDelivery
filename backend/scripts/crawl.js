@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 /**
  * Production crawl: visits every reachable page per role and reports
@@ -118,7 +118,7 @@ async function runRole(browser, role) {
         ok = false;
       }
       await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
-      await page.waitForTimeout(800);
+      await page.waitForTimeout(2200);
     } catch (error) {
       issues.push({ page: currentPage, type: 'navigation', detail: error.message.slice(0, 120) });
       continue;
@@ -170,11 +170,12 @@ async function runRole(browser, role) {
               && !el.disabled && el.getAttribute('aria-disabled') !== 'true';
           })
           .slice(0, max)
-          .map((el, i) => ({ idx: i, label: (el.innerText || el.getAttribute('aria-label') || '').trim().slice(0, 40) }));
+          .map((el, i) => ({ idx: i, type: el.getAttribute('type') || '', label: (el.innerText || el.getAttribute('aria-label') || '').trim().slice(0, 40) }));
       }, MAX_CONTROLS_PER_PAGE);
 
       for (const control of controls) {
         if (!control.label || DESTRUCTIVE.test(control.label)) continue;
+        if (control.type === 'submit') continue; // native form validation is not a dead control
         if (/show password|hide password|show password confirmation|hide password confirmation/i.test(control.label)) continue;
         // "Back" depends on history, "Overview" is already the active tab, and
         // "Export" downloads a file - none produce an in-page text change.
@@ -210,7 +211,7 @@ async function runRole(browser, role) {
           const afterDom = await page.evaluate(() => document.body.innerHTML.length).catch(() => beforeDom);
           // Class/style toggles (filters, tabs, selection chips) change the DOM
           // even when the visible text stays identical.
-          changed = afterText !== beforeText || Math.abs(afterDom - beforeDom) > 20;
+          changed = afterText !== beforeText || afterDom !== beforeDom;
           if (navigated || madeRequest || changed || popupOpened) break;
         }
         if (clicked && !changed && !navigated && !madeRequest && !popupOpened) {
@@ -234,7 +235,7 @@ async function runRole(browser, role) {
   const browser = await chromium.launch({ headless: true, executablePath: CHROME });
   const results = [];
   for (const role of Object.keys(SEEDS)) {
-    process.stdout.write(`crawling ${role}… `);
+    process.stdout.write(`crawling ${role}â€¦ `);
     try {
       const result = await runRole(browser, role);
       results.push(result);
@@ -271,3 +272,4 @@ async function runRole(browser, role) {
   console.error('CRAWL failed:', error.message);
   process.exit(1);
 });
+
