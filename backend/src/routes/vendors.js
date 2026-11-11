@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const { body, validationResult } = require('express-validator');
 const Vendor = require('../models/Vendor');
 const User = require('../models/User');
@@ -219,6 +220,11 @@ router.get('/cuisines', async (req, res) => {
 
 router.get('/:id', async (req, res) => {
   try {
+    // Malformed ids (e.g. a stale link to /vendor/forecast) are "not found",
+    // never a 500 CastError.
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ message: 'Vendor not found' });
+    }
     const vendor = await Vendor.findById(req.params.id);
     if (!vendor) {
       return res.status(404).json({ message: 'Vendor not found' });

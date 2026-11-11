@@ -182,12 +182,12 @@ export default function DeliveryDashboardPage() {
                 <span className="w-1.5 h-1.5 rounded-full" style={{ background: socketConnected ? '#16A34A' : '#D32F2F' }} />
                 {socketConnected ? 'Live' : 'Offline'}
               </div>
-              <button className="relative p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors">
+              <div className="relative p-2 rounded-xl bg-white/10" title="Assigned orders">
                 <Bell size={20} className="text-white" />
                 <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#E8621A] text-white text-xs flex items-center justify-center font-bold">
                   {orders.length}
                 </span>
-              </button>
+              </div>
               <button
                 onClick={() => setIsOnline(!isOnline)}
                 className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${

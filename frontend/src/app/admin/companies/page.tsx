@@ -37,7 +37,9 @@ export default function AdminCompanies() {
 
   const fetchCompanies = async () => {
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       const res = await fetch(`${API_URL}/admin/delivery-companies?limit=100`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         credentials: 'include',
       });
       if (res.ok) {

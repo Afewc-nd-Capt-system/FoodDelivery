@@ -1,14 +1,16 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Star, Clock, MapPin } from 'lucide-react';
 
 interface VendorCardProps {
   vendor: any;
   onClick?: () => void;
+  href?: string;
 }
 
-export default function VendorCard({ vendor, onClick }: VendorCardProps) {
+export default function VendorCard({ vendor, onClick, href }: VendorCardProps) {
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -122,14 +124,25 @@ export default function VendorCard({ vendor, onClick }: VendorCardProps) {
         </div>
         )}
 
-        {onClick && (
+        {(onClick || href) && (
+        href ? (
+        <Link
+          href={href}
+          onClick={(e) => e.stopPropagation()}
+          className="block w-full py-2.5 rounded-xl text-white text-sm font-bold text-center transition-all duration-200 hover:scale-105 active:scale-95"
+          style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}
+        >
+          Pre-order
+        </Link>
+        ) : (
         <button
-          onClick={(e) => { e.stopPropagation(); onClick(); }}
+          onClick={(e) => { e.stopPropagation(); onClick?.(); }}
           className="w-full py-2.5 rounded-xl text-white text-sm font-bold transition-all duration-200 hover:scale-105 active:scale-95"
           style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}
         >
           Pre-order
         </button>
+        )
         )}
       </div>
     </div>

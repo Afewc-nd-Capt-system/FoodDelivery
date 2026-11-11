@@ -350,23 +350,23 @@ export function Navbar() {
               ) : (
                 <>
                   {/* Sign in — desktop */}
-                  <button
-                    onClick={() => router.push('/login')}
+                  <Link
+                    href="/login"
                     className="hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-semibold transition-colors hover:bg-gray-50"
                     style={{ borderColor: '#E8E8E8', color: '#1C1C1E' }}
                   >
                     <User size={15} />
                     Sign In
-                  </button>
+                  </Link>
 
                   {/* Sign up — desktop */}
-                  <button
-                    onClick={() => router.push('/register')}
+                  <Link
+                    href="/register"
                     className="hidden md:flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-bold transition-all duration-200 hover:scale-105 active:scale-95"
                     style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}
                   >
                     Sign Up
-                  </button>
+                  </Link>
                 </>
               )}
 

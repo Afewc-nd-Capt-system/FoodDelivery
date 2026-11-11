@@ -121,7 +121,7 @@ export default function VendorsPage() {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {openVendors.map((vendor: any) => (
-            <VendorCard key={vendor._id} vendor={vendor} onClick={() => router.push(`/vendors/${vendor._id}`)} />
+            <VendorCard key={vendor._id} vendor={vendor} href={`/vendors/${vendor._id}`} />
           ))}
         </div>
       </div>
@@ -131,7 +131,7 @@ export default function VendorsPage() {
         <h2 className="text-2xl font-bold mb-6">All Vendors</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredVendors.map((vendor: any) => (
-            <VendorCard key={vendor._id} vendor={vendor} onClick={() => router.push(`/vendors/${vendor._id}`)} />
+            <VendorCard key={vendor._id} vendor={vendor} href={`/vendors/${vendor._id}`} />
           ))}
         </div>
       </div>

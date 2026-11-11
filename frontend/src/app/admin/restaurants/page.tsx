@@ -36,7 +36,9 @@ export default function AdminRestaurants() {
 
   const fetchRestaurants = async () => {
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       const res = await fetch(`${API_URL}/admin/restaurants?limit=100`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         credentials: 'include',
       });
       if (res.ok) {

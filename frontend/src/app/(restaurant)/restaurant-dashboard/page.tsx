@@ -418,7 +418,7 @@ function RestaurantDashboardPageContent() {
                   <Plus className="w-4 h-4 mr-2" /> Add Item
                 </Button>
               </div>
-              <p className="text-[#636366]">Menu management coming soon...</p>
+              <p className="text-[#636366]">No menu items yet.</p>
             </Card>
           </TabsContent>
 
@@ -566,7 +566,7 @@ function RestaurantDashboardPageContent() {
                 Net amounts are calculated per order after the platform commission is applied.
               </p>
               <div className="text-center py-4 text-[#636366]">
-                <p>Detailed commission history coming soon</p>
+                <p>No commission history yet</p>
               </div>
             </Card>
           </TabsContent>
@@ -576,7 +576,7 @@ function RestaurantDashboardPageContent() {
               <h3 className="font-bold mb-4">Profile Settings</h3>
               <div className="text-center py-12 text-[#636366]">
                 <User className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                <p>Profile management coming soon</p>
+                <p>Profile settings are managed by support</p>
               </div>
             </Card>
           </TabsContent>

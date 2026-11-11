@@ -32,7 +32,9 @@ export default function AdminUsers() {
 
   const fetchUsers = async () => {
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       const res = await fetch(`${API_URL}/admin/users?limit=100`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         credentials: 'include',
       });
       if (res.ok) {

@@ -120,7 +120,7 @@ export default function VibePassPage() {
             {!currentPlan && (
               <Badge className="absolute top-4 right-4 bg-[#FFF1E8] text-[#E8621A]">Current Plan</Badge>
             )}
-            <Button className="w-full bg-[#F5F5F5] text-[#636366] cursor-default">
+            <Button disabled className="w-full bg-[#F5F5F5] text-[#636366] cursor-default disabled:opacity-100">
               {currentPlan ? 'Pay-as-you-go' : 'Current Plan'}
             </Button>
           </Card>

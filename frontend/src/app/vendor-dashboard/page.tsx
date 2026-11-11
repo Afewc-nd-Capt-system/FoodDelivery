@@ -141,7 +141,7 @@ export default function VendorDashboardPage() {
                   <h2 className="text-xl font-black" style={{ color: '#1C1C1E' }}>
                     Upcoming Cooking Days
                   </h2>
-                  <Link href="/vendor/forecast" className="text-sm font-bold" style={{ color: '#E8621A' }}>
+                  <Link href="/forecast" className="text-sm font-bold" style={{ color: '#E8621A' }}>
                     View Forecast →
                   </Link>
                 </div>
@@ -177,7 +177,7 @@ export default function VendorDashboardPage() {
                 </h2>
                 <div className="text-center py-8">
                   <Package size={40} style={{ color: '#E8E8E8', margin: '0 auto 8px' }} />
-                  <p className="font-bold" style={{ color: '#1C1C1E' }}>Order list coming soon</p>
+                  <p className="font-bold" style={{ color: '#1C1C1E' }}>No order inbox yet</p>
                   <p className="text-sm" style={{ color: '#636366' }}>A vendor order inbox isn't built yet — totals above are counted straight from your completed orders.</p>
                 </div>
               </div>
@@ -242,7 +242,7 @@ export default function VendorDashboardPage() {
             )}
             <div className="text-center py-12" style={{ color: '#636366' }}>
               <Utensils size={64} style={{ color: '#E8E8E8' }} />
-              <p className="mt-4">Menu management coming soon</p>
+              <p className="mt-4">No menu items yet</p>
             </div>
           </div>
         )}
@@ -252,7 +252,7 @@ export default function VendorDashboardPage() {
             <h2 className="text-xl font-black mb-6" style={{ color: '#1C1C1E' }}>Pre-orders</h2>
             <div className="text-center py-12" style={{ color: '#636366' }}>
               <Clock size={64} style={{ color: '#E8E8E8' }} />
-              <p className="mt-4">Pre-orders management coming soon</p>
+              <p className="mt-4">No pre-orders yet</p>
             </div>
           </div>
         )}
@@ -262,7 +262,7 @@ export default function VendorDashboardPage() {
             <h2 className="text-xl font-black mb-6" style={{ color: '#1C1C1E' }}>Cooking Schedule</h2>
             <div className="text-center py-12" style={{ color: '#636366' }}>
               <Calendar size={64} style={{ color: '#E8E8E8' }} />
-              <p className="mt-4">Cooking schedule management coming soon</p>
+              <p className="mt-4">No cooking schedule set</p>
             </div>
           </div>
         )}
@@ -299,7 +299,7 @@ export default function VendorDashboardPage() {
             <h2 className="text-xl font-black mb-6" style={{ color: '#1C1C1E' }}>Profile Settings</h2>
             <div className="text-center py-12" style={{ color: '#636366' }}>
               <User size={64} style={{ color: '#E8E8E8' }} />
-              <p className="mt-4">Profile management coming soon</p>
+              <p className="mt-4">Profile settings are managed by support</p>
             </div>
           </div>
         )}
