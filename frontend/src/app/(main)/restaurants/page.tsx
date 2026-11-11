@@ -200,11 +200,12 @@ function RestaurantsPageContent() {
 
   const filtered = useMemo(() => {
     let result = restaurants.filter(r => {
+      const q = search.toLowerCase();
       if (
         search &&
-        !r.name.toLowerCase().includes(search.toLowerCase()) &&
-        !r.cuisine?.toLowerCase().includes(search.toLowerCase()) &&
-        !(r.categories || []).some((c: string) => c.toLowerCase().includes(search.toLowerCase()))
+        !String(r.name || '').toLowerCase().includes(q) &&
+        !String(r.cuisine || '').toLowerCase().includes(q) &&
+        !(r.categories || []).some((c: any) => String(c ?? '').toLowerCase().includes(q))
       ) return false;
       if (r.rating < minRating) return false;
       if (selectedCuisine !== 'All' && r.cuisine !== selectedCuisine) return false;

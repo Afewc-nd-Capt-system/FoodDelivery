@@ -180,9 +180,12 @@ async function runRole(browser, role) {
         // "Back" depends on history, "Overview" is already the active tab, and
         // "Export" downloads a file - none produce an in-page text change.
         if (/^(back|overview|export)$/i.test(control.label)) continue;
+        if (/^(copy code|copy link)$/i.test(control.label)) continue; // clipboard-only
         const beforeUrl = page.url();
         const beforeText = (await page.evaluate(() => document.body.innerText)).slice(0, 5000);
         const beforeDom = await page.evaluate(() => document.body.innerHTML.length);
+        const beforeValues = await page.evaluate(() =>
+          Array.from(document.querySelectorAll('input, textarea, select')).map((el) => el.value).join('|'));
         const beforeReqCount = allRequests.length;
         popupOpened = false;
         let clicked = false;
@@ -192,10 +195,11 @@ async function runRole(browser, role) {
               .filter((el) => {
                 const r = el.getBoundingClientRect();
                 const style = window.getComputedStyle(el);
-                return r.width > 0 && r.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+                return r.width > 0 && r.height > 0 && style.visibility !== 'hidden' && style.display !== 'none'
+                  && !el.disabled && el.getAttribute('aria-disabled') !== 'true';
               });
             const el = els[idx];
-            if (el && !el.disabled && el.getAttribute('aria-disabled') !== 'true') el.click();
+            if (el) el.click();
           }, control.idx);
           clicked = true;
         } catch { /* element detached */ }
@@ -209,9 +213,12 @@ async function runRole(browser, role) {
           madeRequest = allRequests.length > beforeReqCount;
           const afterText = (await page.evaluate(() => document.body.innerText).catch(() => '')).slice(0, 5000);
           const afterDom = await page.evaluate(() => document.body.innerHTML.length).catch(() => beforeDom);
+          const afterValues = await page.evaluate(() =>
+            Array.from(document.querySelectorAll('input, textarea, select')).map((el) => el.value).join('|')).catch(() => beforeValues);
           // Class/style toggles (filters, tabs, selection chips) change the DOM
-          // even when the visible text stays identical.
-          changed = afterText !== beforeText || afterDom !== beforeDom;
+          // even when the visible text stays identical; amount chips only set an
+          // input value.
+          changed = afterText !== beforeText || afterDom !== beforeDom || afterValues !== beforeValues;
           if (navigated || madeRequest || changed || popupOpened) break;
         }
         if (clicked && !changed && !navigated && !madeRequest && !popupOpened) {
