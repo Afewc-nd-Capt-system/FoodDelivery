@@ -57,7 +57,9 @@ export default function CateringPage() {
 
   const fetchRequests = async () => {
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       const response = await fetch(`${API_URL}/v2/catering`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         credentials: 'include',
       });
       if (response.ok) {

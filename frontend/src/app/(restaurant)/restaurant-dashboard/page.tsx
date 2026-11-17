@@ -54,7 +54,9 @@ function RestaurantDashboardPageContent() {
     const id = overrideId || restaurantId;
     if (!id) return;
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       const response = await fetch(`${API_URL}/v2/restaurant-promotions?restaurantId=${id}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         credentials: 'include',
       });
       if (response.ok) {

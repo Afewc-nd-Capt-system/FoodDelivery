@@ -19,7 +19,9 @@ export default function FavoritesPage() {
   const fetchFavorites = async () => {
     setLoading(true);
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       const response = await fetch(`${API_URL}/auth/favorites`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         credentials: 'include',
       });
       if (response.ok) {
@@ -35,8 +37,10 @@ export default function FavoritesPage() {
 
   const removeFavorite = async (restaurantId: string) => {
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       await fetch(`${API_URL}/auth/favorites/${restaurantId}`, {
         method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         credentials: 'include',
       });
       setFavorites(favorites.filter(f => f.id !== restaurantId));

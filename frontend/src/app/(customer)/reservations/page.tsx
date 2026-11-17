@@ -18,7 +18,9 @@ export default function ReservationsPage() {
   const fetchReservations = async () => {
     setLoading(true);
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       const response = await fetch(`${API_URL}/v2/reservations`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         credentials: 'include',
       });
       if (response.ok) {
