@@ -96,10 +96,16 @@ export default function ReferralPage() {
       <Card className="p-6 mb-8">
         <h3 className="font-bold mb-4">Share Your Code</h3>
         <div className="flex gap-3">
-          <Button className="bg-[#25D366] hover:bg-[#25D366]/90 text-white">
+          <Button
+            onClick={() => referralCode && window.open(`https://wa.me/?text=${encodeURIComponent(`Join me on VibeChops with my code ${referralCode}`)}`, '_blank', 'noopener,noreferrer')}
+            className="bg-[#25D366] hover:bg-[#25D366]/90 text-white"
+          >
             <MessageCircle className="w-4 h-4 mr-2" /> WhatsApp
           </Button>
-          <Button className="bg-[#1DA1F2] hover:bg-[#1DA1F2]/90 text-white">
+          <Button
+            onClick={() => referralCode && window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Join me on VibeChops with my code ${referralCode}`)}`, '_blank', 'noopener,noreferrer')}
+            className="bg-[#1DA1F2] hover:bg-[#1DA1F2]/90 text-white"
+          >
             <Twitter className="w-4 h-4 mr-2" /> Twitter
           </Button>
           <Button onClick={copyCode} className="bg-[#F5F5F5] text-[#636366] hover:bg-[#F5F5F5]/80">

@@ -170,12 +170,19 @@ async function runRole(browser, role) {
               && !el.disabled && el.getAttribute('aria-disabled') !== 'true';
           })
           .slice(0, max)
-          .map((el, i) => ({ idx: i, type: el.getAttribute('type') || '', label: (el.innerText || el.getAttribute('aria-label') || '').trim().slice(0, 40) }));
+          .map((el, i) => ({
+            idx: i,
+            type: el.getAttribute('type') || '',
+            inForm: !!el.closest('form'),
+            label: (el.innerText || el.getAttribute('aria-label') || '').trim().slice(0, 40),
+          }));
       }, MAX_CONTROLS_PER_PAGE);
 
       for (const control of controls) {
         if (!control.label || DESTRUCTIVE.test(control.label)) continue;
-        if (control.type === 'submit') continue; // native form validation is not a dead control
+        // Native form validation is not a dead control: buttons that submit a
+        // form (explicit type=submit, or the default inside a <form>).
+        if (control.type === 'submit' || (control.inForm && !control.type)) continue;
         if (/show password|hide password|show password confirmation|hide password confirmation/i.test(control.label)) continue;
         // "Back" depends on history, "Overview" is already the active tab, and
         // "Export" downloads a file - none produce an in-page text change.
@@ -190,7 +197,7 @@ async function runRole(browser, role) {
         popupOpened = false;
         let clicked = false;
         try {
-          await page.evaluate((idx) => {
+          clicked = await page.evaluate((label) => {
             const els = Array.from(document.querySelectorAll('button, [role="button"]'))
               .filter((el) => {
                 const r = el.getBoundingClientRect();
@@ -198,10 +205,13 @@ async function runRole(browser, role) {
                 return r.width > 0 && r.height > 0 && style.visibility !== 'hidden' && style.display !== 'none'
                   && !el.disabled && el.getAttribute('aria-disabled') !== 'true';
               });
-            const el = els[idx];
-            if (el) el.click();
-          }, control.idx);
-          clicked = true;
+            // Match by label, not index: earlier clicks re-render the page and
+            // shift indices, which produced false "dead control" reports.
+            const el = els.find((e) => (e.innerText || e.getAttribute('aria-label') || '').trim().slice(0, 40) === label);
+            if (!el) return false;
+            el.click();
+            return true;
+          }, control.label);
         } catch { /* element detached */ }
 
         let changed = false;
@@ -279,4 +289,5 @@ async function runRole(browser, role) {
   console.error('CRAWL failed:', error.message);
   process.exit(1);
 });
+
 

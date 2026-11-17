@@ -143,17 +143,23 @@ export default function WalletPage() {
 
         {/* Quick Actions */}
         <div className="space-y-4">
-          <Button className="w-full bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white font-black py-6 rounded-2xl">
+          <Button
+            onClick={() => document.getElementById('top-up')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+            className="w-full bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white font-black py-6 rounded-2xl"
+          >
             Top Up Wallet
           </Button>
-          <Button className="w-full bg-white border border-[#E8E8E8] text-[#636366] hover:bg-[#FFF1E8] py-6 rounded-2xl">
+          <Button
+            onClick={() => document.getElementById('transaction-history')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            className="w-full bg-white border border-[#E8E8E8] text-[#636366] hover:bg-[#FFF1E8] py-6 rounded-2xl"
+          >
             Transaction History
           </Button>
         </div>
       </div>
 
       {/* Top Up Section */}
-      <Card className="p-6 mb-8">
+      <Card id="top-up" className="p-6 mb-8">
         <h3 className="font-black mb-4">Top Up Wallet</h3>
         <div className="grid grid-cols-4 gap-3 mb-4">
           {['500', '1000', '2000', '5000'].map((amt) => (
@@ -195,7 +201,7 @@ export default function WalletPage() {
       </Card>
 
       {/* Transaction History */}
-      <Card className="p-6">
+      <Card id="transaction-history" className="p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-black">Transaction History</h3>
           <div className="flex gap-2">

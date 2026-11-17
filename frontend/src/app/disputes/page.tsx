@@ -121,6 +121,7 @@ export default function DisputesPage() {
             onClick={() => {
               setFormError('');
               setFormSuccess('');
+              document.getElementById('dispute-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }}
             className="bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white"
           >
@@ -140,7 +141,7 @@ export default function DisputesPage() {
 
       {!loading && !authRequired && (
         <>
-          <Card className="p-6 mb-8">
+          <Card id="dispute-form" className="p-6 mb-8">
             <h2 className="font-bold text-lg mb-4">Submit a Dispute</h2>
             <div className="space-y-4">
               <div>
