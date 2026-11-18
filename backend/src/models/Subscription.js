@@ -1,14 +1,23 @@
 const mongoose = require('mongoose');
 
 const subscriptionSchema = new mongoose.Schema({
+  restaurant: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Restaurant',
+    index: true,
+  },
+  vendor: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Vendor',
+    index: true,
+  },
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    index: true,
   },
   plan: {
-    type: String,
-    enum: ['vibepass-basic', 'vibepass-premium'],
+    type: mongoose.Schema.Types.Mixed,
     required: true
   },
   status: {

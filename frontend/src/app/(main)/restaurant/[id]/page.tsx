@@ -314,8 +314,11 @@ export default function RestaurantDetailPage() {
           address: typeof data.address === 'string' ? data.address : (data.address?.formattedAddress || `${data.address?.street || ''}, ${data.address?.area || ''}, ${data.address?.city || ''}`),
           distance: data.distance || '~2.5 km',
           cuisine: Array.isArray(data.cuisine) ? data.cuisine.join(', ') : (data.cuisine || 'Nigerian'),
-          deliveryFee: data.deliveryFee || 0,
-          minOrder: data.minOrder || 0,
+          deliveryFee: data.deliveryFee ?? 0,
+          minOrder: data.minOrderValue ?? data.minOrder ?? 0,
+          phone: data.phone || '',
+          description: data.description || '',
+          openingHours: Array.isArray(data.openingHours) ? data.openingHours : [],
         };
         setRestaurant(enriched);
         setMenu((data.menu || []).map((item: any) => apiMenuToMock(item, data._id, data.name)));
@@ -408,6 +411,13 @@ export default function RestaurantDetailPage() {
 
   const deliveryTotal = restaurant.deliveryFee || 0;
   const total = subtotal + deliveryTotal;
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const todayHours = (restaurant.openingHours || []).find((entry: any) => entry.day === dayNames[new Date().getDay()]);
+  const hoursLabel = todayHours
+    ? (todayHours.closed ? 'Closed today' : `Today ${todayHours.open}–${todayHours.close}`)
+    : '';
+  const minOrder = Number(restaurant.minOrder || 0);
+  const belowMinimum = minOrder > 0 && subtotal > 0 && subtotal < minOrder;
 
   return (
     <div style={{ backgroundColor: '#FFF8F0' }}>
@@ -467,7 +477,10 @@ export default function RestaurantDetailPage() {
         <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-7">
           <div className="max-w-7xl mx-auto">
             <h1 className="text-3xl sm:text-4xl font-black text-white mb-2">{restaurant.name}</h1>
-            <p className="text-white/70 text-sm mb-4">{restaurant.cuisine} • {restaurant.address}</p>
+            <p className="text-white/70 text-sm mb-2">{restaurant.cuisine} • {restaurant.address}</p>
+            {restaurant.description && (
+              <p className="text-white/60 text-xs max-w-2xl mb-3 line-clamp-2">{restaurant.description}</p>
+            )}
             <div className="flex flex-wrap gap-2.5">
               {[
                 {
@@ -477,6 +490,7 @@ export default function RestaurantDetailPage() {
                 },
                 { icon: Clock, text: restaurant.deliveryTime, bg: 'rgba(0,0,0,0.3)' },
                 { icon: MapPin, text: restaurant.distance, bg: 'rgba(0,0,0,0.3)' },
+                ...(hoursLabel ? [{ icon: Clock, text: hoursLabel, bg: 'rgba(0,0,0,0.3)' }] : []),
               ].map(badge => (
                 <div
                   key={badge.text}
@@ -776,8 +790,19 @@ export default function RestaurantDetailPage() {
                       </div>
                       <div className="flex justify-between text-xs">
                         <span style={{ color: '#A0A0A0' }}>Delivery</span>
-                        <span className="font-semibold" style={{ color: '#1C1C1E' }}>₦{deliveryTotal}</span>
+                        <span className="font-semibold" style={{ color: '#1C1C1E' }}>₦{Number(deliveryTotal).toLocaleString()}</span>
                       </div>
+                      {minOrder > 0 && (
+                        <div className="flex justify-between text-xs">
+                          <span style={{ color: '#A0A0A0' }}>Minimum order</span>
+                          <span className="font-semibold" style={{ color: '#1C1C1E' }}>₦{minOrder.toLocaleString()}</span>
+                        </div>
+                      )}
+                      {belowMinimum && (
+                        <p className="text-xs" style={{ color: '#D32F2F' }}>
+                          Add ₦{(minOrder - subtotal).toLocaleString()} more to reach the minimum order.
+                        </p>
+                      )}
                       <div
                         className="flex justify-between font-black pt-2 border-t"
                         style={{ borderColor: '#F0EAE0' }}
@@ -787,8 +812,13 @@ export default function RestaurantDetailPage() {
                       </div>
                       <button
                         onClick={() => router.push('/cart')}
+                        disabled={belowMinimum}
                         className="w-full py-3.5 rounded-2xl text-white font-black text-sm mt-1 transition-all hover:scale-[1.02] active:scale-[0.98]"
-                        style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)', boxShadow: '0 6px 20px rgba(232,98,26,0.35)' }}
+                        style={{
+                          background: belowMinimum ? '#C7C7CC' : 'linear-gradient(135deg, #E8621A, #C4501A)',
+                          boxShadow: belowMinimum ? 'none' : '0 6px 20px rgba(232,98,26,0.35)',
+                          cursor: belowMinimum ? 'not-allowed' : 'pointer',
+                        }}
                       >
                         Checkout →
                       </button>
@@ -801,12 +831,23 @@ export default function RestaurantDetailPage() {
                   className="px-4 pb-4 flex items-center gap-3 pt-3 border-t"
                   style={{ borderColor: '#F0EAE0' }}
                 >
-                  <button
-                    className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold border transition-colors hover:bg-orange-50"
-                    style={{ borderColor: '#E8E8E8', color: '#636366' }}
-                  >
-                    <Phone size={13} /> Call Restaurant
-                  </button>
+                  {restaurant.phone ? (
+                    <a
+                      href={`tel:${restaurant.phone}`}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold border transition-colors hover:bg-orange-50"
+                      style={{ borderColor: '#E8E8E8', color: '#636366' }}
+                    >
+                      <Phone size={13} /> Call Restaurant
+                    </a>
+                  ) : (
+                    <button
+                      disabled
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold border opacity-50"
+                      style={{ borderColor: '#E8E8E8', color: '#636366' }}
+                    >
+                      <Phone size={13} /> Call Restaurant
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

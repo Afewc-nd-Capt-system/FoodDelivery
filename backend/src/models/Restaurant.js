@@ -76,6 +76,7 @@ const menuItemSchema = new mongoose.Schema({
   podMinQuantity: { type: Number, default: 1 },
   popular: { type: Boolean, default: false },
   calories: { type: String, default: '' },
+  sortOrder: { type: Number, default: 0 },
 });
 
 const reviewSchema = new mongoose.Schema({
@@ -114,6 +115,37 @@ const restaurantSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  email: {
+    type: String,
+    lowercase: true,
+    trim: true,
+  },
+  phone: {
+    type: String,
+    trim: true,
+  },
+  isActive: {
+    type: Boolean,
+    default: true,
+  },
+  isApproved: {
+    type: Boolean,
+    default: false,
+  },
+  minOrderValue: {
+    type: Number,
+    default: null,
+  },
+  openingHours: [{
+    day: {
+      type: String,
+      enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+      required: true,
+    },
+    open: { type: String, default: '09:00' },
+    close: { type: String, default: '21:00' },
+    closed: { type: Boolean, default: false },
+  }],
   image: {
     type: String,
     default: '',

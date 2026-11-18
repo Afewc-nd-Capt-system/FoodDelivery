@@ -139,4 +139,19 @@ router.get('/invitations', async (req, res) => {
   }
 });
 
+// DELETE /api/v2/admin/applications/:id — remove a test/duplicate application
+// and any invitation it issued (used by the production e2e cleanup).
+router.delete('/:id', async (req, res) => {
+  try {
+    const application = await PartnerApplication.findByIdAndDelete(req.params.id);
+    if (!application) {
+      return res.status(404).json({ success: false, message: 'Application not found' });
+    }
+    await PartnerInvitation.deleteMany({ application: application._id }).catch(() => {});
+    res.json({ success: true, deleted: String(application._id) });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+});
+
 module.exports = router;

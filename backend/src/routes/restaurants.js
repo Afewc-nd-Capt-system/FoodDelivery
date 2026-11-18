@@ -89,7 +89,7 @@ router.post('/register', xssProtection, async (req, res) => {
       verificationStatus: 'pending_verification',
       isApproved: false,
       isActive: true,
-      isOpen: true,
+      isOpen: false,
       tinNumber,
       rcNumber,
       documents,

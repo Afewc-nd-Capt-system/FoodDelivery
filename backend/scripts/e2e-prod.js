@@ -69,6 +69,18 @@ const tokens = {};
 const refreshTokens = {};
 const users = {};
 let ownRestaurantId = null;
+let selfService = null;
+
+// Every record this run creates is tracked here and removed in a finally block
+// so a failed check can never leave test accounts, restaurants or orders in
+// production.
+const created = {
+  users: new Set(),
+  restaurants: new Set(),
+  vendors: new Set(),
+  orders: new Set(),
+  applications: new Set(),
+};
 
 function log(message) {
   console.log(message);
@@ -176,7 +188,59 @@ async function requestStep(name, fn) {
   }
 }
 
-async function main() {
+// Best-effort teardown that always runs. Orders are removed first (they
+// reference restaurants/users), then restaurants/vendors, then users, then the
+// applications that issued invitations.
+async function cleanupProduction() {
+  if (created.orders.size === 0 && created.restaurants.size === 0
+    && created.vendors.size === 0 && created.users.size === 0
+    && created.applications.size === 0) {
+    return;
+  }
+
+  let token = tokens.admin;
+  if (!token) {
+    try { token = (await login('admin')).body.token; } catch { /* nothing to clean with */ }
+  }
+  if (!token) {
+    log('[cleanup] no admin token; skipping production cleanup');
+    return;
+  }
+
+  const attempt = async (label, pathname) => {
+    for (let pass = 0; pass < 2; pass += 1) {
+      try {
+        const result = await api(pathname, { method: 'DELETE', token });
+        if (result.status === 401 && pass === 0) {
+          try { token = (await login('admin')).body.token; } catch { /* retry once */ }
+          continue;
+        }
+        if (![200, 404].includes(result.status)) {
+          log(`[cleanup] ${label} returned ${result.status}: ${String(result.text).slice(0, 160)}`);
+        }
+        return;
+      } catch (error) {
+        log(`[cleanup] ${label} failed: ${error.message}`);
+        return;
+      }
+    }
+  };
+
+  for (const id of created.orders) await attempt(`order ${id}`, `/admin/orders/${id}`);
+  for (const id of created.restaurants) await attempt(`restaurant ${id}`, `/restaurants/${id}`);
+  for (const id of created.vendors) await attempt(`vendor ${id}`, `/vendors/${id}`);
+  for (const id of created.users) await attempt(`user ${id}`, `/users/${id}`);
+  for (const id of created.applications) await attempt(`application ${id}`, `/admin/applications/${id}`);
+
+  created.orders.clear();
+  created.restaurants.clear();
+  created.vendors.clear();
+  created.users.clear();
+  created.applications.clear();
+  log('[cleanup] production test records removed');
+}
+
+async function runScenario() {
   if (!PAYSTACK_SECRET_KEY) {
     throw new Error('PAYSTACK_SECRET_KEY is required in .env.e2e or the environment');
   }
@@ -256,6 +320,7 @@ async function main() {
       'register 201 missing ACAO'
     );
     registeredUserId = result.body?.user?._id || result.body?.user?.id || null;
+    if (registeredUserId) created.users.add(String(registeredUserId));
     // The welcome email is dispatched fire-and-forget (SMTP client has 10-15s
     // timeouts). Registration latency itself is dominated by bcrypt hashing,
     // so allow cold-start headroom; the warm call below is the tighter bound.
@@ -272,9 +337,10 @@ async function main() {
       },
     });
     const warmElapsed = Date.now() - warmStarted;
+    const warmUserId = warm.body?.user?._id || warm.body?.user?.id;
+    if (warmUserId) created.users.add(String(warmUserId));
     assert(warm.status === 201, `warm register returned ${warm.status}: ${warm.text}`);
     assert(warmElapsed < 12000, `warm register took ${warmElapsed}ms — email is blocking the response`);
-    const warmUserId = warm.body?.user?._id || warm.body?.user?.id;
     if (warmUserId) {
       await api(`/users/${warmUserId}`, { method: 'DELETE', token: tokens.admin });
     }
@@ -338,6 +404,7 @@ async function main() {
       });
       if (result.status === 201) {
         probeUserId = result.body?.user?._id || result.body?.user?.id || null;
+        if (probeUserId) created.users.add(String(probeUserId));
       }
       if (result.status === 429) {
         saw429 = result;
@@ -448,11 +515,13 @@ async function main() {
       },
     });
     assert(contact.status === 200, `contact returned ${contact.status}: ${contact.text}`);
+    if (contact.body?.applicationId) created.applications.add(String(contact.body.applicationId));
 
     const listed = await api('/admin/applications?status=pending&limit=100', { token: tokens.admin });
     assert(listed.status === 200, `applications list returned ${listed.status}`);
     const application = (listed.body?.data || []).find((a) => a.email === inviteEmail);
     assert(application, 'application was not stored');
+    created.applications.add(String(application._id));
 
     const approved = await api(`/admin/applications/${application._id}/approve`, {
       method: 'POST',
@@ -470,13 +539,15 @@ async function main() {
   await requestStep('used and expired invitation tokens are rejected', async () => {
     // Expired: create a second application, approve with a 1s TTL, wait it out.
     const email = `invite-expired-${Date.now()}@example.com`;
-    await api('/contact', {
+    const expiredContact = await api('/contact', {
       method: 'POST',
       body: { name: 'Expired E2E', email, phone: '+2348012345678', type: 'vendor', businessName: 'Expired E2E Kitchen', city: 'Lagos', state: 'Lagos' },
     });
+    if (expiredContact.body?.applicationId) created.applications.add(String(expiredContact.body.applicationId));
     const listed = await api('/admin/applications?status=pending&limit=100', { token: tokens.admin });
     const application = (listed.body?.data || []).find((a) => a.email === email);
     assert(application, 'expired-test application was not stored');
+    created.applications.add(String(application._id));
     const approved = await api(`/admin/applications/${application._id}/approve`, {
       method: 'POST',
       token: tokens.admin,
@@ -517,6 +588,8 @@ async function main() {
         invitationToken: vendorInviteToken,
       },
     });
+    if (register.body?.user?._id) created.users.add(String(register.body.user._id));
+    if (register.body?.vendor?.id) created.vendors.add(String(register.body.vendor.id));
     assert(register.status === 201, `invited register returned ${register.status}: ${register.text}`);
     assert(register.body?.token, 'invited register returned no session');
 
@@ -539,13 +612,15 @@ async function main() {
   await requestStep('restaurant registration requires CAC/RC/TIN documents', async () => {
     // Issue a restaurant invitation.
     const email = `invite-restaurant-${Date.now()}@example.com`;
-    await api('/contact', {
+    const restaurantContact = await api('/contact', {
       method: 'POST',
       body: { name: 'Restaurant E2E', email, phone: '+2348012345678', type: 'restaurant', businessName: 'Docs Required Restaurant', city: 'Lagos', state: 'Lagos' },
     });
+    if (restaurantContact.body?.applicationId) created.applications.add(String(restaurantContact.body.applicationId));
     const listed = await api('/admin/applications?status=pending&limit=100', { token: tokens.admin });
     const application = (listed.body?.data || []).find((a) => a.email === email);
     assert(application, 'restaurant application was not stored');
+    created.applications.add(String(application._id));
     const approved = await api(`/admin/applications/${application._id}/approve`, {
       method: 'POST', token: tokens.admin, body: {},
     });
@@ -570,9 +645,180 @@ async function main() {
         documents: { cacCertificate: { url: '/api/v2/restaurants/docs/fake-cac.pdf' }, governmentApproval: null },
       },
     });
+    selfService = {
+      restaurantId: String(withDocs.body?.restaurant?.id || ''),
+      ownerToken: withDocs.body.token,
+      userId: String(withDocs.body?.user?._id || ''),
+    };
+    if (selfService.restaurantId) created.restaurants.add(selfService.restaurantId);
+    if (selfService.userId) created.users.add(selfService.userId);
     assert(withDocs.status === 201, `restaurant with docs returned ${withDocs.status}: ${withDocs.text}`);
     assert(/pending_verification/i.test(JSON.stringify(withDocs.body?.restaurant || {})), 'restaurant is not pending verification');
+    assert(withDocs.body?.token, 'restaurant registration returned no session');
+    assert(selfService.restaurantId, 'restaurant registration returned no restaurant id');
     return '400 without docs, 201 pending with docs';
+  });
+
+  // ---- Restaurant self-service: brand-new invitation -> approved -> live ----
+  await requestStep('self-service: owner sees a pending restaurant before approval', async () => {
+    assert(selfService, 'self-service restaurant was not created');
+    const me = await api('/restaurant/me', { token: selfService.ownerToken });
+    assert(me.status === 200, `/restaurant/me returned ${me.status}: ${me.text}`);
+    const restaurant = me.body?.restaurant;
+    assert(restaurant, 'no restaurant for the owner');
+    assert(String(restaurant._id) === selfService.restaurantId, 'restaurant is not owned by the registrant');
+    assert(restaurant.isOpen === false, 'new restaurant should be closed');
+    assert(/pending_verification/i.test(String(restaurant.verificationStatus)), 'restaurant should be pending');
+    const open = await api('/restaurant/me/profile', {
+      method: 'PATCH', token: selfService.ownerToken, body: { isOpen: true },
+    });
+    assert(open.status === 403, `opening before approval returned ${open.status}: ${open.text}`);
+    return `restaurant=${selfService.restaurantId.slice(-6)} pending+closed`;
+  });
+
+  await requestStep('self-service: admin approval unlocks profile and go-live', async () => {
+    const approved = await api(`/admin/approvals/restaurants/${selfService.restaurantId}/approve`, {
+      method: 'PATCH', token: tokens.admin, body: {},
+    });
+    assert(approved.status === 200, `approval returned ${approved.status}: ${approved.text}`);
+
+    const noFees = await api('/restaurant/me/profile', {
+      method: 'PATCH', token: selfService.ownerToken, body: { isOpen: true },
+    });
+    assert(noFees.status === 400, `opening without fees returned ${noFees.status}: ${noFees.text}`);
+
+    const profile = await api('/restaurant/me/profile', {
+      method: 'PATCH',
+      token: selfService.ownerToken,
+      body: {
+        name: 'E2E Self Service Kitchen',
+        description: 'Self-service e2e kitchen',
+        cuisine: ['Nigerian'],
+        phone: '+2348098765432',
+        deliveryTime: '25-40 min',
+        deliveryFee: 250,
+        minOrderValue: 1000,
+        image: 'https://example.com/e2e-cover.jpg',
+        address: { street: '1 E2E Road', area: 'Ikeja', city: 'Lagos', state: 'Lagos', country: 'Nigeria' },
+        location: { coordinates: [3.3792, 6.5244] },
+        openingHours: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+          .map((day) => ({ day, open: '09:00', close: '21:00', closed: false })),
+      },
+    });
+    assert(profile.status === 200, `profile returned ${profile.status}: ${profile.text}`);
+    assert(Number(profile.body?.restaurant?.deliveryFee) === 250, 'delivery fee not saved');
+    assert(Number(profile.body?.restaurant?.minOrderValue) === 1000, 'minimum order not saved');
+
+    const open = await api('/restaurant/me/profile', {
+      method: 'PATCH', token: selfService.ownerToken, body: { isOpen: true },
+    });
+    assert(open.status === 200 && open.body?.restaurant?.isOpen === true, `opening returned ${open.status}: ${open.text}`);
+
+    const publicRestaurant = await api(`/restaurants/${selfService.restaurantId}`);
+    assert(publicRestaurant.status === 200, `public restaurant returned ${publicRestaurant.status}`);
+    assert(Number(publicRestaurant.body?.deliveryFee) === 250, 'public delivery fee missing');
+    assert(Number(publicRestaurant.body?.minOrderValue) === 1000, 'public minimum order missing');
+    return 'profile saved, opened, public values visible';
+  });
+
+  await requestStep('self-service: menu item with a required option is saved', async () => {
+    const createdItem = await api('/restaurant/me/menu', {
+      method: 'POST',
+      token: selfService.ownerToken,
+      body: {
+        name: 'E2E Jollof Special',
+        description: 'Jollof with a required size',
+        price: 1500,
+        category: 'Rice',
+        image: 'https://example.com/e2e-jollof.jpg',
+        isAvailable: true,
+        popular: true,
+        customizationOptions: [{
+          name: 'Size',
+          type: 'single',
+          required: true,
+          options: [{ name: 'Regular', price: 0 }, { name: 'Large', price: 300 }],
+        }],
+      },
+    });
+    assert(createdItem.status === 201, `menu create returned ${createdItem.status}: ${createdItem.text}`);
+    selfService.itemId = String(createdItem.body?.item?._id || '');
+    assert(selfService.itemId, 'menu item has no id');
+    assert(createdItem.body?.item?.customizationOptions?.[0]?.required === true, 'required option not saved');
+
+    const toggle = await api(`/restaurant/me/menu/${selfService.itemId}`, {
+      method: 'PATCH', token: selfService.ownerToken, body: { isAvailable: false },
+    });
+    assert(toggle.status === 200, `availability toggle returned ${toggle.status}`);
+
+    const reorder = await api('/restaurant/me/menu/reorder', {
+      method: 'POST', token: selfService.ownerToken, body: { order: [selfService.itemId] },
+    });
+    assert(reorder.status === 200, `reorder returned ${reorder.status}: ${reorder.text}`);
+    return `item=${selfService.itemId.slice(-6)}`;
+  });
+
+  await requestStep('self-service: customer order prices the required option', async () => {
+    assert(selfService?.itemId, 'no menu item to order');
+    const missing = await api('/orders', {
+      method: 'POST',
+      token: tokens.customer,
+      body: {
+        restaurantId: selfService.restaurantId,
+        items: [{ menuItem: selfService.itemId, quantity: 1 }],
+        deliveryAddress: '12 E2E Street, Lagos',
+        paymentMethod: 'cash',
+      },
+    });
+    assert(missing.status === 400, `order without required option returned ${missing.status}: ${missing.text}`);
+
+    const order = await api('/orders', {
+      method: 'POST',
+      token: tokens.customer,
+      body: {
+        restaurantId: selfService.restaurantId,
+        items: [{
+          menuItem: selfService.itemId,
+          quantity: 2,
+          customizations: [{ name: 'Size', option: 'Large' }],
+        }],
+        deliveryAddress: '12 E2E Street, Lagos',
+        paymentMethod: 'cash',
+      },
+    });
+    assert(order.status === 201, `order returned ${order.status}: ${order.text}`);
+    assert(Number(order.body?.order?.subtotal) === 3600, `subtotal was ${order.body?.order?.subtotal}`);
+    assert(Number(order.body?.order?.totalAmount) === 3850, `total was ${order.body?.order?.totalAmount}`);
+    if (order.body?.order?._id) created.orders.add(String(order.body.order._id));
+    return 'subtotal=3600 total=3850';
+  });
+
+  await requestStep('self-service: restaurant A cannot read or change B', async () => {
+    const list = await api('/restaurants?limit=50');
+    assert(list.status === 200, `restaurants list returned ${list.status}`);
+    const foreign = (list.body?.restaurants || list.body?.data || list.body || [])
+      .map((r) => ({ id: r._id || r.id, name: r.name }))
+      .find((r) => r.id && String(r.id) !== String(selfService.restaurantId));
+    assert(foreign, 'no foreign restaurant found');
+
+    const read = await api(`/restaurant/${foreign.id}`, { token: selfService.ownerToken });
+    assert(read.status === 403, `reading B returned ${read.status}`);
+    const menu = await api(`/restaurant/${foreign.id}/menu/manage`, { token: selfService.ownerToken });
+    assert(menu.status === 403, `reading B menu returned ${menu.status}`);
+    const update = await api(`/restaurant/${foreign.id}`, {
+      method: 'PUT', token: selfService.ownerToken, body: { name: 'Hijacked' },
+    });
+    assert(update.status === 403, `updating B returned ${update.status}`);
+
+    const foreignDetail = await api(`/restaurants/${foreign.id}`);
+    const foreignItemId = (foreignDetail.body?.menu || [])[0]?._id;
+    if (foreignItemId) {
+      const itemUpdate = await api(`/restaurant/me/menu/${foreignItemId}`, {
+        method: 'PUT', token: selfService.ownerToken, body: { name: 'Hijacked Item' },
+      });
+      assert(itemUpdate.status === 403, `updating B's item returned ${itemUpdate.status}`);
+    }
+    return `foreign=${foreign.name} read/update 403`;
   });
 
   // ---- CORS: exact allowlist, allowed origins only ----
@@ -1463,10 +1709,20 @@ async function main() {
 
   const failures = results.filter((result) => !result.passed);
   log(`\n${failures.length === 0 ? 'E2E PASS' : 'E2E FAIL'} — ${results.length - failures.length}/${results.length} checks`);
-  if (failures.length) process.exit(1);
+  if (failures.length) throw new Error(`${failures.length} check(s) failed`);
 }
 
-main().catch((error) => {
+async function main() {
+  try {
+    await runScenario();
+  } finally {
+    await cleanupProduction();
+  }
+}
+
+main().then(() => {
+  process.exit(0);
+}).catch((error) => {
   const failures = results.filter((result) => !result.passed);
   log(`\nE2E FAIL — ${results.length - failures.length}/${results.length} checks`);
   console.error(error.message);

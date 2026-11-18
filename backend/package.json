@@ -18,6 +18,7 @@
     "migrate": "node src/migrations/run.js",
     "migrate:list": "node src/migrations/run.js --list",
     "test": "jest --testPathPattern=tests",
+    "test:local": "node scripts/test-local.js",
     "test:e2e": "node scripts/e2e-prod.js",
     "check:domain": "node scripts/check-domain.js",
     "security:secrets": "node scripts/secret-scan.js",
