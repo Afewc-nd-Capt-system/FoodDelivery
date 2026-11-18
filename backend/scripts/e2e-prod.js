@@ -750,6 +750,13 @@ async function runScenario() {
       method: 'PATCH', token: selfService.ownerToken, body: { isAvailable: false },
     });
     assert(toggle.status === 200, `availability toggle returned ${toggle.status}`);
+    assert(toggle.body?.item?.isAvailable === false, 'availability toggle was not saved');
+
+    const reEnable = await api(`/restaurant/me/menu/${selfService.itemId}`, {
+      method: 'PATCH', token: selfService.ownerToken, body: { isAvailable: true },
+    });
+    assert(reEnable.status === 200, `availability re-enable returned ${reEnable.status}`);
+    assert(reEnable.body?.item?.isAvailable === true, 'availability re-enable was not saved');
 
     const reorder = await api('/restaurant/me/menu/reorder', {
       method: 'POST', token: selfService.ownerToken, body: { order: [selfService.itemId] },
