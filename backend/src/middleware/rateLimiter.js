@@ -40,7 +40,10 @@ const apiLimiter = disabled
   ? (req, res, next) => next()
   : rateLimit({
       windowMs: 15 * 60 * 1000,
-      max: 100,
+      // 100 requests per 15 minutes throttled ordinary SPA traffic (the
+      // dashboard polls orders/notifications and the production e2e needs
+      // ~150 calls). Keep a firm ceiling but allow normal usage.
+      max: 600,
       handler: limitHandler('Too many requests.'),
       store: new RedisRateLimitStore('rl:api:'),
       standardHeaders: true,

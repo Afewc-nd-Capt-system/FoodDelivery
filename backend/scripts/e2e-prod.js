@@ -190,12 +190,13 @@ async function requestStep(name, fn) {
 
 // Best-effort teardown that always runs. Orders are removed first (they
 // reference restaurants/users), then restaurants/vendors, then users, then the
-// applications that issued invitations.
+// applications that issued invitations. A 429 from the API limiter is waited
+// out and retried so a failing run can never leave records behind.
 async function cleanupProduction() {
   if (created.orders.size === 0 && created.restaurants.size === 0
     && created.vendors.size === 0 && created.users.size === 0
     && created.applications.size === 0) {
-    return;
+    return true;
   }
 
   let token = tokens.admin;
@@ -204,33 +205,62 @@ async function cleanupProduction() {
   }
   if (!token) {
     log('[cleanup] no admin token; skipping production cleanup');
-    return;
+    return false;
   }
 
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
   const attempt = async (label, pathname) => {
-    for (let pass = 0; pass < 2; pass += 1) {
+    for (let pass = 0; pass < 6; pass += 1) {
       try {
         const result = await api(pathname, { method: 'DELETE', token });
-        if (result.status === 401 && pass === 0) {
-          try { token = (await login('admin')).body.token; } catch { /* retry once */ }
+        if (result.status === 401) {
+          try { token = (await login('admin')).body.token; } catch { /* retry below */ }
+          await sleep(1000);
           continue;
         }
-        if (![200, 404].includes(result.status)) {
-          log(`[cleanup] ${label} returned ${result.status}: ${String(result.text).slice(0, 160)}`);
+        if (result.status === 429) {
+          const retryAfter = Number(result.body?.retryAfterSeconds) || 60;
+          const waitMs = Math.min(Math.max(retryAfter, 5), 900) * 1000;
+          log(`[cleanup] rate limited; waiting ${Math.round(waitMs / 1000)}s to retry ${label}`);
+          await sleep(waitMs);
+          continue;
         }
-        return;
+        if ([200, 404].includes(result.status)) return true;
+        log(`[cleanup] ${label} returned ${result.status}: ${String(result.text).slice(0, 160)}`);
+        return false;
       } catch (error) {
         log(`[cleanup] ${label} failed: ${error.message}`);
-        return;
+        await sleep(2000);
       }
     }
+    return false;
   };
 
-  for (const id of created.orders) await attempt(`order ${id}`, `/admin/orders/${id}`);
-  for (const id of created.restaurants) await attempt(`restaurant ${id}`, `/restaurants/${id}`);
-  for (const id of created.vendors) await attempt(`vendor ${id}`, `/vendors/${id}`);
-  for (const id of created.users) await attempt(`user ${id}`, `/users/${id}`);
-  for (const id of created.applications) await attempt(`application ${id}`, `/admin/applications/${id}`);
+  let ok = true;
+  for (const id of created.orders) {
+    if (!(await attempt(`order ${id}`, `/admin/orders/${id}`))) ok = false;
+  }
+  for (const id of created.restaurants) {
+    if (!(await attempt(`restaurant ${id}`, `/restaurants/${id}`))) ok = false;
+  }
+  for (const id of created.vendors) {
+    if (!(await attempt(`vendor ${id}`, `/vendors/${id}`))) ok = false;
+  }
+  for (const id of created.users) {
+    if (!(await attempt(`user ${id}`, `/users/${id}`))) ok = false;
+  }
+  for (const id of created.applications) {
+    if (!(await attempt(`application ${id}`, `/admin/applications/${id}`))) ok = false;
+  }
+
+  if (!ok) {
+    log('[cleanup] WARNING: some test records could not be removed; ids left in this run:');
+    for (const [kind, ids] of Object.entries(created)) {
+      if (ids.size) log(`[cleanup]   ${kind}: ${[...ids].join(', ')}`);
+    }
+    return false;
+  }
 
   created.orders.clear();
   created.restaurants.clear();
@@ -238,6 +268,7 @@ async function cleanupProduction() {
   created.users.clear();
   created.applications.clear();
   log('[cleanup] production test records removed');
+  return true;
 }
 
 async function runScenario() {
@@ -1720,11 +1751,15 @@ async function runScenario() {
 }
 
 async function main() {
+  let scenarioError = null;
   try {
     await runScenario();
-  } finally {
-    await cleanupProduction();
+  } catch (error) {
+    scenarioError = error;
   }
+  const cleanupOk = await cleanupProduction();
+  if (scenarioError) throw scenarioError;
+  if (!cleanupOk) throw new Error('cleanup could not remove every test record');
 }
 
 main().then(() => {
