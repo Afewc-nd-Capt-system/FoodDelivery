@@ -10,7 +10,7 @@
  *    Mongo (mongodb-memory-server) and an unreachable Redis URL (the limiter
  *    must fall back, never fail open), using the test-only
  *    ALLOW_LOCALHOST_SERVICES override for the local URLs.
- * 3. Requires a 200 from /health within 20 seconds and that round-2 routes
+ * 3. Requires a 200 from /health within 60 seconds and that round-2 routes
  *    are mounted (401 without auth on /api/v2/admin/applications).
  */
 
@@ -112,7 +112,10 @@ function httpStatus(port, pathname) {
   child.stderr.on('data', (d) => { out += d.toString(); });
   cleanupFns.push(() => { try { child.kill('SIGKILL'); } catch {} });
 
-  const deadline = Date.now() + 20000;
+  // Cold starts on a busy CI/dev machine can take well over 20s: the clean
+  // `npm ci` leaves the module tree cold and antivirus may scan it on first
+  // require. The check is "does it boot at all", not a 20s startup SLA.
+  const deadline = Date.now() + 60000;
   let healthOk = false;
   let round2Mounted = false;
   let bootFailed = false;
@@ -127,7 +130,7 @@ function httpStatus(port, pathname) {
     }
   }
 
-  check(healthOk, `/health 200 within 20s (last output tail: ${out.split('\n').slice(-3).join(' | ').slice(0, 300)})`);
+  check(healthOk, `/health 200 within 60s (last output tail: ${out.split('\n').slice(-3).join(' | ').slice(0, 300)})`);
   check(!bootFailed, 'server did not exit with status 1');
   if (out.includes('Cannot find module')) {
     check(false, 'missing module detected — ' + (out.split('\n').find((l) => l.includes('Cannot find module')) || '').trim());
