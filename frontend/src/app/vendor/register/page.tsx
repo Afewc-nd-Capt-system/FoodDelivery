@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiPost } from '@/lib/apiClient';
+import { useAuth } from '@/context/AuthContext';
 
 const nigerianStates = [
   'Abia', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa',
@@ -15,6 +16,7 @@ const nigerianStates = [
 
 export default function VendorRegisterPage() {
   const router = useRouter();
+  const { applySession } = useAuth();
   const [inviteToken, setInviteToken] = useState('');
   useEffect(() => {
     setInviteToken(new URLSearchParams(window.location.search).get('invite') || '');
@@ -118,13 +120,7 @@ export default function VendorRegisterPage() {
       });
 
       // The API returns a signed-in session for the new vendor owner.
-      if (data?.token) {
-        localStorage.setItem('token', data.token);
-        if (data.user) {
-          localStorage.setItem('user', JSON.stringify(data.user));
-          localStorage.setItem('userRole', data.user.role || 'vendor');
-        }
-      }
+      if (data?.token) applySession(data);
       router.push('/vendor-dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');

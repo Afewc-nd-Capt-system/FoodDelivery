@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { User, Mail, Lock, Phone } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { resolvePostAuthPath, sanitizeNextPath } from '@/lib/authClient';
 
 export default function RegisterPage() {
   const [name, setName] = useState('');
@@ -22,8 +23,11 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      await register(name, email, password, phone);
-      router.push('/');
+      const next = typeof window !== 'undefined'
+        ? sanitizeNextPath(new URLSearchParams(window.location.search).get('next'))
+        : null;
+      const user = await register({ name: name.trim(), email: email.trim(), password, phone: phone.trim() || undefined });
+      router.replace(resolvePostAuthPath(user, next));
     } catch (err: any) {
       setError(err.message || 'Registration failed');
     } finally {
@@ -55,6 +59,7 @@ export default function RegisterPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Enter your name"
+                autoComplete="name"
                 className="input-field pl-10"
                 required
               />
@@ -70,6 +75,7 @@ export default function RegisterPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email"
+                autoComplete="email"
                 className="input-field pl-10"
                 required
               />
@@ -85,6 +91,7 @@ export default function RegisterPage() {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="Enter your phone"
+                autoComplete="tel"
                 className="input-field pl-10"
               />
             </div>
@@ -98,8 +105,9 @@ export default function RegisterPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Min 6 characters"
-                minLength={6}
+                placeholder="Min 8 characters"
+                minLength={8}
+                autoComplete="new-password"
                 className="input-field pl-10"
                 required
               />

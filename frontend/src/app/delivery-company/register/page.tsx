@@ -4,9 +4,11 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiPost } from '@/lib/apiClient';
+import { useAuth } from '@/context/AuthContext';
 
 export default function DeliveryCompanyRegisterPage() {
   const router = useRouter();
+  const { applySession } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -36,13 +38,7 @@ export default function DeliveryCompanyRegisterPage() {
         invitationToken: inviteToken,
       });
 
-      if (data?.token) {
-        localStorage.setItem('token', data.token);
-        if (data.user) {
-          localStorage.setItem('user', JSON.stringify(data.user));
-          localStorage.setItem('userRole', data.user.role || 'delivery_company');
-        }
-      }
+      if (data?.token) applySession(data);
       router.push('/delivery-company-dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');

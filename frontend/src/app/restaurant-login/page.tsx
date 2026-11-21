@@ -2,11 +2,11 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { API_V2 } from '@/lib/apiBase'
-import { completeMfaIfRequired, persistAuthSession } from '@/lib/authClient'
+import { useAuth } from '@/context/AuthContext'
 
 export default function RestaurantLogin() {
   const router = useRouter()
+  const { login, logout } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -20,25 +20,10 @@ export default function RestaurantLogin() {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(
-        `${API_V2}/auth/login`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-        }
-      )
-      let data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.message || 'Login failed')
-      data = await completeMfaIfRequired(data)
-      if (data.user?.role !== 'restaurant') {
+      const user = await login(email.trim(), password)
+      if (user?.role !== 'restaurant') {
+        await logout()
         throw new Error('Access denied. Restaurant partners only.')
-      }
-      persistAuthSession(data)
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('token', data.token)
-        localStorage.setItem('user', JSON.stringify(data.user))
-        localStorage.setItem('userRole', data.user.role)
       }
       router.push('/restaurant-dashboard')
     } catch (err: any) {

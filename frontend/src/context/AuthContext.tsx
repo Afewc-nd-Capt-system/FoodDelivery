@@ -1,14 +1,19 @@
 'use client'
 import {
-  createContext, useContext, useState,
-  useEffect, useCallback, type ReactNode
+  createContext, useContext, useState, useEffect, useCallback, useRef,
+  type ReactNode
 } from 'react'
 
 import { API_V2 as BACKEND } from '@/lib/apiBase'
-import { completeMfaIfRequired, persistAuthSession, clearAuthSession } from '@/lib/authClient'
+import {
+  completeMfaIfRequired, persistAuthSession, clearAuthSession, readStoredAuth,
+  refreshAccessToken, setSessionMessage, takeSessionMessage, AUTH_CHANGED_EVENT,
+  type AuthPayload,
+} from '@/lib/authClient'
 
-interface User {
-  _id: string
+export interface User {
+  _id?: string
+  id?: string
   name: string
   email: string
   phone?: string
@@ -19,114 +24,248 @@ interface User {
     city?: string
     state?: string
     zipCode?: string
+    country?: string
+  }
+  addresses?: Array<{
+    _id?: string
+    label?: string
+    street?: string
+    city?: string
+    state?: string
+    zipCode?: string
+    country?: string
+    isDefault?: boolean
+  }>
+  notificationPreferences?: {
+    orderUpdates?: boolean
+    promotions?: boolean
+    loyaltyUpdates?: boolean
   }
   dietaryPreferences?: string[]
   isVibePassMember?: boolean
+  loyaltyPoints?: number
+  referralCode?: string
+}
+
+export interface RegisterInput {
+  name: string
+  email: string
+  password: string
+  phone?: string
+  confirmPassword?: string
+  dietaryPreferences?: string[]
 }
 
 interface AuthContextType {
   user: User | null
   token: string | null
   loading: boolean
-  register: (name: string, email: string, password: string, phone?: string) => Promise<User>
+  sessionMessage: string
+  register: (input: RegisterInput) => Promise<User>
   login: (email: string, password: string) => Promise<User>
-  logout: () => void
+  applySession: (data: AuthPayload) => User | null
+  logout: (redirectTo?: string) => Promise<void>
   updateUser: (userData: User) => void
+  refreshSession: () => Promise<boolean>
+  clearSessionMessage: () => void
   isAuthenticated: boolean
 }
 
 const AuthContext = createContext<AuthContextType>({
-  user: null, token: null, loading: true,
+  user: null, token: null, loading: true, sessionMessage: '',
   register: async () => { throw new Error('Not initialized') },
   login: async () => { throw new Error('Not initialized') },
-  logout: () => {},
+  applySession: () => null,
+  logout: async () => {},
   updateUser: () => {},
+  refreshSession: async () => false,
+  clearSessionMessage: () => {},
   isAuthenticated: false,
 })
+
+const PROFILE_TIMEOUT = 12000
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [sessionMessage, setSessionMessageState] = useState('')
+  const validating = useRef(false)
 
-  useEffect(() => {
-    try {
-      const storedToken = localStorage.getItem('token')
-      const storedUser = localStorage.getItem('user')
-      if (storedToken && storedUser) {
-        setToken(storedToken)
-        setUser(JSON.parse(storedUser))
-      }
-    } catch {
-      clearAuthSession()
-    } finally {
-      setLoading(false)
+  const applyStoredState = useCallback(() => {
+    const stored = readStoredAuth()
+    if (stored.token && stored.user) {
+      setToken(stored.token)
+      setUser(stored.user)
+    } else if (!stored.token) {
+      setToken(null)
+      setUser(null)
     }
+    setLoading(false)
   }, [])
 
-  const register = useCallback(async (
-    name: string, email: string, password: string, phone?: string
-  ): Promise<User> => {
+  const clearSessionMessage = useCallback(() => {
+    setSessionMessageState('')
+    setSessionMessage('')
+  }, [])
+
+  const expireSession = useCallback(() => {
+    clearAuthSession()
+    setToken(null)
+    setUser(null)
+    const message = 'Your session expired. Please sign in again.'
+    setSessionMessage(message)
+    setSessionMessageState(message)
+  }, [])
+
+  const fetchProfile = useCallback(async (accessToken: string) => {
+    const res = await fetch(`${BACKEND}/auth/profile`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      credentials: 'include',
+      signal: AbortSignal.timeout(PROFILE_TIMEOUT),
+    })
+    return res
+  }, [])
+
+  // Keep the signed-in user and their stored profile in sync with the server.
+  const refreshSession = useCallback(async (): Promise<boolean> => {
+    const stored = readStoredAuth()
+    if (!stored.token) return false
+    if (validating.current) return true
+    validating.current = true
+    try {
+      let res = await fetchProfile(stored.token)
+      if (res.status === 401) {
+        const refreshed = await refreshAccessToken()
+        if (!refreshed) {
+          expireSession()
+          return false
+        }
+        res = await fetchProfile(refreshed)
+      }
+      if (res.status === 401) {
+        expireSession()
+        return false
+      }
+      if (res.ok) {
+        const profile = await res.json()
+        const merged = { ...stored.user, ...profile }
+        persistAuthSession({ token: readStoredAuth().token || stored.token, user: merged })
+        setUser(merged)
+        setToken(readStoredAuth().token || stored.token)
+      }
+      return true
+    } catch {
+      // Network hiccups must not sign anyone out; only an explicit 401 does.
+      return true
+    } finally {
+      validating.current = false
+    }
+  }, [expireSession, fetchProfile])
+
+  // Restore the session from storage once on mount, then validate in the
+  // background so an expired 15-minute access token is refreshed silently.
+  useEffect(() => {
+    applyStoredState()
+    const message = takeSessionMessage()
+    if (message) setSessionMessageState(message)
+    const stored = readStoredAuth()
+    if (stored.token) void refreshSession()
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key && !['token', 'user', 'refreshToken', 'userRole'].includes(event.key)) return
+      applyStoredState()
+    }
+    const onAuthChanged = () => applyStoredState()
+    window.addEventListener('storage', onStorage)
+    window.addEventListener(AUTH_CHANGED_EVENT, onAuthChanged)
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener(AUTH_CHANGED_EVENT, onAuthChanged)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const applySession = useCallback((data: AuthPayload): User | null => {
+    if (!data?.token || !data?.user) return null
+    persistAuthSession(data)
+    setToken(data.token)
+    setUser(data.user)
+    setLoading(false)
+    return data.user
+  }, [])
+
+  const register = useCallback(async (input: RegisterInput): Promise<User> => {
     const res = await fetch(`${BACKEND}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password, phone }),
+      credentials: 'include',
+      body: JSON.stringify(input),
     })
-    let data = await res.json()
-    if (!res.ok) throw new Error(data.message || 'Registration failed')
+    let data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      const error = new Error(data.message || 'Registration failed') as Error & { status?: number }
+      error.status = res.status
+      throw error
+    }
     data = await completeMfaIfRequired(data)
+    const sessionUser = applySession(data)
+    if (!sessionUser) throw new Error('Account created, but the session could not start. Please sign in.')
+    return sessionUser
+  }, [applySession])
 
-    persistAuthSession(data)
-    setToken(data.token)
-    setUser(data.user)
-    return data.user
-  }, [])
-
-  const login = useCallback(async (
-    email: string, password: string
-  ): Promise<User> => {
+  const login = useCallback(async (email: string, password: string): Promise<User> => {
     const res = await fetch(`${BACKEND}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ email, password }),
     })
-    let data = await res.json()
-    if (!res.ok) throw new Error(data.message || 'Login failed')
+    let data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      const error = new Error(data.message || 'Login failed') as Error & { status?: number }
+      error.status = res.status
+      throw error
+    }
     data = await completeMfaIfRequired(data)
+    const sessionUser = applySession(data)
+    if (!sessionUser) throw new Error('Login succeeded, but the session could not be started.')
+    return sessionUser
+  }, [applySession])
 
-    persistAuthSession(data)
-    setToken(data.token)
-    setUser(data.user)
-    return data.user
-  }, [])
-
-  const logout = useCallback(() => {
-    const token = localStorage.getItem('token')
-    const refreshToken = localStorage.getItem('refreshToken')
-    if (token) {
+  const logout = useCallback(async (redirectTo?: string) => {
+    const stored = readStoredAuth()
+    if (stored.token) {
       void fetch(`${BACKEND}/auth/logout`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${stored.token}`,
         },
-        body: JSON.stringify({ refreshToken }),
+        body: JSON.stringify({ refreshToken: stored.refreshToken }),
       }).catch(() => {})
     }
     clearAuthSession()
     setToken(null)
     setUser(null)
+    setSessionMessageState('')
+    setSessionMessage('')
+    if (redirectTo && typeof window !== 'undefined') {
+      window.location.href = redirectTo
+    }
   }, [])
 
   const updateUser = useCallback((userData: User) => {
-    localStorage.setItem('user', JSON.stringify(userData))
+    const stored = readStoredAuth()
+    persistAuthSession({ token: stored.token || undefined, refreshToken: stored.refreshToken || undefined, user: userData })
     setUser(userData)
   }, [])
 
   return (
     <AuthContext.Provider value={{
-      user, token, loading,
-      register, login, logout, updateUser,
+      user, token, loading, sessionMessage,
+      register, login, applySession, logout, updateUser, refreshSession,
+      clearSessionMessage,
       isAuthenticated: !!token,
     }}>
       {children}

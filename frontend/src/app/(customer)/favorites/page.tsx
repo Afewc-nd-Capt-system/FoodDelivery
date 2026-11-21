@@ -7,26 +7,32 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Heart, Loader2 } from 'lucide-react';
 import Image from 'next/image';
+import { useAuth } from '@/context/AuthContext';
 
 export default function FavoritesPage() {
+  const { user, token, loading: authLoading } = useAuth();
   const [favorites, setFavorites] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!user || !token) {
+      setLoading(false);
+      return;
+    }
     fetchFavorites();
-  }, []);
+  }, [authLoading, user, token]);
 
   const fetchFavorites = async () => {
     setLoading(true);
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       const response = await fetch(`${API_URL}/auth/favorites`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         credentials: 'include',
       });
       if (response.ok) {
         const data = await response.json();
-        setFavorites(data);
+        setFavorites(Array.isArray(data) ? data : []);
       }
     } catch (error) {
       console.error('Failed to fetch favorites:', error);
@@ -37,17 +43,29 @@ export default function FavoritesPage() {
 
   const removeFavorite = async (restaurantId: string) => {
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       await fetch(`${API_URL}/auth/favorites/${restaurantId}`, {
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         credentials: 'include',
       });
-      setFavorites(favorites.filter(f => f.id !== restaurantId));
+      setFavorites((prev) => prev.filter((f) => String(f._id || f.id) !== String(restaurantId)));
     } catch (error) {
       console.error('Failed to remove favorite:', error);
     }
   };
+
+  if (!authLoading && !user) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
+        <div className="text-6xl mb-4">💔</div>
+        <h1 className="text-2xl font-black text-[#1C1C1E] mb-2">Sign in to see your favorites</h1>
+        <p className="text-[#636366] mb-6">Save restaurants you love and find them here.</p>
+        <Link href="/login?next=/favorites">
+          <Button className="bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white">Sign In</Button>
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -61,15 +79,17 @@ export default function FavoritesPage() {
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {favorites.map((rest) => (
-              <Link key={rest.id} href={`/restaurants/${rest.id}`}>
+            {favorites.map((rest) => {
+              const restaurantId = String(rest._id || rest.id);
+              return (
+              <Link key={restaurantId} href={`/restaurants/${restaurantId}`}>
                 <Card className="overflow-hidden hover:shadow-[0_4px_20px_rgba(0,0,0,0.07)] transition-all hover:-translate-y-1">
                   <div className="relative h-48">
                     <Image src={rest.image || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=400'} alt={rest.name} fill className="object-cover" />
                     <button
                       onClick={(e) => {
                         e.preventDefault();
-                        removeFavorite(rest.id);
+                        removeFavorite(restaurantId);
                       }}
                       className="absolute top-3 right-3 p-2 bg-white/90 rounded-full hover:bg-white transition-all"
                     >
@@ -85,7 +105,8 @@ export default function FavoritesPage() {
                   </div>
                 </Card>
               </Link>
-            ))}
+              );
+            })}
           </div>
 
           {/* Empty State */}

@@ -6,22 +6,17 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Eye, EyeOff, User, Mail, Phone, Lock, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
-import { API_V2 } from '@/lib/apiBase';
+import { useAuth } from '@/context/AuthContext';
+import { resolvePostAuthPath, sanitizeNextPath } from '@/lib/authClient';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Accepts +234XXXXXXXXXX, 234XXXXXXXXXX and 0XXXXXXXXXX with optional spaces.
 const PHONE_RE = /^(\+?234|0)[\s-]?\d{3}[\s-]?\d{3}[\s-]?\d{4}$/;
 const SPECIAL_RE = /[!@#$%^&*(),.?":{}|<>]/;
 
-interface RegisterResponse {
-  token?: string;
-  accessToken?: string;
-  user?: { _id?: string; name?: string; email?: string; role?: string };
-  message?: string;
-}
-
 export default function RegisterPage() {
   const router = useRouter();
+  const { register } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -71,8 +66,7 @@ export default function RegisterPage() {
     return '';
   };
 
-  const describeFailure = (status: number, body: RegisterResponse | null): string => {
-    const serverMessage = body?.message || '';
+  const describeFailure = (status: number, serverMessage: string): string => {
     if (status === 429) {
       const minutes =
         (serverMessage.match(/try again in (\d+) minutes?/i) || [])[1] ||
@@ -99,49 +93,26 @@ export default function RegisterPage() {
 
     setSubmitting(true);
     try {
-      const res = await fetch(`${API_V2}/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          email: email.trim(),
-          phone: phone.trim() || undefined,
-          password,
-          confirmPassword,
-          dietaryPreferences: preferences,
-        }),
-        // Never let the UI hang on a stuck request.
-        signal: AbortSignal.timeout(25000),
+      const next = typeof window !== 'undefined'
+        ? sanitizeNextPath(new URLSearchParams(window.location.search).get('next'))
+        : null;
+      const user = await register({
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim() || undefined,
+        password,
+        confirmPassword,
+        dietaryPreferences: preferences,
       });
-
-      const body = (await res.json().catch(() => null)) as RegisterResponse | null;
-      if (!res.ok) {
-        setError(describeFailure(res.status, body));
-        return;
-      }
-
-      const token = body?.token || body?.accessToken;
-      if (!token) {
-        setError('Your account was created, but the session could not be started. Please sign in.');
-        setSuccess(true);
-        setTimeout(() => router.push('/login'), 2500);
-        return;
-      }
-
-      localStorage.setItem('token', token);
-      if (body?.user) {
-        localStorage.setItem('user', JSON.stringify(body.user));
-        localStorage.setItem('userRole', body.user.role || 'customer');
-      }
       setSuccess(true);
-      router.push('/');
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'TimeoutError') {
+      router.replace(resolvePostAuthPath(user, next));
+    } catch (err: any) {
+      if (err?.name === 'TimeoutError') {
         setError('The request timed out. Check your connection and try again.');
       } else if (err instanceof TypeError) {
         setError('Network error. Check your connection and try again.');
       } else {
-        setError('Registration failed unexpectedly. Please try again.');
+        setError(describeFailure(Number(err?.status) || 0, err?.message || ''));
       }
     } finally {
       setSubmitting(false);

@@ -11,7 +11,6 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
-import { apiPost } from '@/lib/apiClient';
 
 const PAYMENT_METHODS = [
   { id: 'paystack', label: 'Paystack', icon: CreditCard, desc: 'Cards, Bank Transfer, USSD', badge: 'Recommended', badgeColor: '#00C3F7' },
@@ -24,7 +23,7 @@ const DELIVERY_PRESETS = ['Home', 'Work', "Partner's"];
 
 export default function CartPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, register, login } = useAuth();
   const { items, updateQuantity, removeItem, clearCart, subtotal, discount } = useCart();
 
   const [promoInput, setPromoInput] = useState('');
@@ -379,22 +378,16 @@ export default function CartPage() {
                       setAuthError('Password must be at least 8 characters.');
                       return;
                     }
-                    const regData = await apiPost('/auth/register', {
+                    const regData = await register({
                       name: guestInfo.name,
                       email: guestInfo.email,
                       phone: guestInfo.phone,
                       password: guestInfo.password,
                       confirmPassword: guestInfo.confirmPassword,
-                      role: 'customer'
                     });
-                    if (!regData?.token) {
+                    if (!regData) {
                       setAuthError('Account created, but the session could not start. Please sign in.');
                       return;
-                    }
-                    localStorage.setItem('token', regData.token);
-                    if (regData.user) {
-                      localStorage.setItem('user', JSON.stringify(regData.user));
-                      localStorage.setItem('userRole', regData.user.role || 'customer');
                     }
                     router.push('/orders/checkout');
                   } catch (err: any) { setAuthError(err?.message || 'Could not start checkout. Please try again.') }
@@ -447,12 +440,7 @@ export default function CartPage() {
                 onClick={async () => {
                   setAuthLoading(true); setAuthError('');
                   try {
-                    const data = await apiPost('/auth/login', { email: loginEmail, password: loginPassword });
-                    localStorage.setItem('token', data.token);
-                    if (data.user) {
-                      localStorage.setItem('user', JSON.stringify(data.user));
-                      localStorage.setItem('userRole', data.user.role || 'customer');
-                    }
+                    await login(loginEmail, loginPassword);
                     window.location.reload();
                   } catch (err: any) { setAuthError(err.message) }
                   finally { setAuthLoading(false) }

@@ -15,6 +15,64 @@ const { sessionResponse, setTokenCookie, publicUser } = require('../utils/sessio
 const router = express.Router();
 
 const NIGERIAN_PHONE_RE = /^(\+?234|0)[\s-]?\d{3}[\s-]?\d{3}[\s-]?\d{4}$/;
+const ALLOWED_DIETARY_PREFERENCES = ['vegan', 'vegetarian', 'halal', 'kosher', 'gluten-free', 'nut-free', 'dairy-free'];
+const ADDRESS_FIELDS = ['label', 'street', 'city', 'state', 'zipCode', 'country'];
+
+function sanitizeAddresses(input) {
+  if (!Array.isArray(input)) return undefined;
+  const addresses = input.slice(0, 10).map((raw) => {
+    const entry = {};
+    ADDRESS_FIELDS.forEach((field) => {
+      if (raw && raw[field] !== undefined && raw[field] !== null) {
+        entry[field] = String(raw[field]).trim().slice(0, 200);
+      }
+    });
+    entry.isDefault = Boolean(raw && raw.isDefault);
+    return entry;
+  }).filter((entry) => entry.street || entry.city || entry.state);
+
+  // Exactly one default at most; if the customer never marked one, promote the
+  // first saved address so checkout always has a sensible default.
+  let defaultSeen = false;
+  addresses.forEach((entry) => {
+    if (entry.isDefault && !defaultSeen) defaultSeen = true;
+    else entry.isDefault = false;
+  });
+  if (!defaultSeen && addresses.length) addresses[0].isDefault = true;
+  return addresses;
+}
+
+function sanitizeNotificationPreferences(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return undefined;
+  return {
+    orderUpdates: input.orderUpdates === undefined ? undefined : Boolean(input.orderUpdates),
+    promotions: input.promotions === undefined ? undefined : Boolean(input.promotions),
+    loyaltyUpdates: input.loyaltyUpdates === undefined ? undefined : Boolean(input.loyaltyUpdates),
+  };
+}
+
+function profilePayload(user) {
+  return {
+    id: user._id,
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    phone: user.phone,
+    address: user.address,
+    addresses: user.addresses || [],
+    notificationPreferences: {
+      orderUpdates: user.notificationPreferences?.orderUpdates !== false,
+      promotions: user.notificationPreferences?.promotions === true,
+      loyaltyUpdates: user.notificationPreferences?.loyaltyUpdates !== false,
+    },
+    loyaltyPoints: user.loyaltyPoints || 0,
+    referralCode: user.referralCode,
+    isVibePassMember: user.isVibePassMember || false,
+    dietaryPreferences: user.dietaryPreferences || [],
+    createdAt: user.createdAt,
+  };
+}
 
 router.post('/register', [
   body('name').trim().notEmpty().withMessage('Name is required'),
@@ -133,32 +191,33 @@ router.get('/profile', authMiddleware, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    res.json({
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      phone: user.phone,
-      address: user.address,
-      loyaltyPoints: user.loyaltyPoints || 0,
-      referralCode: user.referralCode,
-      isVibePassMember: user.isVibePassMember || false,
-      dietaryPreferences: user.dietaryPreferences || [],
-      createdAt: user.createdAt,
-    });
+    res.json(profilePayload(user));
   } catch (error) {
     res.status(401).json({ message: 'Invalid token' });
   }
 });
 
 router.put('/profile', authMiddleware, [
-  body('name').optional().trim().notEmpty(),
-  body('phone').optional().trim(),
+  body('name').optional().trim().notEmpty().withMessage('Name cannot be empty'),
+  body('phone').optional({ nullable: true }).custom((value) => {
+    if (value === undefined || value === null || String(value).trim() === '') return true;
+    if (!NIGERIAN_PHONE_RE.test(String(value).trim())) {
+      throw new Error('Please enter a valid Nigerian phone number (e.g. +2348012345678)');
+    }
+    return true;
+  }),
   body('address').optional(),
-  body('dietaryPreferences').optional().isArray(),
+  body('addresses').optional().isArray().withMessage('Addresses must be a list'),
+  body('dietaryPreferences').optional().isArray().withMessage('Dietary preferences must be a list'),
+  body('notificationPreferences').optional().isObject().withMessage('Notification preferences must be an object'),
 ], xssProtection, async (req, res) => {
   try {
-    const { name, phone, address, dietaryPreferences } = req.body;
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: errors.array()[0].msg });
+    }
+
+    const { name, phone, address, dietaryPreferences, addresses, notificationPreferences } = req.body;
     const user = await User.findById(req.user.id);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -167,25 +226,36 @@ router.put('/profile', authMiddleware, [
     if (name) user.name = name;
     if (phone !== undefined) user.phone = phone;
     if (address) {
-      user.address = { ...user.address, ...address };
+      user.address = { ...(user.address || {}), ...address };
     }
     if (dietaryPreferences !== undefined) {
-      user.dietaryPreferences = dietaryPreferences;
+      user.dietaryPreferences = Array.isArray(dietaryPreferences)
+        ? dietaryPreferences
+          .map((pref) => String(pref).trim().toLowerCase())
+          .filter((pref) => ALLOWED_DIETARY_PREFERENCES.includes(pref))
+        : [];
+    }
+
+    const cleanedAddresses = sanitizeAddresses(addresses);
+    if (cleanedAddresses !== undefined) user.addresses = cleanedAddresses;
+
+    const cleanedNotifications = sanitizeNotificationPreferences(notificationPreferences);
+    if (cleanedNotifications !== undefined) {
+      user.notificationPreferences = {
+        orderUpdates: cleanedNotifications.orderUpdates === undefined
+          ? (user.notificationPreferences?.orderUpdates !== false)
+          : cleanedNotifications.orderUpdates,
+        promotions: cleanedNotifications.promotions === undefined
+          ? (user.notificationPreferences?.promotions === true)
+          : cleanedNotifications.promotions,
+        loyaltyUpdates: cleanedNotifications.loyaltyUpdates === undefined
+          ? (user.notificationPreferences?.loyaltyUpdates !== false)
+          : cleanedNotifications.loyaltyUpdates,
+      };
     }
 
     await user.save();
-    res.json({
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      phone: user.phone,
-      address: user.address,
-      loyaltyPoints: user.loyaltyPoints || 0,
-      referralCode: user.referralCode,
-      isVibePassMember: user.isVibePassMember || false,
-      dietaryPreferences: user.dietaryPreferences || [],
-    });
+    res.json(profilePayload(user));
   } catch (error) {
     res.status(400).json({ message: error.message || 'Update failed' });
   }

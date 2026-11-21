@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { Gift, Info } from 'lucide-react';
 import { API_V2 } from '@/lib/apiBase';
+import { useAuth } from '@/context/AuthContext';
 
 interface LoyaltyEntry {
   _id: string;
@@ -15,6 +16,7 @@ interface LoyaltyEntry {
 }
 
 export default function LoyaltyPage() {
+  const { user, token, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [authRequired, setAuthRequired] = useState(false);
   const [points, setPoints] = useState(0);
@@ -27,8 +29,8 @@ export default function LoyaltyPage() {
   const [history, setHistory] = useState<LoyaltyEntry[]>([]);
 
   useEffect(() => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (!token) {
+    if (authLoading) return;
+    if (!user || !token) {
       setAuthRequired(true);
       setLoading(false);
       return;
@@ -51,7 +53,7 @@ export default function LoyaltyPage() {
       }
     };
     run();
-  }, []);
+  }, [authLoading, user, token]);
 
   const redemptionValue = config?.pointsRedemptionValue || 100;
   const nairaValue = Math.floor(points / redemptionValue);

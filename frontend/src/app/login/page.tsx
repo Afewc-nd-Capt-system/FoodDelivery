@@ -2,11 +2,17 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { API_V2 } from '@/lib/apiBase'
-import { completeMfaIfRequired, persistAuthSession } from '@/lib/authClient'
+import { useAuth } from '@/context/AuthContext'
+import { resolvePostAuthPath, sanitizeNextPath } from '@/lib/authClient'
+
+function readNextFromLocation(): string | null {
+  if (typeof window === 'undefined') return null
+  return sanitizeNextPath(new URLSearchParams(window.location.search).get('next'))
+}
 
 export default function LoginPage() {
   const router = useRouter()
+  const { login, sessionMessage, clearSessionMessage } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -19,31 +25,19 @@ export default function LoginPage() {
     }
     setLoading(true)
     setError('')
+    clearSessionMessage()
     try {
-      const res = await fetch(
-        `${API_V2}/auth/login`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-        }
-      )
-      let data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.message || 'Login failed')
-      data = await completeMfaIfRequired(data)
-      persistAuthSession(data)
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('token', data.token)
-        localStorage.setItem('user', JSON.stringify(data.user))
-        localStorage.setItem('userRole', data.user.role)
-      }
-      router.push('/')
+      const next = readNextFromLocation()
+      const user = await login(email.trim(), password)
+      router.replace(resolvePostAuthPath(user, next))
     } catch (err: any) {
       setError(err.message || 'Login failed. Please try again.')
     } finally {
       setLoading(false)
     }
   }
+
+  const notice = error || sessionMessage
 
   return (
     <div style={{
@@ -74,12 +68,12 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {error && (
-          <div style={{
+        {notice && (
+          <div role="alert" style={{
             background: '#FEF2F2', border: '1px solid #FCA5A5',
             borderRadius: '12px', padding: '12px 16px',
             color: '#D32F2F', fontSize: '14px', marginBottom: '20px'
-          }}>{error}</div>
+          }}>{notice}</div>
         )}
 
         <div style={{ marginBottom: '16px' }}>
@@ -92,6 +86,7 @@ export default function LoginPage() {
             value={email}
             onChange={e => setEmail(e.target.value)}
             placeholder="you@example.com"
+            autoComplete="email"
             style={{
               width: '100%', padding: '12px 16px',
               border: '1.5px solid #E8E8E8', borderRadius: '12px',
@@ -111,6 +106,7 @@ export default function LoginPage() {
             value={password}
             onChange={e => setPassword(e.target.value)}
             placeholder="••••••••"
+            autoComplete="current-password"
             onKeyDown={e => e.key === 'Enter' && handleLogin()}
             style={{
               width: '100%', padding: '12px 16px',

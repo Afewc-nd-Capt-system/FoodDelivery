@@ -35,12 +35,15 @@ const statusSteps = [
 
 export default function OrdersPage() {
   const router = useRouter();
-  const { user, token } = useAuth();
+  const { user, token, loading: authLoading } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user || !token) return;
+    if (!user || !token) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     const load = async () => {
       try {
@@ -83,10 +86,23 @@ export default function OrdersPage() {
     }
   };
 
-  if (loading || !user) {
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#E8621A]"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
+        <div className="text-6xl mb-4">🧾</div>
+        <h1 className="text-2xl font-black text-[#1C1C1E] mb-2">Sign in to see your orders</h1>
+        <p className="text-[#636366] mb-6">Your order history lives here once you sign in.</p>
+        <Link href="/login?next=/orders">
+          <Button className="bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white">Sign In</Button>
+        </Link>
       </div>
     );
   }
@@ -188,7 +204,12 @@ export default function OrdersPage() {
 
       {orders.length === 0 && (
         <div className="text-center py-16">
-          <p className="text-[#636366]">No orders yet</p>
+          <div className="text-6xl mb-4">🍽️</div>
+          <h3 className="font-black text-xl mb-2">No orders yet</h3>
+          <p className="text-[#636366] mb-6">Your first VibeChops order will show up here.</p>
+          <Link href="/restaurants">
+            <Button className="bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white">Browse Restaurants</Button>
+          </Link>
         </div>
       )}
     </div>

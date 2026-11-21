@@ -449,11 +449,40 @@ async function fetchRestaurants() {
     }
   }
 
-  // ---- Round 3: real customer registration through the UI ----
+  // ---- Round 3: customer session lifecycle through the UI (no reload between
+  // login and the homepage). This is the regression suite for the bug where
+  // /login and /register wrote localStorage but never updated AuthContext, so
+  // the navbar kept showing Sign In / Sign Up after a successful sign-in.
+  let newUserId = null;
+  let cleanupContext = null;
   try {
-    const { page } = await newPage(browser);
-    const email = `smoke-register-${Date.now()}@example.com`;
-    const password = 'SmokePass1!';
+    const { context, page } = await newPage(browser);
+    cleanupContext = context;
+
+    const runId = Date.now();
+    const email = `smoke-register-${runId}@example.com`;
+    // Generated per run so the repo never carries a hardcoded credential.
+    const password = `Smoke${Math.random().toString(36).slice(2)}A1!`;
+    const originalName = 'Smoke Session';
+    const editedName = 'Session Updated';
+
+    const firstNameOf = (value) => String(value || '').trim().split(/\s+/)[0] || '';
+    const waitForNavbarUser = async (timeout = 45000) => {
+      await page.waitForFunction(
+        () => {
+          const el = document.querySelector('[data-testid="navbar-user-name"]');
+          return !!(el && el.textContent && el.textContent.trim());
+        },
+        { timeout }
+      );
+      return (await page.getByTestId('navbar-user-name').first().innerText()).trim();
+    };
+    const waitForGuestNav = async (timeout = 45000) => {
+      await page.waitForFunction(
+        () => !!document.querySelector('[data-testid="navbar-signin"]'),
+        { timeout }
+      );
+    };
 
     await page.goto(BASE + '/register', { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
@@ -462,7 +491,7 @@ async function fetchRestaurants() {
 
     let registered = false;
     for (let attempt = 0; attempt < 3 && !registered; attempt += 1) {
-      await page.fill('input[placeholder="John Doe"]', 'Smoke Tester');
+      await page.fill('input[placeholder="John Doe"]', originalName);
       await page.fill('input[type=email]', email);
       await page.fill('input[placeholder="+234 800 000 0000"]', '+2348012345678');
       const pwds = page.locator('input[type=password]');
@@ -472,10 +501,13 @@ async function fetchRestaurants() {
       if (!(await checkbox.isChecked())) await checkbox.check();
       await page.locator('button', { hasText: 'Create Account' }).first().click();
 
-      for (let i = 0; i < 40; i += 1) {
+      for (let i = 0; i < 60; i += 1) {
         await page.waitForTimeout(500);
-        const token = await page.evaluate(() => localStorage.getItem('token'));
-        if (token) { registered = true; break; }
+        const state = await page.evaluate(() => ({
+          token: !!localStorage.getItem('token'),
+          user: localStorage.getItem('user'),
+        })).catch(() => ({ token: false, user: null }));
+        if (state.token) { registered = true; break; }
         const text = await bodyText(page);
         if (/too many attempts|already exists|valid|required|must/i.test(text)) break;
       }
@@ -484,52 +516,133 @@ async function fetchRestaurants() {
 
     if (registered) {
       const me = await page.evaluate(() => JSON.parse(localStorage.getItem('user') || '{}'));
-      const newUserId = me?.id || me?._id;
+      newUserId = me?.id || me?._id || null;
 
-      // Sign out, then sign back in with the new account.
-      await page.evaluate(() => localStorage.clear());
+      await page.waitForURL((url) => url.pathname === '/', { timeout: 30000 }).catch(() => {});
+      const navAfterRegister = await waitForNavbarUser().catch(() => '');
+      const avatarText = await page.getByTestId('navbar-avatar').first().innerText().catch(() => '');
+      const guestLinks = await page.locator('[data-testid="navbar-signin"]').count();
+      const greeting = await page.getByTestId('homepage-greeting').first().innerText().catch(() => '');
+      check(
+        'navbar shows the first name and avatar immediately after register (no refresh)',
+        navAfterRegister === firstNameOf(originalName) && /\bSS\b/.test(avatarText) && guestLinks === 0,
+        `name=${navAfterRegister} avatar=${avatarText.replace(/\s+/g, ' ')} guestLinks=${guestLinks}`
+      );
+      check(
+        'homepage switches to the logged-in view after register',
+        /Good (morning|afternoon|evening), Smoke/.test(greeting),
+        greeting.replace(/\s+/g, ' ').slice(0, 80)
+      );
+
+      // Hard refresh: the session must survive because it lives in storage and
+      // AuthContext restores it before rendering the guest navbar.
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
+      const navAfterRefresh = await waitForNavbarUser().catch(() => '');
+      check('hard refresh keeps the customer signed in', navAfterRefresh === firstNameOf(originalName), `name=${navAfterRefresh}`);
+
+      // Open the avatar menu and use the real Profile page.
+      await page.getByTestId('navbar-avatar').first().click();
+      await page.waitForSelector('[data-testid="navbar-user-menu"]', { state: 'visible', timeout: 10000 });
+      const menuText = await page.getByTestId('navbar-user-menu').innerText();
+      check(
+        'avatar menu exposes the account links',
+        /My Orders/.test(menuText) && /Wallet/.test(menuText) && /Loyalty/.test(menuText)
+          && /Referrals/.test(menuText) && /Favorites/.test(menuText) && /Profile/.test(menuText) && /Sign Out/.test(menuText),
+        menuText.replace(/\s+/g, ' ').slice(0, 140)
+      );
+
+      await page.getByTestId('navbar-menu-profile').click();
+      await page.waitForURL(/\/profile$/, { timeout: 20000 });
+      await page.waitForSelector('[data-testid="profile-name"]', { state: 'visible', timeout: 30000 });
+      const loadedName = await page.getByTestId('profile-name').inputValue().catch(() => '');
+      const profileText = await bodyText(page);
+      check(
+        'Profile page loads real account data',
+        loadedName === originalName && profileText.includes(email),
+        `name=${loadedName} emailVisible=${profileText.includes(email)}`
+      );
+
+      // Edit the name and save it through the API; the navbar must update too.
+      await page.getByTestId('profile-name').fill(editedName);
+      await page.getByTestId('profile-save').click();
+      await page.waitForFunction(
+        () => /Profile updated successfully/i.test(document.body.innerText),
+        { timeout: 30000 }
+      ).catch(() => {});
+      const navAfterSave = await waitForNavbarUser().catch(() => '');
+      check('editing and saving the name updates the navbar', navAfterSave === firstNameOf(editedName), `name=${navAfterSave}`);
+
+      // Sign out from the avatar menu.
+      await page.getByTestId('navbar-avatar').first().click();
+      await page.getByTestId('navbar-signout').click();
+      await waitForGuestNav().catch(() => {});
+      const signInVisible = await page.locator('[data-testid="navbar-signin"]').count();
+      const signUpVisible = await page.locator('[data-testid="navbar-signup"]').count();
+      const avatarGone = await page.locator('[data-testid="navbar-avatar"]').count();
+      check(
+        'sign out returns the navbar to Sign In / Sign Up',
+        signInVisible === 1 && signUpVisible === 1 && avatarGone === 0,
+        `signin=${signInVisible} signup=${signUpVisible} avatar=${avatarGone}`
+      );
+
+      // Sign in again and confirm the navbar shows the user.
       await page.goto(BASE + '/login', { waitUntil: 'domcontentloaded', timeout: 60000 });
-      await page.waitForTimeout(2000);
+      await page.waitForSelector('input[type=password]', { state: 'visible', timeout: 30000 });
+      await page.waitForTimeout(1200);
       await page.fill('input[type=email]', email);
       await page.fill('input[type=password]', password);
       await page.locator('button', { hasText: /Sign In/i }).first().click();
-      let signedIn = false;
-      for (let i = 0; i < 40; i += 1) {
-        await page.waitForTimeout(500);
-        signedIn = await page.evaluate(() => !!localStorage.getItem('token'));
-        if (signedIn) break;
-      }
-      check('new customer can sign in again', signedIn, email);
+      const navAfterLogin = await waitForNavbarUser().catch(() => '');
+      check('sign in again restores the customer navbar', navAfterLogin === firstNameOf(editedName), `name=${navAfterLogin}`);
 
-      // My Orders for the brand-new account must load honestly (empty state).
-      await page.goto(BASE + '/orders', { waitUntil: 'domcontentloaded', timeout: 60000 });
+      // ?next= must return to the requested page after login.
+      await page.goto(BASE + '/login?next=%2Forders', { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await page.waitForSelector('input[type=password]', { state: 'visible', timeout: 30000 });
+      await page.waitForTimeout(1200);
+      await page.fill('input[type=email]', email);
+      await page.fill('input[type=password]', password);
+      await page.locator('button', { hasText: /Sign In/i }).first().click();
+      await page.waitForURL(/\/orders$/, { timeout: 30000 }).catch(() => {});
+      const landedPath = await page.evaluate(() => location.pathname).catch(() => 'unknown');
+      check('login from a ?next= link returns to that page', landedPath === '/orders', `path=${landedPath}`);
+
       await page.waitForFunction(
         () => /No orders yet|Order #|₦/.test(document.body.innerText),
         { timeout: 25000 }
       ).catch(() => {});
       const ordersText = await bodyText(page);
-      check('new customer sees My Orders', /No orders yet|Order #|₦/.test(ordersText),
-        `chars=${ordersText.length}`);
-
-      // Admin cleanup: delete the throwaway account.
-      if (newUserId && sessions.admin) {
+      check('new customer sees My Orders', /No orders yet|Order #|₦/.test(ordersText), `chars=${ordersText.length}`);
+    } else {
+      check('hard refresh keeps the customer signed in', false, 'registration did not complete');
+      check('avatar menu exposes the account links', false, 'registration did not complete');
+      check('Profile page loads real account data', false, 'registration did not complete');
+      check('editing and saving the name updates the navbar', false, 'registration did not complete');
+      check('sign out returns the navbar to Sign In / Sign Up', false, 'registration did not complete');
+      check('sign in again restores the customer navbar', false, 'registration did not complete');
+      check('login from a ?next= link returns to that page', false, 'registration did not complete');
+      check('new customer sees My Orders', false, 'registration did not complete');
+    }
+  } catch (error) {
+    check('customer session lifecycle', false, error.message);
+  } finally {
+    // Always delete the throwaway account, even when a check above failed.
+    if (newUserId && sessions.admin) {
+      try {
         const adminToken = await sessions.admin.page.evaluate(() => localStorage.getItem('token'));
         const cleanup = await fetch(`${API_V2}/users/${newUserId}`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${adminToken}`, Origin: BASE },
         });
-        check('admin cleanup deletes the test account', cleanup.ok, `status=${cleanup.status}`);
-      } else {
-        check('admin cleanup deletes the test account', false, 'missing user id or admin session');
+        check('admin cleanup deletes the session test account', cleanup.ok, `status=${cleanup.status}`);
+      } catch (error) {
+        check('admin cleanup deletes the session test account', false, error.message);
       }
+    } else if (newUserId) {
+      check('admin cleanup deletes the session test account', false, 'missing admin session');
     } else {
-      check('new customer can sign in again', false, 'registration did not complete');
-      check('new customer sees My Orders', false, 'registration did not complete');
-      check('admin cleanup deletes the test account', false, 'registration did not complete');
+      check('admin cleanup deletes the session test account', true, 'no account was created');
     }
-    await page.context().close().catch(() => {});
-  } catch (error) {
-    check('register a new customer through the UI', false, error.message);
+    if (cleanupContext) await cleanupContext.close().catch(() => {});
   }
 
   // ---- Deployment contract: direct Render API, never the same-origin proxy ----

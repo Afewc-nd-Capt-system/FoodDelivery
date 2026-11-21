@@ -34,6 +34,23 @@ const userSchema = new mongoose.Schema({
     city: String,
     state: String,
     zipCode: String,
+    country: String,
+  },
+  // Customer-managed delivery addresses. `address` above stays as the legacy
+  // single address for older screens; `addresses` powers the account area.
+  addresses: [{
+    label: { type: String, trim: true },
+    street: { type: String, trim: true },
+    city: { type: String, trim: true },
+    state: { type: String, trim: true },
+    zipCode: { type: String, trim: true },
+    country: { type: String, trim: true, default: 'Nigeria' },
+    isDefault: { type: Boolean, default: false },
+  }],
+  notificationPreferences: {
+    orderUpdates: { type: Boolean, default: true },
+    promotions: { type: Boolean, default: false },
+    loyaltyUpdates: { type: Boolean, default: true },
   },
   role: {
     type: String,

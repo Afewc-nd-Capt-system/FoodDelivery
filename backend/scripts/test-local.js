@@ -399,6 +399,68 @@ const OPENING_HOURS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', '
   assert(Number(order.body?.order?.totalAmount) === 5300, `total was ${order.body?.order?.totalAmount}, expected 5300`);
   check(true, 'customer order requires the required option and prices it correctly (₦5,300)');
 
+  // ---- 5b. Customer account area: profile fields, addresses, password ----
+  const initialProfile = await api('/auth/profile', { token: customerToken });
+  assert(initialProfile.status === 200, `profile read returned ${initialProfile.status}: ${initialProfile.text}`);
+  assert(Array.isArray(initialProfile.body?.addresses), 'profile has no addresses array');
+  assert(initialProfile.body?.notificationPreferences && typeof initialProfile.body.notificationPreferences === 'object',
+    'profile has no notificationPreferences');
+
+  const savedProfile = await api('/auth/profile', {
+    method: 'PUT',
+    token: customerToken,
+    body: {
+      name: 'Local Customer Updated',
+      phone: '+2348012345678',
+      addresses: [
+        { label: 'Home', street: '1 Test Street', city: 'Lagos', state: 'Lagos', zipCode: '100001', isDefault: false },
+        { label: 'Work', street: '2 Test Avenue', city: 'Lagos', state: 'Lagos', zipCode: '100002', isDefault: true },
+      ],
+      dietaryPreferences: ['halal', 'vegan'],
+      notificationPreferences: { orderUpdates: false, promotions: true, loyaltyUpdates: false },
+    },
+  });
+  assert(savedProfile.status === 200, `profile update returned ${savedProfile.status}: ${savedProfile.text}`);
+  assert(savedProfile.body?.name === 'Local Customer Updated', 'profile name was not saved');
+  assert(savedProfile.body?.addresses?.length === 2, 'saved addresses were not persisted');
+  assert(savedProfile.body?.addresses?.[1]?.isDefault === true, 'default address was not saved');
+  assert(savedProfile.body?.dietaryPreferences?.includes('halal'), 'dietary preferences were not saved');
+  assert(savedProfile.body?.notificationPreferences?.orderUpdates === false
+    && savedProfile.body?.notificationPreferences?.promotions === true,
+    'notification preferences were not saved');
+
+  const singleAddress = await api('/auth/profile', {
+    method: 'PUT',
+    token: customerToken,
+    body: { addresses: [{ label: 'Only', street: '3 Sole Road', city: 'Abuja', state: 'FCT' }] },
+  });
+  assert(singleAddress.status === 200, `address update returned ${singleAddress.status}: ${singleAddress.text}`);
+  assert(singleAddress.body?.addresses?.length === 1 && singleAddress.body.addresses[0].isDefault === true,
+    'the first address is not promoted to default');
+
+  const badPhone = await api('/auth/profile', {
+    method: 'PUT', token: customerToken, body: { phone: 'not-a-phone' },
+  });
+  assert(badPhone.status === 400, `invalid phone returned ${badPhone.status}: ${badPhone.text}`);
+  check(true, 'customer profile saves addresses, dietary and notification preferences (and validates phone)');
+
+  const wrongPassword = await api('/auth/change-password', {
+    method: 'POST', token: customerToken, body: { currentPassword: 'definitely-wrong', newPassword: testPassword('Changed') },
+  });
+  assert(wrongPassword.status === 400, `wrong current password returned ${wrongPassword.status}: ${wrongPassword.text}`);
+
+  const changedPassword = testPassword('Changed');
+  const passwordChange = await api('/auth/change-password', {
+    method: 'POST', token: customerToken, body: { currentPassword: customerPassword, newPassword: changedPassword },
+  });
+  assert(passwordChange.status === 200, `password change returned ${passwordChange.status}: ${passwordChange.text}`);
+
+  const reLogin = await api('/auth/login', {
+    method: 'POST', body: { email: customerEmail, password: changedPassword },
+  });
+  assert(reLogin.status === 200 && reLogin.body?.token, `login with the new password returned ${reLogin.status}: ${reLogin.text}`);
+  check(true, 'customer can change password and sign in with it');
+
   // ---- 6. Tenant isolation ----
   const otherOwner = await User.create({
     name: 'Other Owner', email: `other-${Date.now()}@example.test`, password: testPassword('Other'), role: 'restaurant',

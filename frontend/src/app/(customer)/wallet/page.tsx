@@ -7,8 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowUp, ArrowDown, Filter, Search } from 'lucide-react';
 import { API_V2 } from '@/lib/apiBase';
+import { useAuth } from '@/context/AuthContext';
+import Link from 'next/link';
 
 export default function WalletPage() {
+  const { user, token, loading: authLoading } = useAuth();
   const [balance, setBalance] = useState(0);
   const [selectedAmount, setSelectedAmount] = useState('1000');
   const [customAmount, setCustomAmount] = useState('');
@@ -88,14 +91,17 @@ export default function WalletPage() {
 
   useEffect(() => {
     fetchTransactions();
-  }, []);
+  }, [token]);
 
   const authHeaders = (): Record<string, string> => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
   const fetchTransactions = async () => {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const [walletRes, txRes] = await Promise.all([
@@ -123,11 +129,25 @@ export default function WalletPage() {
   };
 
   const filteredTransactions = transactions.filter(txn => {
+    const description = String(txn.description || '').toLowerCase();
+    const id = String(txn.id || txn._id || '').toLowerCase();
     const matchesType = filterType === 'all' || txn.type === filterType;
-    const matchesSearch = txn.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          txn.id.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = description.includes(searchTerm.toLowerCase()) || id.includes(searchTerm.toLowerCase());
     return matchesType && matchesSearch;
   });
+
+  if (!authLoading && !user) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
+        <div className="text-6xl mb-4">👛</div>
+        <h1 className="text-2xl font-black text-[#1C1C1E] mb-2">Sign in to see your wallet</h1>
+        <p className="text-[#636366] mb-6">Top up, pay faster and track every transaction.</p>
+        <Link href="/login?next=/wallet">
+          <Button className="bg-gradient-to-r from-[#E8621A] to-[#C4501A] text-white">Sign In</Button>
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -238,7 +258,7 @@ export default function WalletPage() {
             {filteredTransactions.map((txn) => {
               const isCredit = txn.type === 'credit';
               return (
-                <div key={txn.id} className="flex items-center gap-4 py-3 border-b border-[#F0EAE0] last:border-0">
+                <div key={txn.id || txn._id} className="flex items-center gap-4 py-3 border-b border-[#F0EAE0] last:border-0">
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
                     isCredit ? 'bg-[#F0FDF4] text-[#16A34A]' : 'bg-[#FFF1E8] text-[#E8621A]'
                   }`}>
@@ -250,9 +270,9 @@ export default function WalletPage() {
                   </div>
                   <div className="text-right">
                     <p className={`font-bold ${isCredit ? 'text-[#16A34A]' : 'text-[#E8621A]'}`}>
-                      {isCredit ? '+' : '-'}₦{txn.amount.toLocaleString()}
+                      {isCredit ? '+' : '-'}₦{Number(txn.amount || 0).toLocaleString()}
                     </p>
-                    <p className="text-xs text-[#A0A0A0]">Bal: ₦{txn.balance?.toLocaleString()}</p>
+                    <p className="text-xs text-[#A0A0A0]">Bal: ₦{Number(txn.balance || 0).toLocaleString()}</p>
                   </div>
                 </div>
               );

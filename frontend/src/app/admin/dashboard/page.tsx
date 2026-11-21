@@ -3,10 +3,12 @@ import { API_BASE, API_V2 } from '@/lib/apiBase';
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthGuard } from '@/hooks/useAuthGuard'
+import { useAuth } from '@/context/AuthContext'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 export default function AdminDashboard() {
   const { user, token, loading, authorized } = useAuthGuard('admin')
+  const { logout } = useAuth()
   const [activeTab, setActiveTab] = useState('overview')
 
   if (loading) return (
@@ -37,10 +39,7 @@ export default function AdminDashboard() {
   ]
 
   const handleLogout = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    localStorage.removeItem('userRole')
-    window.location.href = '/admin/login'
+    void logout('/admin/login')
   }
 
   return (
@@ -713,6 +712,7 @@ function PromoCodesTab({ token }: { token: string }) {
 }
 
 function AdminProfileTab({ user, token }: { user: any, token: string }) {
+  const { updateUser } = useAuth()
   const [name, setName] = useState(user?.name || '')
   const [phone, setPhone] = useState(user?.phone || '')
   const [saving, setSaving] = useState(false)
@@ -830,12 +830,7 @@ function AdminProfileTab({ user, token }: { user: any, token: string }) {
         return
       }
       setSaved(true)
-      if (typeof window !== 'undefined') {
-        const stored = JSON.parse(localStorage.getItem('user') || '{}')
-        localStorage.setItem('user', JSON.stringify({
-          ...stored, name, phone
-        }))
-      }
+      if (user) updateUser({ ...user, name, phone })
       setTimeout(() => setSaved(false), 2000)
     } catch (err: any) {
       setSaveError(err?.name === 'TimeoutError' || err?.name === 'AbortError'

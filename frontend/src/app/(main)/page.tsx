@@ -88,8 +88,7 @@ function NearbyRestaurantsSection({ city }: { city?: string }) {
   );
 }
 
-function RecentOrdersSection({ token }: { token: string }) {
-  const [orders, setOrders] = useState<any[]>([]);
+function RecentOrdersSection({ token }: { token: string }) {  const [orders, setOrders] = useState<any[]>([]);
   const router = useRouter();
 
   useEffect(() => {
@@ -120,6 +119,55 @@ function RecentOrdersSection({ token }: { token: string }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function SavedPlacesSection({ token }: { token: string }) {
+  const [addresses, setAddresses] = useState<any[]>([]);
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${API_V2}/auth/profile`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setAddresses(Array.isArray(d?.addresses) ? d.addresses : []))
+      .catch(() => {});
+  }, [token]);
+
+  return (
+    <div style={{ marginBottom: '40px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <h3 style={{ fontWeight: '900', fontSize: '20px', color: '#1C1C1E', margin: 0 }}>Saved places</h3>
+        <button onClick={() => router.push('/profile')} style={{ color: '#E8621A', fontWeight: '700', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}>
+          Manage addresses →
+        </button>
+      </div>
+      {addresses.length === 0 ? (
+        <div onClick={() => router.push('/profile')} style={{ background: 'white', borderRadius: '16px', padding: '20px', border: '1px dashed #E8B79A', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '24px' }}>📍</span>
+          <div>
+            <p style={{ fontWeight: '700', color: '#1C1C1E', margin: 0, fontSize: '14px' }}>Save a delivery address</p>
+            <p style={{ color: '#636366', margin: '2px 0 0', fontSize: '12px' }}>Add Home, Work or a partner's place for faster checkout.</p>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: '16px', overflowX: 'auto', paddingBottom: '8px' }}>
+          {addresses.map((a: any, index: number) => (
+            <div key={a._id || index} onClick={() => router.push('/profile')}
+              style={{ flexShrink: 0, width: '220px', background: 'white', borderRadius: '16px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #F0EAE0', cursor: 'pointer' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                <span style={{ fontSize: '18px' }}>{a.label === 'Work' ? '💼' : '🏠'}</span>
+                <p style={{ fontWeight: '800', color: '#1C1C1E', margin: 0, fontSize: '14px' }}>{a.label || 'Address'}</p>
+                {a.isDefault && <span style={{ marginLeft: 'auto', fontSize: '10px', fontWeight: '800', color: '#16A34A', background: '#F0FDF4', borderRadius: '999px', padding: '2px 8px' }}>DEFAULT</span>}
+              </div>
+              <p style={{ color: '#636366', margin: 0, fontSize: '12px', lineHeight: 1.5 }}>
+                {[a.street, a.city, a.state].filter(Boolean).join(', ')}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -213,7 +261,7 @@ export default function HomePage() {
   const carouselRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
-  const { user } = useAuth();
+  const { user, token, loading } = useAuth();
   const { location: userLocation, isLocationEnabled, isDetecting, detectionError, detectLocation } = useLocation();
 
   const getLocationDisplay = () => {
@@ -248,6 +296,15 @@ export default function HomePage() {
   const [allVendors, setAllVendors] = useState<any[]>([]);
   const [restaurantTotal, setRestaurantTotal] = useState<number | null>(null);
   const [loadingData, setLoadingData] = useState(true);
+  const [loyaltyPoints, setLoyaltyPoints] = useState(0);
+
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${API_V2}/loyalty/balance`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setLoyaltyPoints(Number(d?.data?.points || 0)))
+      .catch(() => {});
+  }, [token]);
 
   useEffect(() => {
     Promise.all([
@@ -266,14 +323,33 @@ export default function HomePage() {
   const openRestaurants = featuredRestaurants.filter((r: any) => r.isOpen);
   const openVendors = allVendors.filter((v: any) => v.isOpen);
 
+  // ── SESSION RESTORE ─────────────────────
+  // Hold the page until AuthContext has read storage; otherwise a signed-in
+  // customer briefly sees the guest hero before the session appears.
+  if (loading) {
+    return (
+      <div style={{ background: '#FFF8F0', minHeight: '100vh', padding: '32px 48px' }}>
+        <div className="animate-pulse" style={{ maxWidth: '1280px', margin: '0 auto' }}>
+          <div style={{ height: '28px', width: '260px', borderRadius: '8px', backgroundColor: '#F0EAE0', marginBottom: '12px' }} />
+          <div style={{ height: '16px', width: '180px', borderRadius: '8px', backgroundColor: '#F7F1E8', marginBottom: '32px' }} />
+          <div style={{ height: '56px', borderRadius: '16px', backgroundColor: 'white', marginBottom: '24px' }} />
+          <div style={{ display: 'flex', gap: '16px' }}>
+            {[0, 1, 2].map(i => (
+              <div key={i} style={{ flex: 1, height: '200px', borderRadius: '20px', backgroundColor: 'white' }} />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ── LOGGED IN VIEW ──────────────────────
   if (user) {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') || '' : '';
     return (
       <div style={{ background: '#FFF8F0', minHeight: '100vh' }}>
         <div style={{ background: 'white', padding: '20px 48px', borderBottom: '1px solid #F0EAE0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <h2 style={{ fontWeight: '900', fontSize: '22px', color: '#1C1C1E', margin: '0 0 4px' }}>
+            <h2 data-testid="homepage-greeting" style={{ fontWeight: '900', fontSize: '22px', color: '#1C1C1E', margin: '0 0 4px' }}>
               {getGreeting()}, {user.name?.split(' ')[0]} 👋
             </h2>
             <p style={{ color: '#636366', margin: 0, fontSize: '14px' }}>What are you craving today?</p>
@@ -281,7 +357,7 @@ export default function HomePage() {
           <div onClick={() => router.push('/loyalty')} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#FFF1E8', borderRadius: '16px', padding: '12px 20px', cursor: 'pointer', border: '1px solid #FFD4B8' }}>
             <span style={{ fontSize: '20px' }}>🔥</span>
             <div>
-              <p style={{ fontWeight: '800', color: '#E8621A', margin: 0, fontSize: '16px' }}>0 pts</p>
+              <p style={{ fontWeight: '800', color: '#E8621A', margin: 0, fontSize: '16px' }}>{loyaltyPoints.toLocaleString()} pts</p>
               <p style={{ color: '#636366', margin: 0, fontSize: '11px' }}>Loyalty Points</p>
             </div>
           </div>
@@ -302,7 +378,8 @@ export default function HomePage() {
             ))}
           </div>
           <NearbyRestaurantsSection city={userLocation?.city} />
-          <RecentOrdersSection token={token} />
+          <RecentOrdersSection token={token || ''} />
+          <SavedPlacesSection token={token || ''} />
         </div>
       </div>
     );

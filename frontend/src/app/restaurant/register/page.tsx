@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiPost } from '@/lib/apiClient';
 import { API_V2 } from '@/lib/apiBase';
+import { useAuth } from '@/context/AuthContext';
 import { Shield, Upload, FileText } from 'lucide-react';
 
 const nigerianStates = [
@@ -17,6 +18,7 @@ const nigerianStates = [
 
 export default function RestaurantRegisterPage() {
   const router = useRouter();
+  const { applySession } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -143,13 +145,7 @@ export default function RestaurantRegisterPage() {
         verificationStatus: 'pending_verification',
       });
 
-      if (data?.token) {
-        localStorage.setItem('token', data.token);
-        if (data.user) {
-          localStorage.setItem('user', JSON.stringify(data.user));
-          localStorage.setItem('userRole', data.user.role || 'restaurant');
-        }
-      }
+      if (data?.token) applySession(data);
 
       router.push('/restaurant-dashboard');
     } catch (err) {

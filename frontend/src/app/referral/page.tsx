@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { CheckCircle, Copy, MessageCircle, Twitter, Users, TrendingUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { API_V2 } from '@/lib/apiBase';
+import { useAuth } from '@/context/AuthContext';
 
 interface ReferralEntry {
   _id: string;
@@ -16,6 +17,7 @@ interface ReferralEntry {
 }
 
 export default function ReferralPage() {
+  const { user, token, loading: authLoading } = useAuth();
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [authRequired, setAuthRequired] = useState(false);
@@ -25,8 +27,8 @@ export default function ReferralPage() {
   const [history, setHistory] = useState<ReferralEntry[]>([]);
 
   useEffect(() => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (!token) {
+    if (authLoading) return;
+    if (!user || !token) {
       setAuthRequired(true);
       setLoading(false);
       return;
@@ -52,7 +54,7 @@ export default function ReferralPage() {
       }
     };
     run();
-  }, []);
+  }, [authLoading, user, token]);
 
   const copyCode = () => {
     if (!referralCode) return;

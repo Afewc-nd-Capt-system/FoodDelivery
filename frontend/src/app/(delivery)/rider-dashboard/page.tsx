@@ -11,6 +11,7 @@ import {
   TrendingUp, Star, Bell, Navigation, User, History
 } from 'lucide-react';
 import { useAuthGuard } from '@/hooks/useAuthGuard';
+import { useAuth } from '@/context/AuthContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface DeliveryOrder {
@@ -715,6 +716,7 @@ function RiderHistoryTab() {
 }
 
 function RiderProfileTab({ authUser }: { authUser: any }) {
+  const { logout } = useAuth()
   const [editMode, setEditMode] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -838,10 +840,7 @@ function RiderProfileTab({ authUser }: { authUser: any }) {
   }
 
   const handleLogout = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    localStorage.removeItem('userRole')
-    window.location.href = '/rider-login'
+    void logout('/rider-login')
   }
 
   return (

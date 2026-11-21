@@ -5,13 +5,14 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Lock, Mail } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { resolvePostAuthPath, sanitizeNextPath } from '@/lib/authClient';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, sessionMessage, clearSessionMessage } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -20,14 +21,20 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await login(email, password);
-      router.push('/');
+      const next = typeof window !== 'undefined'
+        ? sanitizeNextPath(new URLSearchParams(window.location.search).get('next'))
+        : null;
+      const user = await login(email.trim(), password);
+      clearSessionMessage();
+      router.replace(resolvePostAuthPath(user, next));
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {
       setLoading(false);
     }
   };
+
+  const notice = error || sessionMessage;
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4">
@@ -37,9 +44,9 @@ export default function LoginPage() {
           <p className="text-gray-500 mt-2">Sign in to your account</p>
         </div>
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-            {error}
+        {notice && (
+          <div role="alert" className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+            {notice}
           </div>
         )}
 
@@ -53,6 +60,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email"
+                autoComplete="email"
                 className="input-field pl-10"
                 required
               />
@@ -68,6 +76,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
+                autoComplete="current-password"
                 className="input-field pl-10"
                 required
               />
@@ -88,17 +97,6 @@ export default function LoginPage() {
             Forgot Password?
           </Link>
         </div>
-
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-300"></div>
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-white text-gray-500">Or continue with</span>
-          </div>
-        </div>
-
-        {/* Social login will be added once the provider integrations exist. */}
 
         <p className="text-center mt-6 text-gray-600">
           Don't have an account?{' '}
