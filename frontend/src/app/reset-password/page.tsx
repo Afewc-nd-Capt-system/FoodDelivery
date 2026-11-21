@@ -43,13 +43,30 @@ export default function ResetPasswordQueryPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, password }),
+        signal: AbortSignal.timeout(25000),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Reset failed');
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        if (response.status === 429) {
+          const minutes = (data?.message || '').match(/(\d+)\s*minute/i)?.[1];
+          setError(minutes
+            ? `Too many attempts. Please try again in ${minutes} minute${minutes === '1' ? '' : 's'}.`
+            : 'Too many attempts. Please wait a few minutes and try again.');
+        } else if (response.status >= 500) {
+          setError('Something went wrong on our side. Please try again shortly.');
+        } else {
+          setError(data?.message || 'This reset link is invalid or has expired.');
+        }
+        return;
+      }
       setReset(true);
       setTimeout(() => router.push('/login'), 2000);
-    } catch (err: any) {
-      setError(err.message || 'Reset failed. The link may have expired.');
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'TimeoutError') {
+        setError('The request timed out. Check your connection and try again.');
+      } else {
+        setError('Network error. Check your connection and try again.');
+      }
     } finally {
       setLoading(false);
     }

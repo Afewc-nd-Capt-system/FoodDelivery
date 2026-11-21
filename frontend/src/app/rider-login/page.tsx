@@ -125,6 +125,12 @@ export default function RiderLogin() {
           {loading ? 'Signing in...' : 'Sign In'}
         </button>
 
+        <div style={{ textAlign: 'center', marginBottom: '12px' }}>
+          <Link href="/forgot-password" data-testid="forgot-password-link" style={{ color: '#E8621A', fontSize: '13px', fontWeight: '700' }}>
+            Forgot password?
+          </Link>
+        </div>
+
         <div style={{ textAlign: 'center', fontSize: '14px',
           color: '#636366' }}>
           New rider?{' '}

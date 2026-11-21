@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useAuth } from '@/context/AuthContext'
 
 export default function AdminLogin() {
@@ -124,6 +125,12 @@ export default function AdminLogin() {
         >
           {loading ? 'Signing in...' : 'Sign In to Admin'}
         </button>
+
+        <div style={{ textAlign: 'center', marginTop: '16px' }}>
+          <Link href="/forgot-password" data-testid="forgot-password-link" style={{ color: '#E8621A', fontSize: '13px', fontWeight: '700' }}>
+            Forgot password?
+          </Link>
+        </div>
       </div>
     </div>
   )

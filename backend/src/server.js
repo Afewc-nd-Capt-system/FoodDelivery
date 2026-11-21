@@ -27,6 +27,7 @@ const { corsOptions, socketCorsOptions, corsGuard } = require('./config/cors');
 const { getFrontendUrl } = require('./config/frontend');
 const setupSocketIO = require('./socket');
 const { initializeEmailQueue } = require('./jobs/financialEmailJobs');
+const documentStorage = require('./utils/documentStorage');
 
 connectRedis().then(() => console.log('Redis initialization complete'));
 
@@ -202,6 +203,9 @@ app.get('/health', (req, res) => {
     commit: process.env.RENDER_GIT_COMMIT || 'unknown',
     branch: process.env.RENDER_GIT_BRANCH || 'unknown',
     redisConnected: getClient()?.status === 'ready',
+    // Non-secret capability flag: verification documents are either in
+    // Cloudinary (durable, private, signed retrieval) or ephemeral local disk.
+    documentStorage: documentStorage.CONFIGURED ? 'cloudinary' : 'local',
   };
   
   try {

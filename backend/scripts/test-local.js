@@ -73,6 +73,36 @@ function makeApi(port) {
 const OPENING_HOURS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
   .map((day) => ({ day, open: '09:00', close: '21:00', closed: false }));
 
+function readCapturedEmails(file) {
+  try {
+    return fs.readFileSync(file, 'utf8')
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((line) => {
+        try { return JSON.parse(line); } catch { return null; }
+      })
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const emails = readCapturedEmails(file);
+    let candidates = emails;
+    if (afterMail) {
+      const index = emails.findIndex((mail) => mail.at === afterMail.at && mail.to === afterMail.to && mail.subject === afterMail.subject);
+      candidates = index >= 0 ? emails.slice(index + 1) : emails;
+    }
+    const found = candidates.filter(predicate).pop();
+    if (found) return found;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return null;
+}
+
 (async () => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'local-e2e-'));
   cleanupFns.push(() => { try { fs.rmSync(temp, { recursive: true, force: true }); } catch {} });
@@ -124,6 +154,7 @@ const OPENING_HOURS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', '
     DISABLE_RATE_LIMIT: 'true',
     EMAIL_USER: '',
     EMAIL_PASS: '',
+    EMAIL_CAPTURE_FILE: path.join(temp, 'captured-emails.jsonl'),
   };
 
   const child = spawn(process.execPath, [path.join(backendRoot, 'src', 'server.js')], {
@@ -498,6 +529,132 @@ const OPENING_HOURS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', '
   });
   assert(changeForeignItem.status === 403, `updating B's menu item returned ${changeForeignItem.status}: ${changeForeignItem.text}`);
   check(true, 'restaurant A is denied restaurant B profile and menu (403)');
+
+  // ---- 7. Account recovery: forgot password -> captured email -> reset ----
+  const emailCaptureFile = path.join(temp, 'captured-emails.jsonl');
+  const recoveryEmail = `recovery-${Date.now()}@example.test`;
+  const recoveryPassword = testPassword('Recovery');
+  const recoveryUser = await User.create({
+    name: 'Recovery User', email: recoveryEmail, password: recoveryPassword, role: 'customer',
+  });
+  cleanupFns.push(() => User.deleteOne({ _id: recoveryUser._id }).catch(() => {}));
+
+  const preResetLogin = await api('/auth/login', {
+    method: 'POST', body: { email: recoveryEmail, password: recoveryPassword },
+  });
+  assert(preResetLogin.status === 200 && preResetLogin.body?.refreshToken,
+    `pre-reset login failed: ${preResetLogin.status} ${preResetLogin.text}`);
+  const preResetRefreshToken = preResetLogin.body.refreshToken;
+
+  const knownRequest = await api('/auth/forgot-password', {
+    method: 'POST', body: { email: recoveryEmail },
+  });
+  const unknownRequest = await api('/auth/forgot-password', {
+    method: 'POST', body: { email: `unknown-${Date.now()}@example.test` },
+  });
+  assert(knownRequest.status === 200 && unknownRequest.status === 200,
+    `forgot-password statuses were ${knownRequest.status}/${unknownRequest.status}`);
+  assert(knownRequest.body?.message === unknownRequest.body?.message,
+    'known and unknown emails receive different forgot-password responses');
+
+  const resetEmail = await waitForEmail(emailCaptureFile,
+    (mail) => mail.to === recoveryEmail && /reset/i.test(mail.subject || ''));
+  assert(resetEmail, 'no password reset email was captured');
+  const resetLinkMatch = String(resetEmail.html || '').match(/https?:\/\/[^"'\s]+\/reset-password\/([A-Za-z0-9_-]+)/);
+  assert(resetLinkMatch, 'the reset email does not contain a /reset-password/<token> link');
+  const resetUrl = resetLinkMatch[0];
+  const resetToken = resetLinkMatch[1];
+  assert(resetUrl.startsWith('http://localhost:3000/reset-password/'),
+    `the reset link is not on FRONTEND_URL: ${resetUrl}`);
+  check(true, 'forgot-password emails a FRONTEND_URL reset link and treats unknown emails identically');
+
+  const resetPassword = testPassword('Reset');
+  const reset = await api(`/auth/reset-password/${resetToken}`, {
+    method: 'POST', body: { password: resetPassword },
+  });
+  assert(reset.status === 200, `reset returned ${reset.status}: ${reset.text}`);
+
+  const oldLogin = await api('/auth/login', {
+    method: 'POST', body: { email: recoveryEmail, password: recoveryPassword },
+  });
+  assert(oldLogin.status === 401, `the old password still works after reset: ${oldLogin.status}`);
+  const newLogin = await api('/auth/login', {
+    method: 'POST', body: { email: recoveryEmail, password: resetPassword },
+  });
+  assert(newLogin.status === 200 && newLogin.body?.token,
+    `login with the new password failed: ${newLogin.status} ${newLogin.text}`);
+  check(true, 'password reset changes the password and rejects the old one');
+
+  const reused = await api(`/auth/reset-password/${resetToken}`, {
+    method: 'POST', body: { password: testPassword('Reuse') },
+  });
+  assert(reused.status === 400, `a reused reset link returned ${reused.status}: ${reused.text}`);
+
+  const expiredRequest = await api('/auth/forgot-password', {
+    method: 'POST', body: { email: recoveryEmail },
+  });
+  assert(expiredRequest.status === 200, `expired-link request returned ${expiredRequest.status}`);
+  const expiredEmail = await waitForEmail(emailCaptureFile,
+    (mail) => mail.to === recoveryEmail && String(mail.html || '').includes('/reset-password/'),
+    resetEmail);
+  assert(expiredEmail, 'no second reset email was captured');
+  const expiredMatch = String(expiredEmail.html || '').match(/\/reset-password\/([A-Za-z0-9_-]+)/);
+  assert(expiredMatch, 'the second reset email has no token');
+  await User.updateOne({ _id: recoveryUser._id }, { $set: { resetPasswordExpires: new Date(Date.now() - 60000) } });
+  const expiredReset = await api(`/auth/reset-password/${expiredMatch[1]}`, {
+    method: 'POST', body: { password: testPassword('Expired') },
+  });
+  assert(expiredReset.status === 400, `an expired reset link returned ${expiredReset.status}: ${expiredReset.text}`);
+  assert(/expired|invalid/i.test(expiredReset.body?.message || ''),
+    `the expired-link message is unclear: ${expiredReset.body?.message}`);
+  check(true, 'reset links are single-use and expired links fail with a clear message');
+
+  const mfaEmail = `mfa-recovery-${Date.now()}@example.test`;
+  const mfaSecret = 'JBSWY3DPEHPK3PXP';
+  const mfaUser = await User.create({
+    name: 'MFA Recovery User', email: mfaEmail, password: testPassword('Mfa'), role: 'customer',
+    mfaEnabled: true, mfaSecret,
+  });
+  cleanupFns.push(() => User.deleteOne({ _id: mfaUser._id }).catch(() => {}));
+  const mfaResetRequest = await api('/auth/forgot-password', {
+    method: 'POST', body: { email: mfaEmail },
+  });
+  assert(mfaResetRequest.status === 200, `MFA reset request returned ${mfaResetRequest.status}`);
+  const mfaEmailMessage = await waitForEmail(emailCaptureFile,
+    (mail) => mail.to === mfaEmail && String(mail.html || '').includes('/reset-password/'));
+  assert(mfaEmailMessage, 'no reset email was captured for the MFA user');
+  const mfaTokenMatch = String(mfaEmailMessage.html || '').match(/\/reset-password\/([A-Za-z0-9_-]+)/);
+  assert(mfaTokenMatch, 'the MFA reset email has no token');
+  const mfaReset = await api(`/auth/reset-password/${mfaTokenMatch[1]}`, {
+    method: 'POST', body: { password: testPassword('MfaReset') },
+  });
+  assert(mfaReset.status === 200, `MFA user reset returned ${mfaReset.status}: ${mfaReset.text}`);
+  const mfaAfterReset = await User.findById(mfaUser._id);
+  assert(mfaAfterReset?.mfaEnabled === true, 'a password reset disabled MFA');
+  assert(mfaAfterReset?.mfaSecret === mfaSecret, 'a password reset cleared the MFA secret');
+  check(true, 'a password reset does not disable MFA');
+
+  const refreshAfterReset = await api('/auth/refresh', {
+    method: 'POST', body: { refreshToken: preResetRefreshToken },
+  });
+  assert(refreshAfterReset.status === 401,
+    `a pre-reset refresh token still works: ${refreshAfterReset.status}`);
+  const changeLogin = await api('/auth/login', {
+    method: 'POST', body: { email: recoveryEmail, password: resetPassword },
+  });
+  assert(changeLogin.status === 200 && changeLogin.body?.refreshToken,
+    `change-password login failed: ${changeLogin.status} ${changeLogin.text}`);
+  const changed = await api('/auth/change-password', {
+    method: 'POST', token: changeLogin.body.token,
+    body: { currentPassword: resetPassword, newPassword: testPassword('Changed') },
+  });
+  assert(changed.status === 200, `change-password returned ${changed.status}: ${changed.text}`);
+  const refreshAfterChange = await api('/auth/refresh', {
+    method: 'POST', body: { refreshToken: changeLogin.body.refreshToken },
+  });
+  assert(refreshAfterChange.status === 401,
+    `change-password left a refresh-token family alive: ${refreshAfterChange.status}`);
+  check(true, 'reset and password change revoke existing refresh-token families');
 
   // ---- Summary ----
   const failed = results.filter((row) => !row.ok);

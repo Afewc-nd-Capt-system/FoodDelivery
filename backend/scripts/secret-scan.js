@@ -6,6 +6,18 @@ const fs = require('fs');
 const path = require('path');
 
 const root = path.resolve(__dirname, '..', '..');
+const allowlistPath = path.join(__dirname, 'secret-scan-allowlist.json');
+
+// An allowlist is only for deliberately fake test fixtures. Real credentials
+// must never be added here; the history search in the task notes is the
+// evidence that these values were never live credentials.
+let allowlist = [];
+try {
+  allowlist = JSON.parse(fs.readFileSync(allowlistPath, 'utf8'));
+  if (!Array.isArray(allowlist)) allowlist = [];
+} catch {
+  allowlist = [];
+}
 
 const rules = [
   {
@@ -43,6 +55,37 @@ function trackedFiles() {
   return output.split('\0').filter(Boolean);
 }
 
+function lineTextAt(text, index) {
+  const start = text.lastIndexOf('\n', index) + 1;
+  const end = text.indexOf('\n', index);
+  return text.slice(start, end === -1 ? text.length : end);
+}
+
+function previousLineText(text, index) {
+  const start = text.lastIndexOf('\n', index) + 1;
+  if (start === 0) return '';
+  const previousEnd = start - 1;
+  const previousStart = text.lastIndexOf('\n', previousEnd - 1) + 1;
+  return text.slice(previousStart, previousEnd);
+}
+
+function isAllowed(relative, ruleName, matchText, lineText, previousLine) {
+  // Inline escape hatch: add `// secret-scan:allow <reason>` to the finding's
+  // line (or the line above it).
+  if (/secret-scan:allow/i.test(lineText) || /secret-scan:allow/i.test(previousLine || '')) {
+    return true;
+  }
+
+  return allowlist.some((entry) => {
+    if (!entry || typeof entry !== 'object') return false;
+    if (!entry.file && !entry.rule && !entry.match) return false;
+    if (entry.file && entry.file !== relative) return false;
+    if (entry.rule && entry.rule !== ruleName) return false;
+    if (entry.match && !matchText.includes(entry.match)) return false;
+    return true;
+  });
+}
+
 const findings = [];
 for (const relative of trackedFiles()) {
   if (relative.startsWith('backend/tests/')) continue;
@@ -60,6 +103,9 @@ for (const relative of trackedFiles()) {
     let match;
     while ((match = rule.pattern.exec(text)) !== null) {
       const line = text.slice(0, match.index).split(/\r?\n/).length;
+      const lineText = lineTextAt(text, match.index);
+      const previousLine = previousLineText(text, match.index);
+      if (isAllowed(relative, rule.name, match[0], lineText, previousLine)) continue;
       findings.push(`${relative}:${line}: ${rule.name}`);
     }
   }

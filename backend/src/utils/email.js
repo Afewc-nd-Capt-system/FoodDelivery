@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const fs = require('fs');
 
 const transporter = nodemailer.createTransport({
   service: process.env.EMAIL_SERVICE || 'gmail',
@@ -90,6 +91,22 @@ async function sendDeliveryNotification({ to, orderNumber, verificationCode, res
 }
 
 async function sendEmail({ to, subject, html }) {
+  // Test-only capture sink: when EMAIL_CAPTURE_FILE is set (test:local) the
+  // message is appended as JSONL instead of touching SMTP, so the reset flow
+  // can be verified end to end without real email credentials.
+  const captureFile = process.env.EMAIL_CAPTURE_FILE;
+  if (captureFile) {
+    try {
+      fs.appendFileSync(
+        captureFile,
+        `${JSON.stringify({ to, subject, html, at: new Date().toISOString() })}\n`,
+        'utf8'
+      );
+      return;
+    } catch (error) {
+      console.error('Email capture failed:', error.message);
+    }
+  }
   // Generic transactional send used by password reset, welcome and other
   // auth flows. Throws so callers can log; never call it synchronously inside
   // a response path that must stay fast (use fire-and-forget there).

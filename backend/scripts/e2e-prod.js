@@ -70,6 +70,8 @@ const refreshTokens = {};
 const users = {};
 let ownRestaurantId = null;
 let selfService = null;
+let documentStorageMode = 'unknown';
+let healthEnv = '';
 
 // Every record this run creates is tracked here and removed in a finally block
 // so a failed check can never leave test accounts, restaurants or orders in
@@ -287,7 +289,13 @@ async function runScenario() {
     let body = null;
     try { body = text ? JSON.parse(text) : null; } catch { body = text; }
     assert(response.status === 200, `health returned ${response.status}: ${text}`);
-    return `uptime=${Math.round(body?.uptime || 0)}s`;
+    documentStorageMode = body?.documentStorage || 'unknown';
+    healthEnv = body?.env || '';
+    assert(
+      documentStorageMode === 'cloudinary' || documentStorageMode === 'local',
+      `health.documentStorage must be "cloudinary" or "local" (got ${documentStorageMode})`
+    );
+    return `uptime=${Math.round(body?.uptime || 0)}s documentStorage=${documentStorageMode}`;
   });
 
   for (const role of Object.keys(accounts)) {
@@ -1158,11 +1166,7 @@ async function runScenario() {
     return '404';
   });
 
-  if (
-    process.env.CLOUDINARY_CLOUD_NAME &&
-    process.env.CLOUDINARY_API_KEY &&
-    process.env.CLOUDINARY_API_SECRET
-  ) {
+  if (documentStorageMode === 'cloudinary') {
     await requestStep('Cloudinary verification upload is private and admin-signed', async () => {
       const png = Buffer.from(
         'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=',
@@ -1183,6 +1187,19 @@ async function runScenario() {
       assert(upload.status === 200, `document upload returned ${upload.status}: ${JSON.stringify(uploadBody)}`);
       const documentUrl = uploadBody.cacCertificate?.url;
       assert(documentUrl, 'document upload returned no URL');
+
+      // The stored reference itself must be a Cloudinary reference, not just a
+      // URL that happens to redirect. Decode the base64url payload.
+      const reference = String(documentUrl).split('/docs/')[1];
+      assert(reference, `document URL has no reference: ${documentUrl}`);
+      let decodedReference = null;
+      try {
+        decodedReference = JSON.parse(Buffer.from(decodeURIComponent(reference), 'base64url').toString('utf8'));
+      } catch {
+        decodedReference = null;
+      }
+      assert(decodedReference?.provider === 'cloudinary',
+        `stored verification reference is not a cloudinary reference: ${JSON.stringify(decodedReference)}`);
 
       const anonymous = await fetch(`${BASE_URL}${documentUrl}`, {
         headers: { Origin: ORIGIN },
@@ -1209,10 +1226,22 @@ async function runScenario() {
         location.includes('api.cloudinary.com') && location.includes('signature=') && location.includes('expires_at='),
         'admin redirect is not a signed, expiring Cloudinary URL'
       );
-      return 'private; signed admin redirect';
+      return 'private; cloudinary reference; signed admin redirect';
     });
+  } else if (documentStorageMode === 'local' && healthEnv === 'production') {
+    log('');
+    log('**********************************************************************');
+    log('WARNING: /health reports documentStorage=local in PRODUCTION.');
+    log('WARNING: verification documents are on ephemeral local disk and the');
+    log('WARNING: Cloudinary upload/privacy check was NOT run.');
+    log('WARNING: set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and');
+    log('WARNING: CLOUDINARY_API_SECRET on Render, then redeploy.');
+    log('**********************************************************************');
+    log('');
+    record('documentStorage is cloudinary in production', false,
+      'health reports local; verification documents are not durable/private');
   } else {
-    log('SKIP  Cloudinary verification upload — CLOUDINARY_* not set');
+    log(`SKIP  verification upload - documentStorage=${documentStorageMode} on a non-production target`);
   }
 
   await requestStep('customer wallet credit is forbidden', async () => {

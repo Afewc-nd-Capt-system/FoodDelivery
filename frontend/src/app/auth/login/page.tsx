@@ -93,7 +93,7 @@ export default function LoginPage() {
         </form>
 
         <div className="text-center mt-4">
-          <Link href="/forgot-password" className="text-sm text-primary-500 hover:text-primary-600">
+          <Link href="/forgot-password" data-testid="forgot-password-link" className="text-sm text-primary-500 hover:text-primary-600">
             Forgot Password?
           </Link>
         </div>

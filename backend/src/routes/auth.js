@@ -290,6 +290,8 @@ router.post('/change-password', authMiddleware, [
 
     user.password = newPassword;
     await user.save();
+    // Password changes end every existing session, not only this one.
+    await tokens.revokeAllForUser(user._id);
     res.json({ success: true, message: 'Password updated' });
   } catch (error) {
     res.status(400).json({ message: error.message || 'Password update failed' });
@@ -365,7 +367,7 @@ router.post('/forgot-password', [
       user.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
       await user.save();
 
-      const resetUrl = frontendUrl(`/reset-password?token=${resetToken}`);
+      const resetUrl = frontendUrl(`/reset-password/${resetToken}`);
       // Fire-and-forget keeps the response timing close for existing and
       // non-existing addresses; failures are logged server-side only.
       sendEmail({
@@ -418,6 +420,8 @@ const resetPasswordHandler = async (req, res) => {
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
     await user.save();
+    // A reset must sign out every other session. MFA settings are untouched.
+    await tokens.revokeAllForUser(user._id);
 
     res.json({ message: 'Password reset successful' });
   } catch (error) {

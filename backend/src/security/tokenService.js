@@ -89,6 +89,40 @@ async function deletePattern(pattern) {
   }
 }
 
+// Per-user index of refresh-token families. A password reset or password
+// change must end every other session, not just the current one.
+async function registerUserFamily(userId, familyId) {
+  if (!userId || !familyId) return;
+  await storeSet(`refresh:user:${userId}:family:${familyId}`, '1', REFRESH_TTL_SECONDS);
+}
+
+async function listUserFamilies(userId) {
+  const prefix = `refresh:user:${userId}:family:`;
+  const families = new Set();
+  if (redisUsable()) {
+    try {
+      const keys = await getClient().keys(`${prefix}*`);
+      for (const key of keys) families.add(key.slice(prefix.length));
+    } catch (error) {
+      console.error('[AUTH] Redis token index read failed:', error.message);
+    }
+  }
+  for (const key of memory.keys()) {
+    if (key.startsWith(prefix)) families.add(key.slice(prefix.length));
+  }
+  return [...families].filter(Boolean);
+}
+
+async function revokeAllForUser(userId) {
+  if (!userId) return 0;
+  const families = await listUserFamilies(userId);
+  for (const familyId of families) {
+    await revokeFamily(familyId);
+    await storeDel(`refresh:user:${userId}:family:${familyId}`);
+  }
+  return families.length;
+}
+
 function signAccessToken(user, familyId) {
   return jwt.sign(
     {
@@ -127,6 +161,7 @@ async function issueTokens(user, existingFamilyId) {
     hash(refreshToken),
     REFRESH_TTL_SECONDS
   );
+  await registerUserFamily(user._id, familyId);
 
   return { accessToken, refreshToken, familyId };
 }
@@ -232,6 +267,7 @@ module.exports = {
   issueTokens,
   rotateRefreshToken,
   revokeFamily,
+  revokeAllForUser,
   verifyAccessToken,
   verifyRefreshToken,
   createMfaToken,

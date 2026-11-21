@@ -165,6 +165,33 @@ async function fetchRestaurants() {
     }
   }
 
+  // ---- Forgot-password link must be reachable from every login page ----
+  {
+    const { context, page } = await newPage(browser);
+    try {
+      const loginPages = [
+        ['customer', '/login'],
+        ['admin', '/admin/login'],
+        ['vendor', '/vendor-login'],
+        ['restaurant', '/restaurant-login'],
+        ['rider', '/rider-login'],
+        ['delivery company', '/delivery-company-login'],
+      ];
+      for (const [label, pathname] of loginPages) {
+        try {
+          const res = await gotoPage(page, BASE + pathname);
+          await page.waitForSelector('[data-testid="forgot-password-link"]', { state: 'visible', timeout: 20000 });
+          const href = await page.locator('[data-testid="forgot-password-link"]').first().getAttribute('href');
+          check(`forgot-password link on ${label} login`, res && res.status() === 200 && href === '/forgot-password', `href=${href}`);
+        } catch (error) {
+          check(`forgot-password link on ${label} login`, false, error.message);
+        }
+      }
+    } finally {
+      await context.close().catch(() => {});
+    }
+  }
+
   // ---- Admin tabs ----
   if (sessions.admin) {
     const { page } = sessions.admin;

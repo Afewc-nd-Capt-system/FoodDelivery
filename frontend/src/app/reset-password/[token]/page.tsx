@@ -180,6 +180,12 @@ export default function ResetPasswordPage() {
             ) : 'Reset Password'}
           </Button>
         </div>
+
+        <p className="text-center text-sm text-[#636366] mt-6">
+          <Link href="/forgot-password" className="text-[#E8621A] font-semibold hover:underline">
+            Request a new reset link
+          </Link>
+        </p>
       </div>
     </div>
   );
