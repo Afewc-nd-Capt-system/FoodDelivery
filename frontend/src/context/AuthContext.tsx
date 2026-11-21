@@ -91,6 +91,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [sessionMessage, setSessionMessageState] = useState('')
   const validating = useRef(false)
+  // Bumped whenever this tab changes the session/user. A background refresh
+  // that started earlier must not overwrite a newer local edit (e.g. saving a
+  // profile name while the mount-time validation is still in flight).
+  const versionRef = useRef(0)
 
   const applyStoredState = useCallback(() => {
     const stored = readStoredAuth()
@@ -110,6 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const expireSession = useCallback(() => {
+    versionRef.current += 1
     clearAuthSession()
     setToken(null)
     setUser(null)
@@ -133,6 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!stored.token) return false
     if (validating.current) return true
     validating.current = true
+    const startVersion = versionRef.current
     try {
       let res = await fetchProfile(stored.token)
       if (res.status === 401) {
@@ -148,6 +154,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false
       }
       if (res.ok) {
+        // A local edit (profile save, login, logout) happened while this
+        // request was in flight; keep the local state.
+        if (versionRef.current !== startVersion) return true
         const profile = await res.json()
         const merged = { ...stored.user, ...profile }
         persistAuthSession({ token: readStoredAuth().token || stored.token, user: merged })
@@ -188,6 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const applySession = useCallback((data: AuthPayload): User | null => {
     if (!data?.token || !data?.user) return null
+    versionRef.current += 1
     persistAuthSession(data)
     setToken(data.token)
     setUser(data.user)
@@ -234,6 +244,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [applySession])
 
   const logout = useCallback(async (redirectTo?: string) => {
+    versionRef.current += 1
     const stored = readStoredAuth()
     if (stored.token) {
       void fetch(`${BACKEND}/auth/logout`, {
@@ -256,6 +267,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const updateUser = useCallback((userData: User) => {
+    versionRef.current += 1
     const stored = readStoredAuth()
     persistAuthSession({ token: stored.token || undefined, refreshToken: stored.refreshToken || undefined, user: userData })
     setUser(userData)

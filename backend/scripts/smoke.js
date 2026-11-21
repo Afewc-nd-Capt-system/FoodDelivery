@@ -374,7 +374,10 @@ async function fetchRestaurants() {
     await page.route('**/auth/login', (route) => route.fulfill({
       status: 429,
       contentType: 'application/json',
-      headers: { 'access-control-allow-origin': BASE },
+      headers: {
+        'access-control-allow-origin': BASE,
+        'access-control-allow-credentials': 'true',
+      },
       body: JSON.stringify({ success: false, message: 'Too many login attempts. Please try again in 15 minutes.' }),
     }));
     await page.goto(BASE + '/login', { waitUntil: 'domcontentloaded', timeout: 60000 });
