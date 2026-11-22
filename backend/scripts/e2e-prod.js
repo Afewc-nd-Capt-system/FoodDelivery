@@ -75,6 +75,8 @@ let healthEnv = '';
 let emailProvider = 'unknown';
 let emailConfigured = false;
 let requireEmailVerification = false;
+let migrationsPending = null;
+let migrationsLastRun = null;
 
 // Every record this run creates is tracked here and removed in a finally block
 // so a failed check can never leave test accounts, restaurants or orders in
@@ -310,6 +312,8 @@ async function runScenario() {
     emailProvider = body?.emailProvider || 'unknown';
     emailConfigured = body?.emailConfigured === true;
     requireEmailVerification = body?.requireEmailVerification === true;
+    migrationsPending = body?.migrationsPending;
+    migrationsLastRun = body?.migrationsLastRun;
     assert(
       documentStorageMode === 'cloudinary' || documentStorageMode === 'local',
       `health.documentStorage must be "cloudinary" or "local" (got ${documentStorageMode})`
@@ -320,7 +324,10 @@ async function runScenario() {
     );
     assert(typeof body?.emailConfigured === 'boolean', 'health.emailConfigured must be a boolean');
     assert(typeof body?.requireEmailVerification === 'boolean', 'health.requireEmailVerification must be a boolean');
-    return `uptime=${Math.round(body?.uptime || 0)}s documentStorage=${documentStorageMode} emailProvider=${emailProvider} emailConfigured=${emailConfigured} requireEmailVerification=${requireEmailVerification}`;
+    assert(Number.isInteger(body?.migrationsPending), `health.migrationsPending must be an integer (got ${body?.migrationsPending})`);
+    assert(body.migrationsPending === 0, `health.migrationsPending must be 0 (got ${body.migrationsPending})`);
+    assert(typeof body?.migrationsLastRun === 'string', 'health.migrationsLastRun must be set');
+    return `uptime=${Math.round(body?.uptime || 0)}s documentStorage=${documentStorageMode} emailProvider=${emailProvider} emailConfigured=${emailConfigured} requireEmailVerification=${requireEmailVerification} migrationsPending=${migrationsPending}`;
   });
 
   for (const role of Object.keys(accounts)) {
@@ -329,6 +336,34 @@ async function runScenario() {
       return `${result.body.user?.email} role=${result.body.user?.role}${result.mfaVerified ? ' mfa=verified' : ''}`;
     });
   }
+
+  if (requireEmailVerification) {
+    await requestStep('switch-on: demo customer marked verified via admin', async () => {
+      const customerId = users.customer?.id || users.customer?._id;
+      assert(customerId, 'customer id is missing');
+      const result = await api(`/admin/users/${customerId}/verify-email`, {
+        method: 'POST',
+        token: tokens.admin,
+      });
+      assert(result.status === 200 && result.body?.user?.emailVerified === true,
+        `admin verify returned ${result.status}: ${result.text}`);
+      return `customer=${customerId}`;
+    });
+  }
+
+  await requestStep('migrations auto-ran and 005 is applied', async () => {
+    const anonymous = await api('/admin/migrations');
+    assert(anonymous.status === 401, `anonymous migrations returned ${anonymous.status}`);
+    const customer = await api('/admin/migrations', { token: tokens.customer });
+    assert(customer.status === 403, `customer migrations returned ${customer.status}`);
+    const admin = await api('/admin/migrations', { token: tokens.admin });
+    assert(admin.status === 200, `admin migrations returned ${admin.status}: ${admin.text}`);
+    assert(Array.isArray(admin.body?.applied), 'migrations response has no applied list');
+    const migration = admin.body.applied.find((entry) => entry.name === '005-email-verification.js');
+    assert(migration, '005-email-verification.js is not applied');
+    assert(admin.body.status?.pending === 0, `migrations status pending=${admin.body.status?.pending}`);
+    return `005 matched=${migration.result?.matched} modified=${migration.result?.modified}`;
+  });
 
   await requestStep('email failures endpoint is admin-only', async () => {
     const anonymous = await api('/admin/email/failures');

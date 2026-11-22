@@ -39,12 +39,16 @@ process.env.EMAIL_MOCK_FAIL_TO = process.env.EMAIL_MOCK_FAIL_TO || 'always-fail@
 process.env.EMAIL_OWNER = process.env.EMAIL_OWNER || 'owner-notify@example.test';
 process.env.EMAIL_FROM = process.env.EMAIL_FROM || '"VibeChops" <no-reply@vibechops.test>';
 process.env.EMAIL_REPLY_TO = process.env.EMAIL_REPLY_TO || 'support@vibechops.test';
+const switchOn = String(
+  process.env.TEST_REQUIRE_EMAIL_VERIFICATION || process.env.REQUIRE_EMAIL_VERIFICATION || ''
+).toLowerCase() === 'true';
 
 const backendRoot = path.join(__dirname, '..');
 const mailService = require(path.join(backendRoot, 'src', 'services', 'mailService'));
 const emailTemplates = require(path.join(backendRoot, 'src', 'services', 'emailTemplates'));
 const financialEmailJobs = require(path.join(backendRoot, 'src', 'jobs', 'financialEmailJobs'));
 const DeliveryConfirmationService = require(path.join(backendRoot, 'src', 'services', 'DeliveryConfirmationService'));
+const migrationRunner = require(path.join(backendRoot, 'src', 'migrations', 'runner.js'));
 const { sendEmail } = require(path.join(backendRoot, 'src', 'utils', 'email'));
 const results = [];
 const cleanupFns = [];
@@ -217,6 +221,7 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
     FRONTEND_URL: 'http://localhost:3000',
     API_URL: 'http://localhost:3000',
     DISABLE_RATE_LIMIT: 'true',
+    REQUIRE_EMAIL_VERIFICATION: switchOn ? 'true' : 'false',
     EMAIL_USER: '',
     EMAIL_PASS: '',
     EMAIL_CAPTURE_FILE: path.join(temp, 'captured-emails.jsonl'),
@@ -462,6 +467,13 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
   });
   assert(customerRegister.status === 201, `customer register returned ${customerRegister.status}: ${customerRegister.text}`);
   const customerToken = customerRegister.body.token;
+  const customerId = String(customerRegister.body.user?._id || '');
+  if (switchOn) {
+    const verifiedCustomer = await api(`/admin/users/${customerId}/verify-email`, {
+      method: 'POST', token: adminToken,
+    });
+    assert(verifiedCustomer.status === 200, `admin verify customer returned ${verifiedCustomer.status}: ${verifiedCustomer.text}`);
+  }
 
   const missingOption = await api('/orders', {
     method: 'POST',
@@ -867,6 +879,12 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
   assert(failBuyer.status === 201, `registration with a failing email returned ${failBuyer.status}: ${failBuyer.text}`);
   const failBuyerToken = failBuyer.body.token;
   const failBuyerId = String(failBuyer.body.user?._id || '');
+  if (switchOn) {
+    const verifiedFailBuyer = await api(`/admin/users/${failBuyerId}/verify-email`, {
+      method: 'POST', token: adminToken,
+    });
+    assert(verifiedFailBuyer.status === 200, `admin verify fail-buyer returned ${verifiedFailBuyer.status}: ${verifiedFailBuyer.text}`);
+  }
 
   const payOrder = await api('/orders', {
     method: 'POST',
@@ -923,7 +941,20 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
   // ---- 10. Email verification (switch OFF main server, switch ON second server) ----
   const emailVerificationMigration = require(path.join(backendRoot, 'src', 'migrations', '005-email-verification.js'));
   const offHealth = await (await fetch(`http://127.0.0.1:${port}/health`)).json();
-  assert(offHealth.requireEmailVerification === false, 'main server switch should default to false');
+  assert(offHealth.requireEmailVerification === switchOn,
+    `main server switch should be ${switchOn} (got ${offHealth.requireEmailVerification})`);
+  assert(Number.isInteger(offHealth.migrationsPending) && offHealth.migrationsPending === 0,
+    `main /health migrationsPending should be 0 (got ${offHealth.migrationsPending})`);
+  assert(typeof offHealth.migrationsLastRun === 'string', 'main /health migrationsLastRun is missing');
+
+  const appliedMigrations = await api('/admin/migrations', { token: adminToken });
+  assert(appliedMigrations.status === 200 && Array.isArray(appliedMigrations.body?.applied),
+    `admin migrations endpoint returned ${appliedMigrations.status}: ${appliedMigrations.text}`);
+  const migration005 = appliedMigrations.body.applied.find((entry) => entry.name === '005-email-verification.js');
+  assert(migration005, '005-email-verification.js was not applied at boot');
+  check(true, 'migrations auto-ran, /health reports 0 pending, and the admin endpoint lists 005',
+    `005 matched=${migration005.result?.matched} modified=${migration005.result?.modified}`);
+  check(true, `REQUIRE_EMAIL_VERIFICATION is reported on /health (main=${switchOn}, second=true)`);
 
   const verifiedPort = port + 1;
   const verifiedEnv = {
@@ -951,18 +982,54 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
   const apiVerified = makeApi(verifiedPort);
   const onHealth = await (await fetch(`http://127.0.0.1:${verifiedPort}/health`)).json();
   assert(onHealth.requireEmailVerification === true, 'second server switch should be true');
-  check(true, 'REQUIRE_EMAIL_VERIFICATION defaults off and is reported on /health');
 
+  const migrationCustomerEmail = `migration-customer-${Date.now()}@example.test`;
+  const migrationCustomer = await User.create({
+    name: 'Migration Customer',
+    email: migrationCustomerEmail,
+    password: testPassword('MigrationCustomer'),
+    role: 'customer',
+  });
+  cleanupFns.push(() => User.deleteOne({ _id: migrationCustomer._id }).catch(() => {}));
   const migrationFirst = await emailVerificationMigration.up(mongoose.connection.db);
   const migrationSecond = await emailVerificationMigration.up(mongoose.connection.db);
   const adminAfterMigration = await User.findOne({ email: adminEmail });
-  const customerAfterMigration = await User.findOne({ email: customerEmail });
+  const customerAfterMigration = await User.findById(migrationCustomer._id);
   assert(adminAfterMigration?.emailVerified === true, 'migration did not verify the admin account');
   assert(customerAfterMigration?.emailVerified === false, 'migration must not verify customers');
   const migrationSecondModified = migrationSecond.modified ?? migrationSecond.nModified ?? 0;
   assert(migrationSecondModified === 0, `migration is not idempotent: ${migrationSecondModified} modified`);
   check(true, 'email verification migration marks non-customer roles only and is idempotent',
     `modified=${migrationFirst.modified ?? migrationFirst.nModified ?? 0}`);
+
+  // Concurrent runners must apply each migration once (lock + unique journal).
+  const concurrencyDb = mongoose.connection.useDb('migrations_concurrency').db;
+  await concurrencyDb.collection('migrations').deleteMany({});
+  await concurrencyDb.collection('migration_locks').deleteMany({});
+  await Promise.all([
+    migrationRunner.runPendingMigrations({ db: concurrencyDb }),
+    migrationRunner.runPendingMigrations({ db: concurrencyDb }),
+  ]);
+  const concurrentApplied = await concurrencyDb.collection('migrations').find({}).toArray();
+  const concurrentNames = concurrentApplied.map((doc) => doc.name);
+  const expectedMigrationNames = migrationRunner.listMigrationFiles().map((file) => file.name);
+  assert(new Set(concurrentNames).size === expectedMigrationNames.length
+    && concurrentNames.length === expectedMigrationNames.length,
+    `concurrent migration journal is wrong (unique=${new Set(concurrentNames).size}, total=${concurrentNames.length}, expected=${expectedMigrationNames.length})`);
+  check(true, 'two simultaneous migration runs apply each migration once', `applied=${concurrentNames.length}`);
+
+  // A failing migration is logged and left pending; the boot wrapper resolves.
+  const failureDb = mongoose.connection.useDb('migrations_failure').db;
+  await failureDb.collection('migrations').deleteMany({});
+  await failureDb.collection('migration_locks').deleteMany({});
+  const failureResult = await migrationRunner.runPendingMigrationsAtBoot({
+    db: failureDb,
+    files: [{ name: '999-test-failing.js', up: async () => { throw new Error('intentional test failure'); } }],
+    logger: { log() {}, warn() {}, error() {} },
+  });
+  assert(failureResult.failed === 1 && failureResult.pending === 1,
+    `failing migration result was ${JSON.stringify(failureResult)}`);
+  check(true, 'a failing migration is logged and the boot run does not throw');
 
   const verifyEmailAddr = `verify-${Date.now()}@example.test`;
   const verifyPassword = testPassword('Verify');

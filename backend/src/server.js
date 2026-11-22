@@ -29,6 +29,7 @@ const setupSocketIO = require('./socket');
 const { initializeEmailQueue } = require('./jobs/financialEmailJobs');
 const documentStorage = require('./utils/documentStorage');
 const mailService = require('./services/mailService');
+const migrationRunner = require('./migrations/runner');
 
 connectRedis().then(() => console.log('Redis initialization complete'));
 
@@ -116,7 +117,17 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/food-deli
   retryWrites: true,
   w: 'majority',
 })
-.then(() => console.log('MongoDB connected âœ…'))
+.then(async () => {
+  console.log('MongoDB connected âœ…');
+  try {
+    const status = await migrationRunner.runPendingMigrationsAtBoot({ db: mongoose.connection.db });
+    console.log(`[migrations] pending=${status.pending} applied=${status.applied} failed=${status.failed}`);
+  } catch (error) {
+    // runPendingMigrationsAtBoot already absorbs failures; this is a final
+    // guard so a migration problem can never crash-loop the server.
+    console.error('[migrations] boot failure:', error.message);
+  }
+})
 .catch(err => {
   console.error('MongoDB connection error:', err.message)
 })
@@ -180,6 +191,7 @@ app.use('/api/v2/earnings', authMiddleware, require('./routes/v2/earnings'));
 app.use('/api/v2/admin/approvals', authMiddleware, require('./routes/v2/admin-approvals'));
 app.use('/api/v2/admin/applications', require('./routes/v2/admin-applications'));
 app.use('/api/v2/admin/users', require('./routes/v2/admin-users'));
+app.use('/api/v2/admin/migrations', require('./routes/v2/admin-migrations'));
 app.use('/api/v2/admin/email', require('./routes/v2/admin-email'));
 app.use('/api/v2/admin/revenue', authMiddleware, require('./routes/v2/admin-revenue'));
 app.use('/api/v2/subscriptions', authMiddleware, require('./routes/v2/business-subscriptions'));
@@ -194,6 +206,7 @@ if (process.env.ENABLE_SEED === 'true' && process.env.NODE_ENV !== 'production')
 
 // Health check endpoint for Render
 app.get('/health', (req, res) => {
+  const migrationStatus = migrationRunner.getMigrationStatus();
   const healthCheck = {
     uptime: process.uptime(),
     message: 'Food Delivery API is healthy',
@@ -215,6 +228,8 @@ app.get('/health', (req, res) => {
     // Safety switch: when false, unverified customers can still order while
     // email delivery is being brought online.
     requireEmailVerification: require('./middleware/requireVerifiedEmail').enforcementEnabled(),
+    migrationsPending: migrationStatus.pending,
+    migrationsLastRun: migrationStatus.lastRun,
   };
   
   try {

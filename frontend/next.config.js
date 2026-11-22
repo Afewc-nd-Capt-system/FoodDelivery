@@ -11,6 +11,14 @@ const apiHostname = (() => {
 })()
 
 const nextConfig = {
+  // Inline the Git commit at build time so the meta tag and /version.json can
+  // prove exactly which main commit the live bundle came from.
+  env: {
+    NEXT_PUBLIC_BUILD_COMMIT:
+      process.env.VERCEL_GIT_COMMIT_SHA
+      || process.env.NEXT_PUBLIC_BUILD_COMMIT
+      || '',
+  },
   generateBuildId: async () => {
     return `build-${Date.now()}`
   },

@@ -15,6 +15,11 @@ const siteUrl = (() => {
   return configured.includes('://') ? configured : `https://${configured}`;
 })();
 
+const buildCommit =
+  process.env.NEXT_PUBLIC_BUILD_COMMIT
+  || process.env.VERCEL_GIT_COMMIT_SHA
+  || 'dev';
+
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
@@ -46,6 +51,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <meta name="build-commit" content={buildCommit} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link

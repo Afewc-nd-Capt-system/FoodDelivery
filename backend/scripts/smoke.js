@@ -18,6 +18,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 const { chromium } = require('playwright-core');
 const dotenv = require('dotenv');
 const { authenticator } = require('otplib');
@@ -141,10 +142,40 @@ async function fetchRestaurants() {
   console.log(`Smoke target: ${BASE}`);
   console.log(`Direct API:   ${API_V2}`);
 
+  let expectedCommit = process.env.EXPECTED_FRONTEND_COMMIT || '';
+  if (!expectedCommit) {
+    try {
+      expectedCommit = execSync('git rev-parse HEAD', {
+        cwd: path.join(__dirname, '..', '..'),
+        encoding: 'utf8',
+      }).trim();
+    } catch {}
+  }
+
   const launchOptions = { headless: true };
   if (fs.existsSync(CHROME_PATH)) launchOptions.executablePath = CHROME_PATH;
   const browser = await chromium.launch(launchOptions);
   const sessions = {};
+
+  // ---- Frontend build version must be the latest main commit ----
+  {
+    const { context, page } = await newPage(browser);
+    try {
+      const versionRes = await fetch(`${BASE}/version.json`, { signal: AbortSignal.timeout(20000) });
+      const version = await versionRes.json().catch(() => ({}));
+      await page.goto(BASE + '/', { waitUntil: 'domcontentloaded', timeout: 60000 });
+      const meta = await page.locator('meta[name="build-commit"]').getAttribute('content').catch(() => null);
+      check(
+        'frontend serves the latest main commit',
+        Boolean(expectedCommit) && version.commit === expectedCommit && meta === expectedCommit,
+        `expected=${String(expectedCommit).slice(0, 8)} version=${String(version.commit).slice(0, 8)} meta=${String(meta).slice(0, 8)}`
+      );
+    } catch (error) {
+      check('frontend serves the latest main commit', false, error.message);
+    } finally {
+      await context.close().catch(() => {});
+    }
+  }
 
   // ---- Six logins ----
   for (const [role, expectedRole, loginPath, email, password] of roles) {
@@ -189,6 +220,34 @@ async function fetchRestaurants() {
       }
     } finally {
       await context.close().catch(() => {});
+    }
+  }
+
+  // ---- Switch-aware rehearsal: with enforcement on, the seeded demo customer
+  // must be verified through the admin support action before the cart flow.
+  let requireEmailVerification = false;
+  try {
+    const health = await (await fetch(`${API_ORIGIN}/health`, { signal: AbortSignal.timeout(20000) })).json();
+    requireEmailVerification = health.requireEmailVerification === true;
+  } catch {}
+  if (requireEmailVerification && sessions.customer && sessions.admin) {
+    try {
+      const customerId = await sessions.customer.page.evaluate(() => {
+        try {
+          const user = JSON.parse(localStorage.getItem('user') || '{}');
+          return user.id || user._id;
+        } catch {
+          return null;
+        }
+      });
+      const adminToken = await sessions.admin.page.evaluate(() => localStorage.getItem('token'));
+      const res = await fetch(`${API_V2}/admin/users/${customerId}/verify-email`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${adminToken}`, Origin: BASE },
+      });
+      check('switch-on: demo customer marked verified via admin', res.ok, `status=${res.status}`);
+    } catch (error) {
+      check('switch-on: demo customer marked verified via admin', false, error.message);
     }
   }
 

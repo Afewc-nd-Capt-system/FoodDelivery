@@ -1,20 +1,17 @@
 /**
- * Minimal migration runner.
+ * Migration runner (manual).
+ *
+ * Production no longer needs this: src/server.js runs pending migrations
+ * automatically after Mongo connects, using the same lock/journal as here.
  *
  * Usage:
  *   node src/migrations/run.js          # apply pending migrations
  *   node src/migrations/run.js --list   # show status
- *
- * Applied migrations are recorded in the `migrations` collection, so re-running
- * is safe. Each migration module exports `up(db)` and optionally `down(db)`.
  */
 require('dotenv').config();
 
-const fs = require('fs');
-const path = require('path');
 const mongoose = require('mongoose');
-
-const MIGRATION_FILE = /^\d{3,}[-_].*\.js$/;
+const runner = require('./runner');
 
 async function main() {
   const listOnly = process.argv.includes('--list');
@@ -22,32 +19,20 @@ async function main() {
 
   await mongoose.connect(uri);
   const db = mongoose.connection.db;
-  const journal = db.collection('migrations');
+  const files = runner.listMigrationFiles();
+  const applied = new Set(
+    (await db.collection('migrations').find({}).toArray()).map((doc) => doc.name)
+  );
 
-  const files = fs
-    .readdirSync(__dirname)
-    .filter((file) => MIGRATION_FILE.test(file))
-    .sort();
-
-  const applied = new Set((await journal.find({}).toArray()).map((doc) => doc.name));
-
-  for (const file of files) {
-    if (applied.has(file)) {
-      console.log(`[skip]  ${file}`);
-      continue;
+  if (listOnly) {
+    for (const file of files) {
+      console.log(`[${applied.has(file.name) ? 'applied' : 'pending'}]  ${file.name}`);
     }
-
-    console.log(`[${listOnly ? 'pending' : 'run'}]  ${file}`);
-    if (listOnly) continue;
-
-    const migration = require(path.join(__dirname, file));
-    if (typeof migration.up !== 'function') {
-      throw new Error(`${file} does not export an up(db) function`);
-    }
-
-    const result = await migration.up(db);
-    await journal.insertOne({ name: file, appliedAt: new Date(), result: result ?? null });
-    console.log(`[done]  ${file}`, result ? JSON.stringify(result) : '');
+    console.log(`\n${files.filter((file) => !applied.has(file.name)).length} pending`);
+  } else {
+    const result = await runner.runPendingMigrations({ db });
+    console.log(`[migrations] ${JSON.stringify(result)}`);
+    if (result.failed) process.exitCode = 1;
   }
 
   await mongoose.disconnect();

@@ -29,6 +29,42 @@ Deploy verification checklist:
   `npx vercel deploy --prod --yes` then
   `npx vercel alias set <deployment> vibechops.com www.vibechops.com food-delivery-app-ten-beta.vercel.app`.
 
+### Frontend deploy + version proof (exact procedure)
+
+Two Vercel projects exist in `dawudtus-projects`:
+
+- **`food-delivery-app`** — Root Directory `.`, Framework Preset `Services`
+  (root `vercel.json`), owns `vibechops.com`, `www.vibechops.com` and
+  `food-delivery-app-ten-beta.vercel.app`. **This is the production project and
+  should stay.**
+- **`food-delivery`** — Root Directory `frontend`, Framework Preset Next.js,
+  build `npm run build` (which runs the frontend `prebuild` that removes
+  `.next`). It carries the GitHub integration and the `-git-main-` alias, so
+  pushes build this legacy project; that is why auto-deploy missed
+  `f551a73` while the domain stayed on `food-delivery-app`. Neither project has
+  an Ignored Build Step configured. **Do not delete or archive it**; either
+  connect the Git integration to `food-delivery-app` (Root `.`, Services) or
+  use the manual procedure below.
+
+Manual procedure (from the repo root, never `frontend/`):
+
+1. `git checkout main && git pull`
+2. `COMMIT=$(git rev-parse HEAD)` (PowerShell: `$COMMIT = git rev-parse HEAD`)
+3. One-time link: `npx vercel link --yes --project food-delivery-app`
+4. `npx vercel deploy --prod --yes --build-env NEXT_PUBLIC_BUILD_COMMIT=$COMMIT`
+5. `npx vercel alias set <deployment-url> vibechops.com www.vibechops.com food-delivery-app-ten-beta.vercel.app`
+6. Verify the frontend version:
+   - `curl -s https://vibechops.com/version.json` → `commit` equals `$COMMIT`
+   - the homepage `<meta name="build-commit" content="...">` equals `$COMMIT`
+7. Verify the backend: `curl -s https://vibechops.onrender.com/health` →
+   `commit` equals `$COMMIT`, `migrationsPending: 0`, and `migrationsLastRun` set.
+8. Run `BASE_URL=https://vibechops.com npm run test:smoke`; it asserts the same
+   commit via `/version.json` and the meta tag.
+
+Backend migrations run automatically at server start (lock + TTL + journal), so
+no Render shell step is needed. The admin-only
+`GET /api/v2/admin/migrations` lists applied migrations and their results.
+
 ## Do-not-revert list (handover critical)
 
 - **Vercel `vercel.json` is frontend-only** (`experimentalServices.frontend`). Do
