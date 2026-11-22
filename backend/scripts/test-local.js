@@ -21,11 +21,15 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
 const { spawn } = require('child_process');
 const http = require('http');
 
 // Test-only mail configuration: the mock provider captures every message to
 // JSONL and never touches SMTP/Resend. The spawned server inherits these too.
+process.env.MONGOMS_DOWNLOAD_DIR = process.env.MONGOMS_DOWNLOAD_DIR
+  || path.join(os.homedir(), '.cache', 'mongodb-binaries');
+process.env.MONGOMS_LAUNCH_TIMEOUT = process.env.MONGOMS_LAUNCH_TIMEOUT || '60000';
 process.env.EMAIL_PROVIDER = 'mock';
 process.env.EMAIL_RETRY_BASE_MS = process.env.EMAIL_RETRY_BASE_MS || '50';
 process.env.EMAIL_MAX_ATTEMPTS = process.env.EMAIL_MAX_ATTEMPTS || '3';
@@ -126,7 +130,7 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
 
   // ---- In-memory Mongo ----
   const { MongoMemoryServer } = require(path.join(backendRoot, 'node_modules', 'mongodb-memory-server'));
-  const mongod = await MongoMemoryServer.create();
+  const mongod = await MongoMemoryServer.create({ instance: { launchTimeout: 60000 } });
   const mongoUri = mongod.getUri('vibechops_local');
   cleanupFns.push(() => { try { mongod.stop(); } catch {} });
   check(true, 'mongodb-memory-server running');
@@ -142,6 +146,7 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
   const Subscription = require(path.join(backendRoot, 'src', 'models', 'Subscription'));
   const BusinessSubscriptionPlan = require(path.join(backendRoot, 'src', 'models', 'BusinessSubscriptionPlan'));
   const EmailLog = require(path.join(backendRoot, 'src', 'models', 'EmailLog'));
+  const Order = require(path.join(backendRoot, 'src', 'models', 'Order'));
   const emailCaptureFile = path.join(temp, 'captured-emails.jsonl');
   process.env.EMAIL_CAPTURE_FILE = emailCaptureFile;
 
@@ -157,6 +162,45 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
     role: 'admin',
   });
 
+  // ---- Local Paystack mock (test-only base URL override) ----
+  const paystackRequests = [];
+  const paystackPort = 4900 + (Date.now() % 100);
+  const paystackServer = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      if (req.method === 'POST' && req.url === '/transaction/initialize') {
+        let parsed = {};
+        try { parsed = JSON.parse(body || '{}'); } catch {}
+        const reference = parsed.reference || `mock_${Date.now()}`;
+        paystackRequests.push({ ...parsed, reference });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          status: true,
+          data: {
+            authorization_url: `http://127.0.0.1:${paystackPort}/pay/${encodeURIComponent(reference)}`,
+            access_code: 'mock_access_code',
+            reference,
+          },
+        }));
+        return;
+      }
+      if (req.method === 'GET' && req.url.startsWith('/transaction/verify/')) {
+        const reference = decodeURIComponent(req.url.slice('/transaction/verify/'.length));
+        const stored = paystackRequests.find((entry) => entry.reference === reference);
+        res.writeHead(stored ? 200 : 404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(stored
+          ? { status: true, data: { status: 'success', amount: stored.amount, currency: 'NGN', reference, metadata: stored.metadata } }
+          : { status: false, message: 'Not found' }));
+        return;
+      }
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: false, message: 'Not found' }));
+    });
+  });
+  await new Promise((resolve) => paystackServer.listen(paystackPort, '127.0.0.1', resolve));
+  cleanupFns.push(() => { try { paystackServer.close(); } catch {} });
+
   // ---- Boot the real server ----
   const port = 4200 + (Date.now() % 500);
   const env = {
@@ -169,6 +213,7 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
     JWT_SECRET: 'local-test-secret-0123456789abcdef0123456789abcdef',
     JWT_REFRESH_SECRET: 'local-test-refresh-0123456789abcdef0123456789ab',
     PAYSTACK_SECRET_KEY: process.env.PAYSTACK_SECRET_KEY || 'test-key',
+    PAYSTACK_API_BASE_URL: `http://127.0.0.1:${paystackPort}`,
     FRONTEND_URL: 'http://localhost:3000',
     API_URL: 'http://localhost:3000',
     DISABLE_RATE_LIMIT: 'true',
@@ -808,6 +853,72 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
     'EmailLog stores metadata only',
     logKeys.join(',')
   );
+
+  // ---- 9. Email failure never breaks order creation or payment ----
+  const failBuyerEmail = 'always-fail@example.test';
+  const failBuyerPassword = testPassword('FailBuyer');
+  const failBuyer = await api('/auth/register', {
+    method: 'POST',
+    body: {
+      name: 'Email Fail Buyer', email: failBuyerEmail,
+      password: failBuyerPassword, confirmPassword: failBuyerPassword,
+    },
+  });
+  assert(failBuyer.status === 201, `registration with a failing email returned ${failBuyer.status}: ${failBuyer.text}`);
+  const failBuyerToken = failBuyer.body.token;
+  const failBuyerId = String(failBuyer.body.user?._id || '');
+
+  const payOrder = await api('/orders', {
+    method: 'POST',
+    token: failBuyerToken,
+    body: {
+      restaurantId,
+      items: [{ menuItem: itemId, quantity: 1, customizations: [{ name: 'Size', option: 'Large' }] }],
+      deliveryAddress: '9 Email Fail Street, Lagos',
+      paymentMethod: 'card',
+    },
+  });
+  assert(payOrder.status === 201, `order with a failing email returned ${payOrder.status}: ${payOrder.text}`);
+  const payOrderId = String(payOrder.body.order._id);
+  const failedConfirmation = await waitForLog({
+    type: 'order-confirmation', recipient: failBuyerEmail, status: 'failed',
+  });
+  assert(failedConfirmation, 'the failing order-confirmation email was not logged as failed');
+
+  const initialized = await api('/payments/initialize', {
+    method: 'POST', token: failBuyerToken, body: { orderId: payOrderId },
+  });
+  assert(initialized.status === 200 && initialized.body?.authorizationUrl,
+    `payment initialize returned ${initialized.status}: ${initialized.text}`);
+
+  const webhookPayload = {
+    event: 'charge.success',
+    data: {
+      status: 'success',
+      reference: initialized.body.reference,
+      amount: Math.round(Number(payOrder.body.order.totalAmount) * 100),
+      currency: 'NGN',
+      metadata: { orderId: payOrderId, userId: failBuyerId },
+    },
+  };
+  const webhookBody = JSON.stringify(webhookPayload);
+  const signature = crypto.createHmac('sha512', env.PAYSTACK_SECRET_KEY).update(webhookBody).digest('hex');
+  const webhook = await api('/payments/webhook', {
+    method: 'POST',
+    headers: { 'x-paystack-signature': signature, 'Content-Type': 'application/json' },
+    // The test helper serializes objects with JSON.stringify, which matches
+    // the bytes signed above.
+    body: webhookPayload,
+  });
+  assert(webhook.status === 200 && /processed/i.test(webhook.body?.message || ''),
+    `payment webhook returned ${webhook.status}: ${webhook.text}`);
+  const paidOrder = await Order.findById(payOrderId);
+  assert(paidOrder && paidOrder.isPaid === true && paidOrder.paymentStatus === 'paid',
+    'the order was not marked paid after the webhook');
+
+  const failedWelcome = await waitForLog({ type: 'welcome', recipient: failBuyerEmail, status: 'failed' });
+  assert(failedWelcome, 'the failing welcome email was not logged as failed');
+  check(true, 'order creation, payment initialize and confirmation succeed while email fails');
 
   // ---- Summary ----
   const failed = results.filter((row) => !row.ok);

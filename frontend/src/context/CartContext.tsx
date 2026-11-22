@@ -1,11 +1,33 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import type { MenuItem } from '../data/mockData';
 
 export interface CartItem extends MenuItem {
   quantity: number;
   selectedOptions?: Record<string, string>;
+}
+
+const CART_STORAGE_KEY = 'vibechops_cart_v1';
+
+function readStoredCart(): { items: CartItem[]; promoCode: string; discount: number } {
+  if (typeof window === 'undefined') return { items: [], promoCode: '', discount: 0 };
+  try {
+    const raw = window.localStorage.getItem(CART_STORAGE_KEY);
+    if (!raw) return { items: [], promoCode: '', discount: 0 };
+    const parsed = JSON.parse(raw);
+    const items = Array.isArray(parsed?.items)
+      ? parsed.items.filter((item: any) => item && typeof item.id === 'string' && typeof item.name === 'string' && Number.isFinite(Number(item.price)))
+        .map((item: any) => ({ ...item, price: Number(item.price), quantity: Math.max(1, Number(item.quantity) || 1) }))
+      : [];
+    return {
+      items,
+      promoCode: typeof parsed?.promoCode === 'string' ? parsed.promoCode : '',
+      discount: Number.isFinite(Number(parsed?.discount)) ? Number(parsed.discount) : 0,
+    };
+  } catch {
+    return { items: [], promoCode: '', discount: 0 };
+  }
 }
 
 interface CartContextType {
@@ -27,6 +49,33 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [promoCode, setPromoCode] = useState('');
   const [discount, setDiscount] = useState(0);
+  const [hydrated, setHydrated] = useState(false);
+
+  // Restore once after mount so a hard refresh or a full navigation to /cart
+  // keeps the customer's items (the smoke used to lose them on a reload).
+  useEffect(() => {
+    const stored = readStoredCart();
+    setItems(stored.items);
+    setPromoCode(stored.promoCode);
+    setDiscount(stored.discount);
+    setHydrated(true);
+  }, []);
+
+  // Persist after hydration only, so the initial empty state never wipes a
+  // stored cart before it has been read.
+  useEffect(() => {
+    if (!hydrated || typeof window === 'undefined') return;
+    try {
+      if (items.length === 0 && !promoCode) {
+        window.localStorage.removeItem(CART_STORAGE_KEY);
+      } else {
+        window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({ items, promoCode, discount }));
+      }
+    } catch {
+      // Storage can be unavailable (private mode/quota); the cart still works
+      // for the current tab.
+    }
+  }, [items, promoCode, discount, hydrated]);
 
   const addItem = useCallback((item: MenuItem, options?: Record<string, string>) => {
     setItems(prev => {

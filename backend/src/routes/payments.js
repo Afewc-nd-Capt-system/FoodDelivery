@@ -8,7 +8,8 @@ const { frontendUrl } = require('../config/frontend');
 const router = express.Router();
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
-const paystackBaseUrl = 'https://api.paystack.co';
+// Test-only override; production keeps the real Paystack host.
+const paystackBaseUrl = process.env.PAYSTACK_API_BASE_URL || 'https://api.paystack.co';
 
 function getRawBody(req) {
   if (Buffer.isBuffer(req.body)) return req.body;

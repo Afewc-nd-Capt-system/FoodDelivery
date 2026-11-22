@@ -17,8 +17,15 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
 const { execSync, spawn } = require('child_process');
 const http = require('http');
+
+// Mongodb-memory-server's default binary cache on this machine is already
+// pre-downloaded. Pin it and give the instance a realistic cold-start window.
+process.env.MONGOMS_DOWNLOAD_DIR = process.env.MONGOMS_DOWNLOAD_DIR
+  || path.join(os.homedir(), '.cache', 'mongodb-binaries');
+process.env.MONGOMS_LAUNCH_TIMEOUT = process.env.MONGOMS_LAUNCH_TIMEOUT || '60000';
 
 const backendRoot = path.join(__dirname, '..');
 const results = [];
@@ -56,15 +63,47 @@ function httpStatus(port, pathname) {
     ? execSync('where npm.cmd').toString().trim().split('\n')[0].trim()
     : execSync('which npm').toString().trim();
 
+  // Cache the clean production install by lockfile hash. The first run after a
+  // dependency change still runs `npm ci`; later runs reuse it via a Windows
+  // junction (or a copy elsewhere). This removes minutes of install time from
+  // the pre-push gate without weakening the "clean install" check.
+  const lockHash = crypto.createHash('sha256')
+    .update(fs.readFileSync(path.join(backendRoot, 'package-lock.json')))
+    .digest('hex')
+    .slice(0, 16);
+  const cacheRoot = path.join(os.tmpdir(), 'vibechops-boot-node-modules', lockHash);
+  const cacheModules = path.join(cacheRoot, 'node_modules');
+  const cacheMarker = path.join(cacheRoot, '.complete');
+  const workModules = path.join(workdir, 'node_modules');
+
   try {
-    console.log('[boot-test] npm ci --omit=dev in clean folder…');
-    execSync(`"${npmCmd}" ci --omit=dev --no-audit --no-fund`, {
-      cwd: workdir,
-      stdio: 'inherit',
-      timeout: 15 * 60 * 1000,
-      env: { ...process.env, NODE_ENV: 'production' },
-    });
-    check(true, 'npm ci --omit=dev completed');
+    if (fs.existsSync(cacheModules) && fs.existsSync(cacheMarker)) {
+      try {
+        fs.symlinkSync(cacheModules, workModules, 'junction');
+      } catch {
+        fs.cpSync(cacheModules, workModules, { recursive: true });
+      }
+      console.log(`[boot-test] using cached production node_modules (${lockHash})`);
+      check(true, 'npm ci --omit=dev completed (cached)');
+    } else {
+      console.log('[boot-test] npm ci --omit=dev in clean folder…');
+      execSync(`"${npmCmd}" ci --omit=dev --no-audit --no-fund`, {
+        cwd: workdir,
+        stdio: 'inherit',
+        timeout: 15 * 60 * 1000,
+        env: { ...process.env, NODE_ENV: 'production' },
+      });
+      check(true, 'npm ci --omit=dev completed');
+      try {
+        fs.rmSync(cacheRoot, { recursive: true, force: true });
+        fs.mkdirSync(cacheRoot, { recursive: true });
+        fs.cpSync(workModules, cacheModules, { recursive: true });
+        fs.writeFileSync(cacheMarker, new Date().toISOString());
+        console.log(`[boot-test] cached production node_modules (${lockHash})`);
+      } catch (cacheError) {
+        console.warn(`[boot-test] could not cache node_modules: ${cacheError.message}`);
+      }
+    }
   } catch (error) {
     check(false, 'npm ci --omit=dev failed: ' + String(error.stdout || error.message).slice(0, 300));
     process.exit(1);
@@ -74,7 +113,7 @@ function httpStatus(port, pathname) {
   let mongodUri = '';
   try {
     const { MongoMemoryServer } = require(path.join(backendRoot, 'node_modules', 'mongodb-memory-server'));
-    const mongod = await MongoMemoryServer.create();
+    const mongod = await MongoMemoryServer.create({ instance: { launchTimeout: 60000 } });
     mongodUri = mongod.getUri('vibechops');
     cleanupFns.push(() => { try { mongod.stop(); } catch {} });
     check(true, 'mongodb-memory-server running');

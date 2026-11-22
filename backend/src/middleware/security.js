@@ -10,6 +10,7 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(32),
   PAYSTACK_SECRET_KEY: z.string().min(1),
   PAYSTACK_PUBLIC_KEY: z.string().optional(),
+  PAYSTACK_API_BASE_URL: z.string().url().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   EMAIL_SERVICE: z.string().optional(),
   EMAIL_USER: z.string().optional(),
