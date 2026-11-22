@@ -2,7 +2,6 @@ const express = require('express');
 const authMiddleware = require('../../middleware/auth');
 const TableReservation = require('../../models/TableReservation');
 const Restaurant = require('../../models/Restaurant');
-const { sendEmail } = require('../../utils/email');
 
 const router = express.Router();
 

@@ -4,7 +4,8 @@ const Restaurant = require('../../models/Restaurant');
 const Order = require('../../models/Order');
 const PromoCode = require('../../models/PromoCode');
 const authMiddleware = require('../../middleware/auth');
-const { frontendUrl } = require('../../config/frontend');
+const { sendEmail } = require('../../utils/email');
+const templates = require('../../services/emailTemplates');
 const router = express.Router();
 
 const adminMiddleware = async (req, res, next) => {
@@ -149,24 +150,9 @@ router.patch('/vendors/:id/approve', async (req, res) => {
       );
     } catch {}
     // Send approval email (fire-and-forget to avoid hanging the response)
-    (async () => {
-      try {
-        const nodemailer = require('nodemailer');
-        const transporter = nodemailer.createTransport({
-          service: process.env.EMAIL_SERVICE,
-          auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-          connectionTimeout: 5000,
-        });
-        await transporter.sendMail({
-          from: `"VibeChops" <${process.env.EMAIL_USER}>`,
-          to: vendor.email,
-          subject: 'Your VibeChops vendor application is approved!',
-          html: '<h2>Congratulations ' + vendor.name + '!</h2><p>Your vendor application has been approved.</p><p><a href=\"' + frontendUrl('/vendor-login') + '\" style=\"background:#E8621A;color:white;padding:10px 20px;border-radius:8px;text-decoration:none\">Login to Dashboard</a></p>'
-        });
-      } catch (emailErr) {
-        console.warn('Approval email failed:', emailErr.message);
-      }
-    })();
+    const approvedTemplate = templates.vendorApproved({ name: vendor.name });
+    sendEmail({ to: vendor.email, ...approvedTemplate, type: 'vendor-approved' })
+      .catch((emailErr) => console.warn('Approval email failed:', emailErr.message));
     res.json({ success: true, message: 'Vendor approved successfully', vendor: { id: vendor._id, name: vendor.name, email: vendor.email } });
   } catch (err) {
     console.error('Vendor approve error:', err);
@@ -186,6 +172,9 @@ router.patch('/vendors/:id/reject', async (req, res) => {
     if (!vendor) {
       return res.status(404).json({ message: 'Vendor not found' });
     }
+    const rejectedTemplate = templates.vendorRejected({ name: vendor.name, reason });
+    sendEmail({ to: vendor.email, ...rejectedTemplate, type: 'vendor-rejected' })
+      .catch((emailErr) => console.warn('Rejection email failed:', emailErr.message));
     res.json({ success: true, message: 'Vendor rejected' });
   } catch (err) {
     console.error('Vendor reject error:', err);

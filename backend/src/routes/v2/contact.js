@@ -2,7 +2,7 @@
 const router = express.Router()
 const PartnerApplication = require('../../models/PartnerApplication')
 const { sendEmail } = require('../../utils/email')
-const { frontendUrl } = require('../../config/frontend')
+const templates = require('../../services/emailTemplates')
 
 const typeLabels = {
   restaurant: 'Restaurant Partner',
@@ -35,37 +35,33 @@ router.post('/', async (req, res) => {
       message,
     })
 
-    // Emails are fire-and-forget: never fail the request because SMTP is down.
-    sendEmail({
-      to: process.env.EMAIL_USER,
-      subject: `New Partner Application: ${typeLabels[type]} - ${businessName}`,
-      html: `
-        <h2>New Partner Application</h2>
-        <p><b>Type:</b> ${typeLabels[type]}<br/>
-        <b>Business:</b> ${businessName}<br/>
-        <b>Name:</b> ${name}<br/>
-        <b>Email:</b> ${email}<br/>
-        <b>Phone:</b> ${phone}<br/>
-        <b>Location:</b> ${city || ''}, ${state || ''}<br/>
-        <b>Message:</b> ${message || 'N/A'}</p>
-        <p>Application ID: ${application._id}</p>
-        <p><a href="${frontendUrl('/admin/dashboard')}">Review in the Admin Dashboard â†’ Applications</a></p>
-      `,
-    }).catch((err) => console.error('Contact notification email failed:', err.message))
+    // Emails are fire-and-forget: never fail the request because a provider is down.
+    const ownerEmail = process.env.EMAIL_OWNER || process.env.EMAIL_USER
+    if (ownerEmail) {
+      const adminTemplate = templates.partnerApplicationAdmin({
+        name: application.name,
+        typeLabel: typeLabels[type],
+        businessName: application.businessName,
+        email: application.email,
+        phone: application.phone,
+        city: application.city,
+        state: application.state,
+        message: application.message,
+        applicationId: application._id,
+      })
+      sendEmail({ to: ownerEmail, ...adminTemplate, type: 'partner-application-admin' })
+        .catch((err) => console.error('Contact notification email failed:', err.message))
+    }
 
-    sendEmail({
-      to: email,
-      subject: 'We received your VibeChops partner application!',
-      html: `
-        <h2>Application Received! ðŸŽ‰</h2>
-        <p>Hi ${name},</p>
-        <p>Thank you for applying to be a <b>${typeLabels[type]}</b> partner with VibeChops.</p>
-        <p>We received your application for <b>${businessName}</b> in ${city || ''}, ${state || ''}.</p>
-        <p>Our team reviews applications within 24-48 hours. If approved, you will receive a
-        single-use registration link that expires in 7 days.</p>
-        <p>Best regards,<br/>The VibeChops Team</p>
-      `,
-    }).catch((err) => console.error('Contact acknowledgement email failed:', err.message))
+    const receivedTemplate = templates.partnerApplicationReceived({
+      name: application.name,
+      typeLabel: typeLabels[type],
+      businessName: application.businessName,
+      city: application.city,
+      state: application.state,
+    })
+    sendEmail({ to: application.email, ...receivedTemplate, type: 'partner-application-received' })
+      .catch((err) => console.error('Contact acknowledgement email failed:', err.message))
 
     res.json({
       success: true,

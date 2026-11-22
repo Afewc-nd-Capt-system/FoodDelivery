@@ -13,7 +13,17 @@ const PayOnDeliveryService = require('../../services/PayOnDeliveryService');
 const OrderCompletionService = require('../../services/OrderCompletionService');
 const { priceOrder } = require('../../services/orderPricingService');
 const PromoCode = require('../../models/PromoCode');
+const { sendOrderConfirmation, sendOrderStatusUpdate } = require('../../utils/email');
 const router = express.Router();
+
+async function notifyOrderStatus(order) {
+  try {
+    const customer = await User.findById(order.user).select('email');
+    if (customer?.email) void sendOrderStatusUpdate(customer.email, order);
+  } catch (error) {
+    console.error('[orders] status email failed:', error.message);
+  }
+}
 
 function paidOrderAmount(order) {
   // Orders created before server-side pricing stored a food-only total and a
@@ -253,6 +263,16 @@ router.post('/', authMiddleware, async (req, res) => {
 
     await order.save();
 
+    // Fire-and-forget: the order response must never wait on email delivery.
+    void (async () => {
+      try {
+        const customer = await User.findById(req.user.id).select('email');
+        if (customer?.email) void sendOrderConfirmation(customer.email, order);
+      } catch (error) {
+        console.error('[orders] confirmation email failed:', error.message);
+      }
+    })();
+
     if (pricing.promo) {
       // Best-effort usage accounting after the order is safely persisted.
       await PromoCode.updateOne(
@@ -342,6 +362,7 @@ router.patch('/restaurants/orders/:id/accept', authMiddleware, async (req, res) 
 
     order.status = 'accepted';
     await order.save();
+    void notifyOrderStatus(order);
 
     // Emit order_accepted to customer room
     const io = req.app.get('io');
@@ -371,6 +392,7 @@ router.patch('/restaurants/orders/:id/decline', authMiddleware, async (req, res)
 
     order.status = 'cancelled';
     await order.save();
+    void notifyOrderStatus(order);
 
     // Refund to wallet if paid online
     if (order.paymentMethod === 'card' && order.isPaid) {
@@ -417,6 +439,7 @@ router.patch('/restaurants/orders/:id/preparing', authMiddleware, async (req, re
 
     order.status = 'preparing';
     await order.save();
+    void notifyOrderStatus(order);
 
     // Emit order_preparing to customer room
     const io = req.app.get('io');
@@ -446,6 +469,7 @@ router.patch('/restaurants/orders/:id/ready', authMiddleware, async (req, res) =
 
     order.status = 'ready';
     await order.save();
+    void notifyOrderStatus(order);
 
     // Emit order_ready to delivery company room
     const io = req.app.get('io');

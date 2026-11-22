@@ -93,7 +93,7 @@ router.post('/', authMiddleware, async (req, res) => {
 
     const user = await User.findById(req.user.id);
     if (user && user.email) {
-      await sendOrderConfirmation(user.email, order);
+      void sendOrderConfirmation(user.email, order);
     }
 
     res.status(201).json({ order });
@@ -197,7 +197,7 @@ router.put('/:id/status', authMiddleware, async (req, res) => {
     if (oldStatus !== status) {
       const user = await User.findById(order.user);
       if (user && user.email) {
-        await sendOrderStatusUpdate(user.email, order);
+        void sendOrderStatusUpdate(user.email, order);
       }
     }
 

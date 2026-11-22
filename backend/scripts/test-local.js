@@ -24,7 +24,24 @@ const os = require('os');
 const { spawn } = require('child_process');
 const http = require('http');
 
+// Test-only mail configuration: the mock provider captures every message to
+// JSONL and never touches SMTP/Resend. The spawned server inherits these too.
+process.env.EMAIL_PROVIDER = 'mock';
+process.env.EMAIL_RETRY_BASE_MS = process.env.EMAIL_RETRY_BASE_MS || '50';
+process.env.EMAIL_MAX_ATTEMPTS = process.env.EMAIL_MAX_ATTEMPTS || '3';
+process.env.EMAIL_MOCK_FAIL_TIMES = process.env.EMAIL_MOCK_FAIL_TIMES || '2';
+process.env.EMAIL_MOCK_FAIL_TYPE = process.env.EMAIL_MOCK_FAIL_TYPE || 'retry-test';
+process.env.EMAIL_MOCK_FAIL_TO = process.env.EMAIL_MOCK_FAIL_TO || 'always-fail@example.test';
+process.env.EMAIL_OWNER = process.env.EMAIL_OWNER || 'owner-notify@example.test';
+process.env.EMAIL_FROM = process.env.EMAIL_FROM || '"VibeChops" <no-reply@vibechops.test>';
+process.env.EMAIL_REPLY_TO = process.env.EMAIL_REPLY_TO || 'support@vibechops.test';
+
 const backendRoot = path.join(__dirname, '..');
+const mailService = require(path.join(backendRoot, 'src', 'services', 'mailService'));
+const emailTemplates = require(path.join(backendRoot, 'src', 'services', 'emailTemplates'));
+const financialEmailJobs = require(path.join(backendRoot, 'src', 'jobs', 'financialEmailJobs'));
+const DeliveryConfirmationService = require(path.join(backendRoot, 'src', 'services', 'DeliveryConfirmationService'));
+const { sendEmail } = require(path.join(backendRoot, 'src', 'utils', 'email'));
 const results = [];
 const cleanupFns = [];
 const cleanup = () => { while (cleanupFns.length) { try { cleanupFns.pop()(); } catch {} } };
@@ -124,6 +141,9 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
   const Restaurant = require(path.join(backendRoot, 'src', 'models', 'Restaurant'));
   const Subscription = require(path.join(backendRoot, 'src', 'models', 'Subscription'));
   const BusinessSubscriptionPlan = require(path.join(backendRoot, 'src', 'models', 'BusinessSubscriptionPlan'));
+  const EmailLog = require(path.join(backendRoot, 'src', 'models', 'EmailLog'));
+  const emailCaptureFile = path.join(temp, 'captured-emails.jsonl');
+  process.env.EMAIL_CAPTURE_FILE = emailCaptureFile;
 
   const adminEmail = 'local-admin@example.test';
   // Throwaway credentials are generated per run so the repo never carries
@@ -531,7 +551,6 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
   check(true, 'restaurant A is denied restaurant B profile and menu (403)');
 
   // ---- 7. Account recovery: forgot password -> captured email -> reset ----
-  const emailCaptureFile = path.join(temp, 'captured-emails.jsonl');
   const recoveryEmail = `recovery-${Date.now()}@example.test`;
   const recoveryPassword = testPassword('Recovery');
   const recoveryUser = await User.create({
@@ -655,6 +674,140 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
   assert(refreshAfterChange.status === 401,
     `change-password left a refresh-token family alive: ${refreshAfterChange.status}`);
   check(true, 'reset and password change revoke existing refresh-token families');
+
+  // ---- 8. Transactional email (mock provider, captured) ----
+  const waitForLog = async (filter, timeoutMs = 12000) => {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+      const log = await EmailLog.findOne(filter).sort({ createdAt: -1 });
+      if (log) return log;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    return null;
+  };
+
+  // Trigger the remaining caller paths that the earlier scenarios did not cover.
+  const acceptedOrder = await api(`/orders/restaurants/orders/${order.body.order._id}/accept`, {
+    method: 'PATCH', token: ownerToken,
+  });
+  assert(acceptedOrder.status === 200, `order accept returned ${acceptedOrder.status}: ${acceptedOrder.text}`);
+  await DeliveryConfirmationService.notifyCustomer(order.body.order, '654321');
+
+  const rejectEmail = `reject-${Date.now()}@example.test`;
+  const rejectContact = await api('/contact', {
+    method: 'POST',
+    body: {
+      name: 'Reject Test', email: rejectEmail, phone: '+2348012345678',
+      type: 'restaurant', businessName: 'Reject Kitchen', city: 'Lagos', state: 'Lagos',
+    },
+  });
+  assert(rejectContact.status === 200, `reject contact returned ${rejectContact.status}: ${rejectContact.text}`);
+  const pendingApplications = await api('/admin/applications?status=pending&limit=100', { token: adminToken });
+  const rejectApplication = (pendingApplications.body?.data || []).find((row) => row.email === rejectEmail);
+  assert(rejectApplication, 'reject test application was not stored');
+  const rejectedApplication = await api(`/admin/applications/${rejectApplication._id}/reject`, {
+    method: 'POST', token: adminToken, body: { reason: 'Test rejection' },
+  });
+  assert(rejectedApplication.status === 200, `application reject returned ${rejectedApplication.status}: ${rejectedApplication.text}`);
+
+  await sendEmail({ to: 'vendor-email@example.test', ...emailTemplates.vendorApproved({ name: 'Vendor' }), type: 'vendor-approved' });
+  await sendEmail({ to: 'vendor-email@example.test', ...emailTemplates.vendorRejected({ name: 'Vendor', reason: 'Test' }), type: 'vendor-rejected' });
+  await sendEmail({ to: 'rider-email@example.test', ...emailTemplates.riderApproved({ name: 'Rider' }), type: 'rider-approved' });
+  await sendEmail({ to: 'rider-email@example.test', ...emailTemplates.riderRejected({ name: 'Rider', reason: 'Test' }), type: 'rider-rejected' });
+
+  const financeAddress = 'finance@example.test';
+  await financialEmailJobs.sendWeeklyEarningsSummary(financeAddress, { ordersCount: 1, gross: 1000, commission: 100, net: 900 });
+  await financialEmailJobs.sendSubscriptionRenewalReminder(financeAddress, { planName: 'Pro', renewalDate: '2026-01-01', amount: 5000 });
+  await financialEmailJobs.sendPayoutProcessed(financeAddress, { amount: 900, bankName: 'Test Bank', accountNumber: '1234567890' });
+  await financialEmailJobs.sendAdCampaignLive(financeAddress, { placement: 'Home', startDate: '2026-01-01', endDate: '2026-01-07', budget: 1000 });
+  await financialEmailJobs.sendAdBudgetWarning(financeAddress, { remaining: 100 });
+
+  const expectedEmails = [
+    ['welcome', customerEmail],
+    ['password-reset', recoveryEmail],
+    ['partner-application-admin', process.env.EMAIL_OWNER],
+    ['partner-application-received', ownerEmail],
+    ['partner-approved', ownerEmail],
+    ['partner-rejected', rejectEmail],
+    ['order-confirmation', customerEmail],
+    ['order-status', customerEmail],
+    ['delivery-otp', customerEmail],
+    ['vendor-approved', 'vendor-email@example.test'],
+    ['vendor-rejected', 'vendor-email@example.test'],
+    ['rider-approved', 'rider-email@example.test'],
+    ['rider-rejected', 'rider-email@example.test'],
+    ['weekly-earnings', financeAddress],
+    ['subscription-reminder', financeAddress],
+    ['payout-processed', financeAddress],
+    ['ad-campaign-live', financeAddress],
+    ['ad-budget-warning', financeAddress],
+  ];
+  const missingEmails = [];
+  for (const [type, recipient] of expectedEmails) {
+    const log = await waitForLog({ type, recipient, status: 'sent' });
+    if (!log) missingEmails.push(`${type}->${recipient}`);
+  }
+  check(missingEmails.length === 0, 'every transactional email type is logged as sent', missingEmails.join(', '));
+
+  const captured = readCapturedEmails(emailCaptureFile);
+  const latest = (type, to) => [...captured].reverse().find((mail) => mail.type === type && mail.to === to);
+  const resetMail = latest('password-reset', recoveryEmail);
+  const approvedMail = latest('partner-approved', ownerEmail);
+  const welcomeMail = latest('welcome', customerEmail);
+  const orderMail = latest('order-confirmation', customerEmail);
+  const otpMail = latest('delivery-otp', customerEmail);
+  const linksOk = Boolean(
+    resetMail?.html?.includes('http://localhost:3000/reset-password/')
+    && resetMail?.text?.includes('http://localhost:3000/reset-password/')
+    && approvedMail?.html?.includes('invite=')
+    && approvedMail?.text?.includes('invite=')
+    && welcomeMail?.html?.includes('/restaurants')
+    && welcomeMail?.text?.includes('/restaurants')
+    && orderMail?.html?.includes('/orders')
+    && otpMail?.text?.includes('654321')
+  );
+  check(linksOk, 'emails have branded HTML, plain text and FRONTEND_URL links');
+
+  const capturedText = JSON.stringify(captured);
+  const secretValues = Object.entries(env)
+    .filter(([key, value]) => /SECRET|PASSWORD|PASS|KEY|URI/.test(key) && typeof value === 'string' && value.length >= 8)
+    .map(([, value]) => value);
+  const leakedSecrets = secretValues.filter((value) => capturedText.includes(value));
+  check(leakedSecrets.length === 0, 'captured emails contain no credentials',
+    leakedSecrets.length ? `${leakedSecrets.length} leaked value(s)` : 'clean');
+
+  await mailService.queueEmail({
+    type: 'retry-test', to: 'retry@example.test', subject: 'Retry test',
+    html: '<p>retry</p>', text: 'retry',
+  });
+  const retriedLog = await waitForLog({ type: 'retry-test', recipient: 'retry@example.test', status: 'sent' });
+  check(Boolean(retriedLog && retriedLog.attempts >= 3), 'transient email failures retry with backoff',
+    `attempts=${retriedLog?.attempts}`);
+
+  const failureContact = await api('/contact', {
+    method: 'POST',
+    body: {
+      name: 'Always Fail', email: process.env.EMAIL_MOCK_FAIL_TO, phone: '+2348012345678',
+      type: 'vendor', businessName: 'Always Fail Kitchen', city: 'Lagos', state: 'Lagos',
+    },
+  });
+  const failedEmailLog = await waitForLog({
+    type: 'partner-application-received', recipient: process.env.EMAIL_MOCK_FAIL_TO, status: 'failed',
+  });
+  check(
+    failureContact.status === 200 && Boolean(failedEmailLog && failedEmailLog.attempts >= 3),
+    'a provider failure never breaks the API response and is logged',
+    `api=${failureContact.status} attempts=${failedEmailLog?.attempts} error=${failedEmailLog?.errorClass}`
+  );
+
+  const sampleLog = await EmailLog.findOne({ type: 'welcome' }).lean();
+  const logKeys = Object.keys(sampleLog || {});
+  check(
+    Boolean(sampleLog && sampleLog.provider === 'mock' && /^mock_/.test(sampleLog.providerMessageId || '')
+      && !logKeys.includes('html') && !logKeys.includes('text') && !logKeys.includes('subject')),
+    'EmailLog stores metadata only',
+    logKeys.join(',')
+  );
 
   // ---- Summary ----
   const failed = results.filter((row) => !row.ok);

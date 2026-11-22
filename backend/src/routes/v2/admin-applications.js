@@ -5,7 +5,7 @@ const authMiddleware = require('../../middleware/auth');
 const { adminGuard } = require('../../middleware/routeGuards');
 const { createInvitation } = require('../../services/partnerInvitation');
 const { sendEmail } = require('../../utils/email');
-const { frontendUrl } = require('../../config/frontend');
+const templates = require('../../services/emailTemplates');
 
 const router = express.Router();
 router.use(authMiddleware, adminGuard);
@@ -69,19 +69,14 @@ router.post('/:id/approve', async (req, res) => {
     application.reviewedAt = new Date();
     await application.save();
 
-    sendEmail({
-      to: application.email,
-      subject: `You're approved to join VibeChops as a ${TYPE_LABEL[application.type]}`,
-      html: `
-        <h2>Your application is approved 🎉</h2>
-        <p>Hi ${application.name},</p>
-        <p>Your application for <b>${application.businessName}</b> has been approved.</p>
-        <p>Use this single-use registration link (expires in 7 days):</p>
-        <p><a href="${inviteUrl}" style="background:#E8621A;color:white;padding:12px 24px;border-radius:8px;text-decoration:none">Complete Registration</a></p>
-        <p>If the button does not work, copy this link:<br/>${inviteUrl}</p>
-        <p>The link can only be used once. If it expires, contact support for a new one.</p>
-      `,
-    }).catch((err) => console.error('Invitation email failed:', err.message));
+    const approvedTemplate = templates.partnerApproved({
+      name: application.name,
+      typeLabel: TYPE_LABEL[application.type],
+      businessName: application.businessName,
+      inviteUrl,
+    });
+    sendEmail({ to: application.email, ...approvedTemplate, type: 'partner-approved' })
+      .catch((err) => console.error('Invitation email failed:', err.message));
 
     res.json({
       success: true,
@@ -107,18 +102,13 @@ router.post('/:id/reject', async (req, res) => {
     application.reviewedAt = new Date();
     await application.save();
 
-    sendEmail({
-      to: application.email,
-      subject: 'Update on your VibeChops partner application',
-      html: `
-        <h2>Application update</h2>
-        <p>Hi ${application.name},</p>
-        <p>Unfortunately we can't approve your application for <b>${application.businessName}</b> at this time.</p>
-        <p><b>Reason:</b> ${application.rejectionReason}</p>
-        <p>You are welcome to apply again once the issue is resolved.</p>
-        <p><a href="${frontendUrl('/contact')}">Re-apply</a></p>
-      `,
-    }).catch((err) => console.error('Rejection email failed:', err.message));
+    const rejectedTemplate = templates.partnerRejected({
+      name: application.name,
+      businessName: application.businessName,
+      reason: application.rejectionReason,
+    });
+    sendEmail({ to: application.email, ...rejectedTemplate, type: 'partner-rejected' })
+      .catch((err) => console.error('Rejection email failed:', err.message));
 
     res.json({ success: true, application });
   } catch (error) {

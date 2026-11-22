@@ -72,6 +72,8 @@ let ownRestaurantId = null;
 let selfService = null;
 let documentStorageMode = 'unknown';
 let healthEnv = '';
+let emailProvider = 'unknown';
+let emailConfigured = false;
 
 // Every record this run creates is tracked here and removed in a finally block
 // so a failed check can never leave test accounts, restaurants or orders in
@@ -291,11 +293,18 @@ async function runScenario() {
     assert(response.status === 200, `health returned ${response.status}: ${text}`);
     documentStorageMode = body?.documentStorage || 'unknown';
     healthEnv = body?.env || '';
+    emailProvider = body?.emailProvider || 'unknown';
+    emailConfigured = body?.emailConfigured === true;
     assert(
       documentStorageMode === 'cloudinary' || documentStorageMode === 'local',
       `health.documentStorage must be "cloudinary" or "local" (got ${documentStorageMode})`
     );
-    return `uptime=${Math.round(body?.uptime || 0)}s documentStorage=${documentStorageMode}`;
+    assert(
+      ['resend', 'smtp', 'mock'].includes(emailProvider),
+      `health.emailProvider must be resend/smtp/mock (got ${emailProvider})`
+    );
+    assert(typeof body?.emailConfigured === 'boolean', 'health.emailConfigured must be a boolean');
+    return `uptime=${Math.round(body?.uptime || 0)}s documentStorage=${documentStorageMode} emailProvider=${emailProvider} emailConfigured=${emailConfigured}`;
   });
 
   for (const role of Object.keys(accounts)) {
@@ -303,6 +312,37 @@ async function runScenario() {
       const result = await login(role);
       return `${result.body.user?.email} role=${result.body.user?.role}${result.mfaVerified ? ' mfa=verified' : ''}`;
     });
+  }
+
+  await requestStep('email failures endpoint is admin-only', async () => {
+    const anonymous = await api('/admin/email/failures');
+    assert(anonymous.status === 401, `anonymous email failures returned ${anonymous.status}`);
+    const customer = await api('/admin/email/failures', { token: tokens.customer });
+    assert(customer.status === 403, `customer email failures returned ${customer.status}`);
+    const admin = await api('/admin/email/failures', { token: tokens.admin });
+    assert(admin.status === 200, `admin email failures returned ${admin.status}: ${admin.text}`);
+    assert(Array.isArray(admin.body?.data), 'email failures response has no data array');
+    return `${admin.body.data.length} recent failure(s)`;
+  });
+
+  if (emailConfigured) {
+    const mailTo = String(process.env.E2E_MAIL_TO || '').trim();
+    if (!mailTo) {
+      log('WARN  emailConfigured=true but E2E_MAIL_TO is unset; skipping the deliverability test');
+    } else {
+      await requestStep('admin test email is delivered', async () => {
+        const result = await api('/admin/email/test', {
+          method: 'POST',
+          token: tokens.admin,
+          body: { to: mailTo },
+        });
+        assert(result.status === 200, `test email returned ${result.status}: ${result.text}`);
+        assert(result.body?.success && result.body?.messageId, 'test email returned no provider message id');
+        return `provider=${result.body.provider} to=${mailTo}`;
+      });
+    }
+  } else {
+    log('WARN  emailConfigured=false — set RESEND_API_KEY and EMAIL_FROM on Render to exercise delivery');
   }
 
   await requestStep('refresh token rotates and reuse revokes family', async () => {

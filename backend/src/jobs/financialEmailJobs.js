@@ -1,11 +1,14 @@
-const { Queue, Worker } = require('bullmq')
-const nodemailer = require('nodemailer')
-const { frontendUrl } = require('../config/frontend')
+'use strict';
+
+const { Queue, Worker } = require('bullmq');
+const mailService = require('../services/mailService');
+const templates = require('../services/emailTemplates');
+const EmailLog = require('../models/EmailLog');
 
 function getRedisConnection() {
-  const url = process.env.REDIS_URL || 'redis://localhost:6379'
+  const url = process.env.REDIS_URL || 'redis://localhost:6379';
   try {
-    const parsed = new URL(url.replace('rediss://', 'https://').replace('redis://', 'http://'))
+    const parsed = new URL(url.replace('rediss://', 'https://').replace('redis://', 'http://'));
     return {
       host: parsed.hostname,
       port: parseInt(parsed.port) || 6379,
@@ -14,149 +17,98 @@ function getRedisConnection() {
       tls: url.startsWith('rediss://') ? {} : undefined,
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
-    }
+    };
   } catch (err) {
-    console.warn('Redis URL parse failed, using defaults')
-    return { host: 'localhost', port: 6379, maxRetriesPerRequest: null }
+    console.warn('Redis URL parse failed, using defaults');
+    return { host: 'localhost', port: 6379, maxRetriesPerRequest: null };
   }
 }
 
-const connection = getRedisConnection()
+const connection = getRedisConnection();
 
-const transporter = nodemailer.createTransport({
-  service: process.env.EMAIL_SERVICE || 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  }
-})
-
-let emailQueue = null
-let emailWorker = null
+let emailQueue = null;
+let emailWorker = null;
 
 async function initializeEmailQueue() {
   if (!process.env.REDIS_URL) {
-    console.log('Email queue disabled (REDIS_URL not configured)')
-    return null
+    console.log('Email queue disabled (REDIS_URL not configured)');
+    return null;
   }
 
   try {
-    emailQueue = new Queue('financial-emails', { connection })
+    emailQueue = new Queue('financial-emails', { connection });
 
     emailWorker = new Worker('financial-emails', async (job) => {
-      const { type, to, subject, html } = job.data
-
-      try {
-        await transporter.sendMail({
-          from: `"VibeChops" <${process.env.EMAIL_USER}>`,
-          to,
-          subject,
-          html,
-        })
-        console.log(`Email sent: ${type} to ${to}`)
-      } catch (err) {
-        console.error(`Email failed: ${err.message}`)
-        throw err
-      }
+      const { logId, ...payload } = job.data;
+      const log = logId ? await EmailLog.findById(logId) : null;
+      await mailService.deliverForJob(log, payload, {
+        attempt: job.attemptsMade + 1,
+        maxAttempts: job.opts.attempts || 3,
+      });
     }, {
       connection,
       concurrency: 5,
-    })
+    });
 
     emailWorker.on('failed', (job, err) => {
-      console.warn(`Email job ${job?.id} failed: ${err.message}`)
-    })
+      console.warn(`Email job ${job?.id} failed: ${err.message}`);
+    });
 
-    console.log('Email queue ready')
-    return emailQueue
-
+    console.log('Email queue ready');
+    return emailQueue;
   } catch (err) {
-    console.warn('Email queue initialization failed, emails will be sent directly:', err.message)
-    return null
+    console.warn('Email queue initialization failed, emails will be sent directly:', err.message);
+    return null;
   }
 }
 
-async function addEmailJob(type, to, subject, html, options = {}) {
-  if (emailQueue) {
-    await emailQueue.add(type, { type, to, subject, html }, {
-      attempts: 3,
-      backoff: { type: 'exponential', delay: 5000 },
-      ...options
-    })
-  } else {
-    try {
-      await transporter.sendMail({
-        from: `"VibeChops" <${process.env.EMAIL_USER}>`,
-        to, subject, html
-      })
-    } catch (err) {
-      console.warn('Direct email send failed:', err.message)
-    }
-  }
+function isQueueReady() {
+  return Boolean(emailQueue);
+}
+
+async function addEmailJob(payload, logId) {
+  if (!emailQueue) throw new Error('Email queue is not ready');
+  await emailQueue.add(payload.type || 'email', {
+    ...payload,
+    logId: logId ? String(logId) : undefined,
+  }, {
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 5000 },
+  });
 }
 
 async function sendWeeklyEarningsSummary(recipientEmail, data) {
-  const html = `
-    <h2>Your VibeChops Earnings This Week</h2>
-    <p>Orders: ${data.ordersCount}</p>
-    <p>Gross: ₦${data.gross?.toLocaleString()}</p>
-    <p>Commission: ₦${data.commission?.toLocaleString()}</p>
-    <p>Net Earnings: ₦${data.net?.toLocaleString()}</p>
-    <a href="${frontendUrl('/restaurant/dashboard')}">View Dashboard</a>
-  `
-  await addEmailJob('weekly-earnings', recipientEmail,
-    'Your VibeChops Earnings This Week', html)
+  const template = templates.financialWeeklyEarnings({ data });
+  return mailService.queueEmail({ type: 'weekly-earnings', to: recipientEmail, ...template });
 }
 
 async function sendSubscriptionRenewalReminder(recipientEmail, data) {
-  const html = `
-    <h2>Your ${data.planName} subscription renews in 7 days</h2>
-    <p>Renewal Date: ${data.renewalDate}</p>
-    <p>Amount: ₦${data.amount?.toLocaleString()}</p>
-    <a href="${frontendUrl('/restaurant/subscription')}">Manage Subscription</a>
-  `
-  await addEmailJob('subscription-reminder', recipientEmail,
-    `Your VibeChops subscription renews in 7 days`, html)
+  const template = templates.financialSubscriptionReminder({ data });
+  return mailService.queueEmail({ type: 'subscription-reminder', to: recipientEmail, ...template });
 }
 
 async function sendPayoutProcessed(recipientEmail, data) {
-  const html = `
-    <h2>Your payout of ₦${data.amount?.toLocaleString()} has been processed</h2>
-    <p>Bank: ${data.bankName}</p>
-    <p>Account: ${data.accountNumber}</p>
-    <p>Expected arrival: 1-3 business days</p>
-  `
-  await addEmailJob('payout-processed', recipientEmail,
-    `Your payout has been processed`, html)
+  const template = templates.financialPayoutProcessed({ data });
+  return mailService.queueEmail({ type: 'payout-processed', to: recipientEmail, ...template });
 }
 
 async function sendAdCampaignLive(recipientEmail, data) {
-  const html = `
-    <h2>Your ad campaign is now live!</h2>
-    <p>Placement: ${data.placement}</p>
-    <p>Duration: ${data.startDate} - ${data.endDate}</p>
-    <p>Budget: ₦${data.budget?.toLocaleString()}</p>
-  `
-  await addEmailJob('ad-campaign-live', recipientEmail,
-    'Your ad campaign is now live!', html)
+  const template = templates.financialAdCampaignLive({ data });
+  return mailService.queueEmail({ type: 'ad-campaign-live', to: recipientEmail, ...template });
 }
 
 async function sendAdBudgetWarning(recipientEmail, data) {
-  const html = `
-    <h2>Your ad campaign budget is almost used up</h2>
-    <p>Remaining: ₦${data.remaining?.toLocaleString()}</p>
-    <a href="${frontendUrl('/restaurant/dashboard')}">Top Up Budget</a>
-  `
-  await addEmailJob('ad-budget-warning', recipientEmail,
-    'Your ad campaign budget is almost used up', html)
+  const template = templates.financialAdBudgetWarning({ data });
+  return mailService.queueEmail({ type: 'ad-budget-warning', to: recipientEmail, ...template });
 }
 
 module.exports = {
   initializeEmailQueue,
+  isQueueReady,
+  addEmailJob,
   sendWeeklyEarningsSummary,
   sendSubscriptionRenewalReminder,
   sendPayoutProcessed,
   sendAdCampaignLive,
   sendAdBudgetWarning,
-  addEmailJob,
-}
+};

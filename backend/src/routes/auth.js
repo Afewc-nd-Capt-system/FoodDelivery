@@ -5,7 +5,7 @@ const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
 const { bruteForceProtection, loginLimiter } = require('../middleware/bruteForce');
 const { xssProtection } = require('../middleware/sanitize');
-const { sendEmail, sendWelcomeEmail } = require('../utils/email');
+const { sendWelcomeEmail, sendPasswordResetEmail } = require('../utils/email');
 const { addToBlacklist } = require('../utils/tokenBlacklist');
 const tokens = require('../security/tokenService');
 const mfaService = require('../security/mfaService');
@@ -370,17 +370,8 @@ router.post('/forgot-password', [
       const resetUrl = frontendUrl(`/reset-password/${resetToken}`);
       // Fire-and-forget keeps the response timing close for existing and
       // non-existing addresses; failures are logged server-side only.
-      sendEmail({
-        to: user.email,
-        subject: 'Password Reset Request',
-        html: `
-          <h2>Password Reset</h2>
-          <p>You requested a password reset. Click the link below to reset your password:</p>
-          <a href="${resetUrl}" style="background: #f97316; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin: 16px 0;">Reset Password</a>
-          <p>This link expires in 1 hour and can only be used once.</p>
-          <p>If you didn't request this, please ignore this email.</p>
-        `,
-      }).catch((emailError) => console.error('Email send error:', emailError.message));
+      sendPasswordResetEmail(user.email, resetUrl, user.name)
+        .catch((emailError) => console.error('Email send error:', emailError.message));
     }
 
     // Uniform response regardless of whether the address exists.

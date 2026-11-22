@@ -9,7 +9,8 @@ const Wallet = require('../../models/Wallet');
 const WalletTransaction = require('../../models/WalletTransaction');
 const AdPlacement = require('../../models/AdPlacement');
 const authMiddleware = require('../../middleware/auth');
-const { frontendUrl } = require('../../config/frontend');
+const { sendEmail } = require('../../utils/email');
+const templates = require('../../services/emailTemplates');
 const router = express.Router();
 
 // Middleware to check if user is admin
@@ -149,31 +150,12 @@ router.patch('/vendors/:id/approve', authMiddleware, adminMiddleware, async (req
       verificationStatus: 'approved',
     });
 
-    // Send approval email
+    // Send approval email without holding the request open.
     const vendorUser = vendor.owner ? await User.findById(vendor.owner) : null;
     if (vendorUser?.email) {
-      try {
-        const nodemailer = require('nodemailer');
-        const transporter = nodemailer.createTransport({
-          service: process.env.EMAIL_SERVICE,
-          auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
-        });
-        await transporter.sendMail({
-          from: `"VibeChops" <${process.env.EMAIL_USER}>`,
-          to: vendorUser.email,
-          subject: 'Your VibeChops vendor application is approved!',
-          html: `
-            <h2>Congratulations! 🎉</h2>
-            <p>Hi ${vendorUser.name},</p>
-            <p>Your vendor application has been approved.</p>
-            <p>You can now login to your vendor dashboard at:</p>
-            <a href="${frontendUrl('/vendor-login')}"
-               style="background:#E8621A;color:white;padding:10px 20px;border-radius:8px;text-decoration:none">
-              Login to Dashboard
-            </a>
-          `
-        });
-      } catch(e) {}
+      const approvedTemplate = templates.vendorApproved({ name: vendorUser.name });
+      sendEmail({ to: vendorUser.email, ...approvedTemplate, type: 'vendor-approved' })
+        .catch((err) => console.error('Vendor approval email failed:', err.message));
     }
 
     await logAdminAction(req.user.id, 'approve_vendor', { vendorId: req.params.id });
@@ -202,6 +184,12 @@ router.patch('/vendors/:id/reject', authMiddleware, adminMiddleware, async (req,
       verificationStatus: 'rejected',
       verificationNotes: reason,
     });
+    const vendorUser = vendor.owner ? await User.findById(vendor.owner) : null;
+    if (vendorUser?.email) {
+      const rejectedTemplate = templates.vendorRejected({ name: vendorUser.name, reason });
+      sendEmail({ to: vendorUser.email, ...rejectedTemplate, type: 'vendor-rejected' })
+        .catch((err) => console.error('Vendor rejection email failed:', err.message));
+    }
     await logAdminAction(req.user.id, 'reject_vendor', { vendorId: req.params.id, reason });
     res.json({ vendor });
   } catch (error) {
