@@ -192,6 +192,19 @@ async function requestStep(name, fn) {
   }
 }
 
+// For configuration checks that must not hide the rest of the suite (e.g. a
+// blocked SMTP host while the new provider env vars are still being set).
+async function requestNonFatalStep(name, fn) {
+  try {
+    const detail = await fn();
+    record(name, true, detail || '');
+    return detail;
+  } catch (error) {
+    record(name, false, error.message);
+    return null;
+  }
+}
+
 // Best-effort teardown that always runs. Orders are removed first (they
 // reference restaurants/users), then restaurants/vendors, then users, then the
 // applications that issued invitations. A 429 from the API limiter is waited
@@ -330,7 +343,7 @@ async function runScenario() {
     if (!mailTo) {
       log('WARN  emailConfigured=true but E2E_MAIL_TO is unset; skipping the deliverability test');
     } else {
-      await requestStep('admin test email is delivered', async () => {
+      await requestNonFatalStep('admin test email is delivered', async () => {
         const result = await api('/admin/email/test', {
           method: 'POST',
           token: tokens.admin,
