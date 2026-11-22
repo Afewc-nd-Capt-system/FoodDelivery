@@ -17,7 +17,7 @@ interface User {
 }
 
 export default function AdminUsers() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,12 +26,15 @@ export default function AdminUsers() {
   const [actionError, setActionError] = useState('');
 
   useEffect(() => {
+    // Wait for AuthContext to restore the session; a null user during the
+    // first paint is not an unauthenticated admin.
+    if (authLoading) return;
     if (!user || user.role !== 'admin') {
       router.push('/');
       return;
     }
     fetchUsers();
-  }, [user]);
+  }, [user, authLoading]);
 
   const fetchUsers = async () => {
     try {
@@ -51,6 +54,9 @@ export default function AdminUsers() {
     }
   };
 
+  if (authLoading) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
   if (!user || user.role !== 'admin') return null;
 
   const adminRequest = async (id: string, action: 'verify-email' | 'resend-verification') => {

@@ -570,8 +570,8 @@ async function fetchRestaurants() {
       if (bannerCount === 1) {
         await page.getByTestId('resend-verification').click();
         await page.waitForFunction(
-          () => /Resend in \d+s|Sending/.test(document.querySelector('[data-testid="resend-verification"]')?.textContent || ''),
-          { timeout: 20000 }
+          () => /Resend in \d+s/.test(document.querySelector('[data-testid="resend-verification"]')?.textContent || ''),
+          { timeout: 30000 }
         ).catch(() => {});
         const resendText = await page.getByTestId('resend-verification').innerText().catch(() => '');
         check('banner Resend starts the cooldown', /Resend in \d+s/.test(resendText), resendText.replace(/\s+/g, ' '));
