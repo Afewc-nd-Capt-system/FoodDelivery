@@ -18,6 +18,11 @@ async function sendPasswordResetEmail(to, resetUrl, name) {
   return sendEmail({ to, ...template, type: 'password-reset' });
 }
 
+async function sendVerificationEmail(to, verifyUrl, name) {
+  const template = templates.emailVerification({ name, verifyUrl });
+  return sendEmail({ to, ...template, type: 'email-verification' });
+}
+
 async function sendOrderConfirmation(to, order) {
   const template = templates.orderConfirmation({ order });
   return sendEmail({ to, ...template, type: 'order-confirmation' });
@@ -37,6 +42,7 @@ module.exports = {
   sendEmail,
   sendWelcomeEmail,
   sendPasswordResetEmail,
+  sendVerificationEmail,
   sendOrderConfirmation,
   sendOrderStatusUpdate,
   sendDeliveryNotification,

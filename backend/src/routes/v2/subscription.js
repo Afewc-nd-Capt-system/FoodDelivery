@@ -1,6 +1,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const authMiddleware = require('../../middleware/auth');
+const requireVerifiedEmail = require('../../middleware/requireVerifiedEmail');
 const User = require('../../models/User');
 const Subscription = require('../../models/Subscription');
 const SubscriptionPlan = require('../../models/SubscriptionPlan');
@@ -52,7 +53,7 @@ router.get('/my-subscription', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/subscribe', authMiddleware, async (req, res) => {
+router.post('/subscribe', authMiddleware, requireVerifiedEmail, async (req, res) => {
   try {
     const { planType, email } = req.body;
 

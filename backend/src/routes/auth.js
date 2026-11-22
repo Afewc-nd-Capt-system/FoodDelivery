@@ -6,6 +6,7 @@ const authMiddleware = require('../middleware/auth');
 const { bruteForceProtection, loginLimiter } = require('../middleware/bruteForce');
 const { xssProtection } = require('../middleware/sanitize');
 const { sendWelcomeEmail, sendPasswordResetEmail } = require('../utils/email');
+const { issueVerification, markEmailVerified, hashToken } = require('../services/emailVerification');
 const { addToBlacklist } = require('../utils/tokenBlacklist');
 const tokens = require('../security/tokenService');
 const mfaService = require('../security/mfaService');
@@ -70,6 +71,7 @@ function profilePayload(user) {
     referralCode: user.referralCode,
     isVibePassMember: user.isVibePassMember || false,
     dietaryPreferences: user.dietaryPreferences || [],
+    emailVerified: Boolean(user.emailVerified),
     createdAt: user.createdAt,
   };
 }
@@ -124,6 +126,12 @@ router.post('/register', [
       dietaryPreferences,
     });
     await user.save();
+
+    // Always send a verification email for customer accounts, even while the
+    // enforcement switch is off. A mail failure must never break registration.
+    await issueVerification(user, { enforceLimits: false }).catch((emailError) => {
+      console.error('Verification email failed:', emailError.message);
+    });
 
     // Fire-and-forget: a slow or misconfigured SMTP server must never delay or
     // fail the registration response.
@@ -184,6 +192,67 @@ router.post('/login', bruteForceProtection, loginLimiter, [
   }
 });
 
+// POST /auth/verify-email { token }
+// Public by design: the emailed link opens the frontend page, which performs
+// this POST. Email scanners that only GET the link cannot consume the token.
+router.post('/verify-email', [
+  body('token').notEmpty().withMessage('Verification token is required'),
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        message: 'Verification token is required',
+        code: 'EMAIL_VERIFICATION_INVALID',
+      });
+    }
+
+    const hashed = hashToken(req.body.token);
+    const user = await User.findOne({ emailVerificationToken: hashed });
+    if (!user) {
+      return res.status(400).json({
+        message: 'This verification link is invalid or has already been used.',
+        code: 'EMAIL_VERIFICATION_INVALID',
+      });
+    }
+
+    if (user.emailVerificationExpires && new Date(user.emailVerificationExpires).getTime() < Date.now()) {
+      return res.status(400).json({
+        message: 'This verification link has expired. Request a new one.',
+        code: 'EMAIL_VERIFICATION_EXPIRED',
+      });
+    }
+
+    if (user.emailVerified) {
+      return res.json({ success: true, message: 'Email already verified', alreadyVerified: true });
+    }
+
+    await markEmailVerified(user);
+    res.json({ success: true, message: 'Email verified successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Unable to verify email' });
+  }
+});
+
+// POST /auth/resend-verification
+// Same response shape for every outcome so the endpoint never reveals whether
+// an account is verified, in cooldown or over the hourly cap.
+router.post('/resend-verification', authMiddleware, async (req, res) => {
+  const generic = { success: true, message: 'If your email needs verification, a new link will be sent.' };
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user || user.emailVerified || user.role !== 'customer') {
+      return res.json(generic);
+    }
+    await issueVerification(user, { enforceLimits: true }).catch((emailError) => {
+      console.error('Resend verification failed:', emailError.message);
+    });
+    return res.json(generic);
+  } catch {
+    return res.json(generic);
+  }
+});
+
 router.get('/profile', authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('-password');
@@ -206,6 +275,7 @@ router.put('/profile', authMiddleware, [
     }
     return true;
   }),
+  body('email').optional().isEmail().normalizeEmail().withMessage('Valid email required'),
   body('address').optional(),
   body('addresses').optional().isArray().withMessage('Addresses must be a list'),
   body('dietaryPreferences').optional().isArray().withMessage('Dietary preferences must be a list'),
@@ -217,10 +287,24 @@ router.put('/profile', authMiddleware, [
       return res.status(400).json({ message: errors.array()[0].msg });
     }
 
-    const { name, phone, address, dietaryPreferences, addresses, notificationPreferences } = req.body;
+    const { name, phone, email, address, dietaryPreferences, addresses, notificationPreferences } = req.body;
     const user = await User.findById(req.user.id);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
+    }
+
+    let emailChanged = false;
+    const requestedEmail = email ? String(email).trim().toLowerCase() : '';
+    if (requestedEmail && requestedEmail !== user.email) {
+      const existing = await User.findOne({ email: requestedEmail, _id: { $ne: user._id } });
+      if (existing) {
+        return res.status(409).json({ message: 'An account with this email already exists.' });
+      }
+      user.email = requestedEmail;
+      user.emailVerified = false;
+      user.emailVerificationHourlyCount = 0;
+      user.emailVerificationHourlyWindowStart = undefined;
+      emailChanged = true;
     }
 
     if (name) user.name = name;
@@ -255,6 +339,15 @@ router.put('/profile', authMiddleware, [
     }
 
     await user.save();
+
+    if (emailChanged) {
+      // Changing the email resets verification and sends a new link to the
+      // new address; a mail failure must not fail the profile update.
+      await issueVerification(user, { enforceLimits: false }).catch((emailError) => {
+        console.error('Verification email failed:', emailError.message);
+      });
+    }
+
     res.json(profilePayload(user));
   } catch (error) {
     res.status(400).json({ message: error.message || 'Update failed' });
@@ -410,6 +503,10 @@ const resetPasswordHandler = async (req, res) => {
     user.password = req.body.password;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
+    // The reset link was delivered to this address, so ownership is proven.
+    user.emailVerified = true;
+    user.emailVerificationToken = undefined;
+    user.emailVerificationExpires = undefined;
     await user.save();
     // A reset must sign out every other session. MFA settings are untouched.
     await tokens.revokeAllForUser(user._id);
@@ -608,6 +705,7 @@ router.post('/social-login', async (req, res) => {
         password: `Aa9!${crypto.randomBytes(24).toString('base64url')}`,
         socialId: payload.sub,
         socialProvider: 'google',
+        emailVerified: true,
       });
       await user.save();
     }

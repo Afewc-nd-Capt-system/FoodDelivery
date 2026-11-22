@@ -46,6 +46,7 @@ const seedTestRider = async () => {
         password: COMPANY_PASSWORD,
         phone: '+2348000000003',
         role: 'delivery_company',
+        emailVerified: true,
         isVerified: true,
         isActive: true,
       });
@@ -68,6 +69,7 @@ const seedTestRider = async () => {
         password: RIDER_PASSWORD,
         phone: '+2348000000002',
         role: 'delivery_rider',
+        emailVerified: true,
       });
       console.log('Rider user created');
     } else {

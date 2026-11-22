@@ -564,11 +564,49 @@ async function fetchRestaurants() {
         greeting.replace(/\s+/g, ' ').slice(0, 80)
       );
 
+      // Unverified customer: banner + resend button/cooldown.
+      const bannerCount = await page.locator('[data-testid="email-verification-banner"]').count();
+      check('unverified customer sees the email verification banner', bannerCount === 1, `banner=${bannerCount}`);
+      if (bannerCount === 1) {
+        await page.getByTestId('resend-verification').click();
+        await page.waitForFunction(
+          () => /Resend in \d+s|Sending/.test(document.querySelector('[data-testid="resend-verification"]')?.textContent || ''),
+          { timeout: 20000 }
+        ).catch(() => {});
+        const resendText = await page.getByTestId('resend-verification').innerText().catch(() => '');
+        check('banner Resend starts the cooldown', /Resend in \d+s/.test(resendText), resendText.replace(/\s+/g, ' '));
+      } else {
+        check('banner Resend starts the cooldown', false, 'banner missing');
+      }
+
       // Hard refresh: the session must survive because it lives in storage and
       // AuthContext restores it before rendering the guest navbar.
       await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
       const navAfterRefresh = await waitForNavbarUser().catch(() => '');
       check('hard refresh keeps the customer signed in', navAfterRefresh === firstNameOf(originalName), `name=${navAfterRefresh}`);
+
+      // Admin support action: Mark verified on the throwaway account, then the
+      // banner must disappear for the customer.
+      if (newUserId && sessions.admin) {
+        try {
+          const adminPage = sessions.admin.page;
+          await gotoPage(adminPage, BASE + '/users');
+          const markButton = adminPage.getByTestId(`admin-mark-verified-${newUserId}`);
+          await markButton.waitFor({ state: 'visible', timeout: 30000 });
+          await markButton.click();
+          await adminPage.waitForSelector('[data-testid="admin-users-message"]', { timeout: 20000 });
+          await page.waitForFunction(
+            () => !document.querySelector('[data-testid="email-verification-banner"]'),
+            { timeout: 20000 }
+          ).catch(() => {});
+          const bannerAfter = await page.locator('[data-testid="email-verification-banner"]').count();
+          check('admin Mark verified clears the customer banner', bannerAfter === 0, `banner=${bannerAfter}`);
+        } catch (error) {
+          check('admin Mark verified clears the customer banner', false, error.message);
+        }
+      } else {
+        check('admin Mark verified clears the customer banner', false, 'missing user id or admin session');
+      }
 
       // Open the avatar menu and use the real Profile page.
       await page.getByTestId('navbar-avatar').first().click();

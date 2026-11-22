@@ -28,6 +28,7 @@ const envSchema = z.object({
   EMAIL_MOCK_FAIL_TO: z.string().optional(),
   EMAIL_MOCK_FAIL_TYPE: z.string().optional(),
   EMAIL_MOCK_FAIL_TIMES: z.string().optional(),
+  REQUIRE_EMAIL_VERIFICATION: z.enum(['true', 'false']).optional(),
   FRONTEND_URL: z.string().url().optional(),
   ALLOWED_ORIGINS: z.string().optional(),
   API_URL: z.string().url().optional(),

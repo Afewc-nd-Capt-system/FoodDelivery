@@ -23,7 +23,7 @@ const DELIVERY_PRESETS = ['Home', 'Work', "Partner's"];
 
 export default function CartPage() {
   const router = useRouter();
-  const { user, register, login } = useAuth();
+  const { user, register, login, resendVerification, refreshSession } = useAuth();
   const { items, updateQuantity, removeItem, clearCart, subtotal, discount } = useCart();
 
   const [promoInput, setPromoInput] = useState('');
@@ -36,6 +36,34 @@ export default function CartPage() {
   const [placing, setPlacing] = useState(false);
   const [orderError, setOrderError] = useState('');
   const [placed, setPlaced] = useState(false);
+  const [verificationRequired, setVerificationRequired] = useState(false);
+  const [verificationNotice, setVerificationNotice] = useState('');
+  const [resendingVerification, setResendingVerification] = useState(false);
+  const [verificationCooldown, setVerificationCooldown] = useState(0);
+
+  useEffect(() => {
+    if (verificationCooldown <= 0) return;
+    const timer = setInterval(() => setVerificationCooldown((value) => (value > 0 ? value - 1 : 0)), 1000);
+    return () => clearInterval(timer);
+  }, [verificationCooldown]);
+
+  const handleResendVerification = async () => {
+    if (resendingVerification || verificationCooldown > 0) return;
+    setResendingVerification(true);
+    const result = await resendVerification();
+    setResendingVerification(false);
+    setVerificationNotice(result?.message || 'If your email needs verification, a new link will be sent.');
+    setVerificationCooldown(60);
+  };
+
+  const handleVerifiedContinue = async () => {
+    setVerificationNotice('');
+    setVerificationRequired(false);
+    await refreshSession().catch(() => {});
+    // The server decides: it places the order when allowed and re-shows this
+    // step with EMAIL_NOT_VERIFIED when enforcement is on.
+    await handlePlaceOrder();
+  };
 
   // Guest checkout state
   const [checkoutTab, setCheckoutTab] = useState<'guest' | 'signin'>('guest');
@@ -160,6 +188,12 @@ export default function CartPage() {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => null);
+        if (errData?.code === 'EMAIL_NOT_VERIFIED') {
+          setVerificationRequired(true);
+          setOrderError('');
+          setPlacing(false);
+          return;
+        }
         throw new Error(errData?.message || `Could not place order (${res.status}). Please try again.`);
       }
 
@@ -387,6 +421,12 @@ export default function CartPage() {
                     });
                     if (!regData) {
                       setAuthError('Account created, but the session could not start. Please sign in.');
+                      return;
+                    }
+                    if (regData.emailVerified === false) {
+                      // Show the verification step instead of failing at the
+                      // order call; the switch decides whether it blocks.
+                      setVerificationRequired(true);
                       return;
                     }
                     router.push('/orders/checkout');
@@ -796,6 +836,37 @@ export default function CartPage() {
                   Estimated arrival: <strong style={{ color: '#1C1C1E' }}>25–35 min</strong>
                 </span>
               </div>
+
+              {verificationRequired && (
+                <div data-testid="checkout-email-verification" className="mb-4 p-4 rounded-xl text-sm" style={{ backgroundColor: '#FFF1E8', border: '1px solid #FFD4B8', color: '#7A3A1A' }}>
+                  <p className="font-bold mb-1">Verify your email to place this order</p>
+                  <p className="mb-3">
+                    We sent a verification link to <strong>{user?.email}</strong>. Your cart is saved.
+                  </p>
+                  {verificationNotice && <p className="text-xs mb-2">{verificationNotice}</p>}
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      data-testid="checkout-resend-verification"
+                      onClick={handleResendVerification}
+                      disabled={resendingVerification || verificationCooldown > 0}
+                      className="px-3 py-2 rounded-lg text-xs font-bold text-white disabled:opacity-60"
+                      style={{ backgroundColor: '#E8621A' }}
+                    >
+                      {resendingVerification ? 'Sending…' : verificationCooldown > 0 ? `Resend in ${verificationCooldown}s` : 'Resend email'}
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="checkout-verified-continue"
+                      onClick={handleVerifiedContinue}
+                      className="px-3 py-2 rounded-lg text-xs font-bold"
+                      style={{ backgroundColor: '#1C1C1E', color: 'white' }}
+                    >
+                      I've verified, continue
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {orderError && (
                 <div className="mb-4 p-3 rounded-xl text-sm" style={{ backgroundColor: '#FEF2F2', color: '#D32F2F', border: '1px solid #FCA5A5' }}>

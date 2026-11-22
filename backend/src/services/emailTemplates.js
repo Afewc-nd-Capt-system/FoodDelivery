@@ -302,6 +302,21 @@ function financialAdBudgetWarning({ data }) {
   };
 }
 
+function emailVerification({ name, verifyUrl }) {
+  const safeName = escapeHtml(name || 'there');
+  return {
+    subject: 'Verify your VibeChops email',
+    html: layout({
+      heading: 'Verify your email',
+      body: `<p>Hi ${safeName},</p><p>Confirm your email address to finish setting up your VibeChops account.</p><p>This link expires in 24 hours and can only be used once.</p>`,
+      ctaLabel: 'Verify email',
+      ctaUrl: verifyUrl,
+      footnote: 'If you did not create this account, you can ignore this email.',
+    }),
+    text: `Hi ${name || 'there'},\n\nConfirm your VibeChops email address (expires in 24 hours, single use):\n${verifyUrl}\n\nIf you did not create this account, you can ignore this email.`,
+  };
+}
+
 function testEmail() {
   return {
     subject: 'VibeChops test email',
@@ -330,6 +345,7 @@ module.exports = {
   deliveryOtp,
   orderConfirmation,
   orderStatus,
+  emailVerification,
   financialWeeklyEarnings,
   financialSubscriptionReminder,
   financialPayoutProcessed,

@@ -4,6 +4,7 @@ const User = require('../models/User');
 const Restaurant = require('../models/Restaurant');
 const Vendor = require('../models/Vendor');
 const authMiddleware = require('../middleware/auth');
+const requireVerifiedEmail = require('../middleware/requireVerifiedEmail');
 const { sendOrderConfirmation, sendOrderStatusUpdate } = require('../utils/email');
 const recommendationService = require('../services/recommendationService');
 const PayOnDeliveryService = require('../services/PayOnDeliveryService');
@@ -45,7 +46,7 @@ router.post('/check-pod-eligibility', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/', authMiddleware, async (req, res) => {
+router.post('/', authMiddleware, requireVerifiedEmail, async (req, res) => {
   try {
     const { restaurant, restaurantName, items, totalAmount, deliveryAddress, paymentMethod, deliveryFee } = req.body;
 

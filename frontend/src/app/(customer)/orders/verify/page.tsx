@@ -5,12 +5,14 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useCart } from '@/context/CartContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
 function VerifyContent() {
   const searchParams = useSearchParams();
   const reference = searchParams.get('reference') || searchParams.get('trxref') || '';
+  const { clearCart } = useCart();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('Verifying your payment...');
   const [order, setOrder] = useState<any>(null);
@@ -31,6 +33,9 @@ function VerifyContent() {
         setMessage(data.alreadyProcessed
           ? 'This payment was already verified. Your order is confirmed.'
           : 'Payment verified. Your order is confirmed.');
+        // A confirmed payment ends this checkout; do not leave a stale cart
+        // behind for the next account on this browser.
+        clearCart();
       })
       .catch((error) => {
         if (!active) return;
@@ -39,7 +44,7 @@ function VerifyContent() {
       });
 
     return () => { active = false; };
-  }, [reference]);
+  }, [reference, clearCart]);
 
   return (
     <div className="max-w-xl mx-auto px-4 py-16">

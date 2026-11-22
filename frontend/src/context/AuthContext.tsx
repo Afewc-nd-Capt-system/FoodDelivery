@@ -45,6 +45,7 @@ export interface User {
   isVibePassMember?: boolean
   loyaltyPoints?: number
   referralCode?: string
+  emailVerified?: boolean
 }
 
 export interface RegisterInput {
@@ -67,6 +68,7 @@ interface AuthContextType {
   logout: (redirectTo?: string) => Promise<void>
   updateUser: (userData: User) => void
   refreshSession: () => Promise<boolean>
+  resendVerification: () => Promise<{ success: boolean; message?: string }>
   clearSessionMessage: () => void
   isAuthenticated: boolean
 }
@@ -79,6 +81,7 @@ const AuthContext = createContext<AuthContextType>({
   logout: async () => {},
   updateUser: () => {},
   refreshSession: async () => false,
+  resendVerification: async () => ({ success: false }),
   clearSessionMessage: () => {},
   isAuthenticated: false,
 })
@@ -172,6 +175,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [expireSession, fetchProfile])
 
+  const resendVerification = useCallback(async () => {
+    const stored = readStoredAuth()
+    if (!stored.token) return { success: false }
+    try {
+      const res = await fetch(`${BACKEND}/auth/resend-verification`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${stored.token}` },
+        credentials: 'include',
+      })
+      return await res.json().catch(() => ({ success: true }))
+    } catch {
+      // The endpoint is intentionally opaque; a network hiccup looks the same.
+      return { success: true }
+    }
+  }, [])
+
   // Restore the session from storage once on mount, then validate in the
   // background so an expired 15-minute access token is refreshed silently.
   useEffect(() => {
@@ -195,8 +214,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const applySession = useCallback((data: AuthPayload): User | null => {
-    if (!data?.token || !data?.user) return null
+  const applySession = useCallback((data: AuthPayload): User | null => {    if (!data?.token || !data?.user) return null
     versionRef.current += 1
     persistAuthSession(data)
     setToken(data.token)
@@ -277,6 +295,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider value={{
       user, token, loading, sessionMessage,
       register, login, applySession, logout, updateUser, refreshSession,
+      resendVerification,
       clearSessionMessage,
       isAuthenticated: !!token,
     }}>

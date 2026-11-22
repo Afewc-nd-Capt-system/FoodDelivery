@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  User, Phone, MapPin, Save, ArrowLeft, Wallet, Gift, Star, Plus,
+  User, Phone, Mail, MapPin, Save, ArrowLeft, Wallet, Gift, Star, Plus,
   Pencil, Trash2, Check, X, Lock, Bell, Loader2,
 } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -39,6 +39,7 @@ export default function ProfilePage() {
   const router = useRouter();
 
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [dietaryPreferences, setDietaryPreferences] = useState<string[]>([]);
@@ -68,6 +69,7 @@ export default function ProfilePage() {
 
   const hydrate = useCallback((profile: any) => {
     setName(profile?.name || '');
+    setEmail(profile?.email || '');
     setPhone(profile?.phone || '');
     setAddresses(Array.isArray(profile?.addresses) ? profile.addresses : []);
     setDietaryPreferences(Array.isArray(profile?.dietaryPreferences) ? profile.dietaryPreferences : []);
@@ -196,6 +198,7 @@ export default function ProfilePage() {
     setSuccess('');
 
     try {
+      const emailChanged = email.trim().toLowerCase() !== String(user?.email || '').toLowerCase();
       const res = await fetch(`${API_URL}/auth/profile`, {
         method: 'PUT',
         headers: {
@@ -204,6 +207,7 @@ export default function ProfilePage() {
         },
         body: JSON.stringify({
           name: name.trim(),
+          email: email.trim(),
           phone: phone.trim(),
           addresses,
           dietaryPreferences,
@@ -217,7 +221,9 @@ export default function ProfilePage() {
       }
       updateUser({ ...(user as any), ...body });
       hydrate(body);
-      setSuccess('Profile updated successfully!');
+      setSuccess(emailChanged
+        ? 'Profile updated. Check your inbox to verify your new email address.'
+        : 'Profile updated successfully!');
     } catch {
       setError('Network error. Check your connection and try again.');
     } finally {
@@ -345,6 +351,26 @@ export default function ProfilePage() {
                 required
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Email Address</label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="email"
+                data-testid="profile-email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                required
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              {user.emailVerified
+                ? 'Your email is verified.'
+                : 'Changing your email sends a new verification link and resets verification.'}
+            </p>
           </div>
 
           <div>

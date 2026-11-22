@@ -109,6 +109,12 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: ['vegan', 'vegetarian', 'halal', 'kosher', 'gluten-free', 'nut-free', 'dairy-free']
   }],
+  emailVerified: { type: Boolean, default: false, index: true },
+  emailVerificationToken: String,
+  emailVerificationExpires: Date,
+  emailVerificationLastSentAt: Date,
+  emailVerificationHourlyCount: { type: Number, default: 0 },
+  emailVerificationHourlyWindowStart: Date,
   mfaEnabled: {
     type: Boolean,
     default: false

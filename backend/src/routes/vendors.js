@@ -72,6 +72,7 @@ router.post('/register', xssProtection, async (req, res) => {
       password,
       phone: String(phone).trim(),
       role: 'vendor',
+      emailVerified: true,
     });
     await user.save();
     createdUser = user;

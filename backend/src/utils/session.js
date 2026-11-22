@@ -19,6 +19,7 @@ function publicUser(user) {
     email: user.email,
     role: user.role,
     mfaEnabled: Boolean(user.mfaEnabled),
+    emailVerified: Boolean(user.emailVerified),
   };
 }
 

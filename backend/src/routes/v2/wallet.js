@@ -1,6 +1,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const authMiddleware = require('../../middleware/auth');
+const requireVerifiedEmail = require('../../middleware/requireVerifiedEmail');
 const User = require('../../models/User');
 const Wallet = require('../../models/Wallet');
 const WalletTransaction = require('../../models/WalletTransaction');
@@ -69,7 +70,7 @@ router.get('/transactions', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/topup', authMiddleware, async (req, res) => {
+router.post('/topup', authMiddleware, requireVerifiedEmail, async (req, res) => {
   try {
     const { amount } = req.body;
     const topupAmount = Number(amount);

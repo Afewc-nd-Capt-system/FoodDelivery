@@ -71,6 +71,7 @@ router.post('/register', async (req, res) => {
       password: req.body.password,
       phone: req.body.phone,
       role: 'delivery_company',
+      emailVerified: true,
     });
     await owner.save();
 

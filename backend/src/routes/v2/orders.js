@@ -9,6 +9,7 @@ const WalletTransaction = require('../../models/WalletTransaction');
 const LoyaltyConfig = require('../../models/LoyaltyConfig');
 const LoyaltyPoints = require('../../models/LoyaltyPoints');
 const authMiddleware = require('../../middleware/auth');
+const requireVerifiedEmail = require('../../middleware/requireVerifiedEmail');
 const PayOnDeliveryService = require('../../services/PayOnDeliveryService');
 const OrderCompletionService = require('../../services/OrderCompletionService');
 const { priceOrder } = require('../../services/orderPricingService');
@@ -155,7 +156,7 @@ async function verifyOTP(orderId, otp) {
 }
 
 // POST /api/v2/orders - Customer places order
-router.post('/', authMiddleware, async (req, res) => {
+router.post('/', authMiddleware, requireVerifiedEmail, async (req, res) => {
   try {
     const {
       restaurantId,

@@ -179,6 +179,7 @@ app.use('/api/v2/admin/rider-verifications', require('./routes/v2/adminRiderVeri
 app.use('/api/v2/earnings', authMiddleware, require('./routes/v2/earnings'));
 app.use('/api/v2/admin/approvals', authMiddleware, require('./routes/v2/admin-approvals'));
 app.use('/api/v2/admin/applications', require('./routes/v2/admin-applications'));
+app.use('/api/v2/admin/users', require('./routes/v2/admin-users'));
 app.use('/api/v2/admin/email', require('./routes/v2/admin-email'));
 app.use('/api/v2/admin/revenue', authMiddleware, require('./routes/v2/admin-revenue'));
 app.use('/api/v2/subscriptions', authMiddleware, require('./routes/v2/business-subscriptions'));
@@ -211,6 +212,9 @@ app.get('/health', (req, res) => {
     // Non-secret mail capability: provider name and whether it has credentials.
     emailProvider: mailService.providerName(),
     emailConfigured: mailService.isConfigured(),
+    // Safety switch: when false, unverified customers can still order while
+    // email delivery is being brought online.
+    requireEmailVerification: require('./middleware/requireVerifiedEmail').enforcementEnabled(),
   };
   
   try {

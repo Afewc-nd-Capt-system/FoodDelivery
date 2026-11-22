@@ -30,7 +30,8 @@ const createAdmin = async () => {
         state: 'Admin State',
         zipCode: '12345'
       },
-      role: 'admin'
+      role: 'admin',
+      emailVerified: true
     });
 
     await admin.save();

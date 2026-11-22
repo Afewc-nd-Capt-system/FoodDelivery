@@ -30,7 +30,10 @@ async function request(endpoint: string, options: RequestOptions = {}, retried =
   const data = await res.json();
 
   if (!res.ok) {
-    throw new Error(data.message || 'API request failed');
+    const error = new Error(data.message || 'API request failed') as Error & { code?: string; status?: number };
+    error.code = data.code;
+    error.status = res.status;
+    throw error;
   }
 
   return data;

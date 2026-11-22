@@ -7,6 +7,7 @@ import { ShoppingCart, Menu, X, MapPin, ChevronDown, User, Bell, Search, Loader2
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
 import { useLocation } from '@/context/LocationContext';
+import { EmailVerificationBanner } from '@/components/EmailVerificationBanner';
 
 const nigerianStates = [
   'Abia', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa',
@@ -29,7 +30,7 @@ export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [citySearch, setCitySearch] = useState('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const { totalItems } = useCart();
+  const { totalItems, clearCart } = useCart();
   const { user, logout, loading: authLoading } = useAuth();
   const { 
     location: userLocation, 
@@ -106,6 +107,8 @@ export function Navbar() {
   const handleSignOut = () => {
     setUserMenuOpen(false);
     setMobileOpen(false);
+    // Never leak a cart between accounts on a shared browser.
+    clearCart();
     void logout();
     router.push('/');
   };
@@ -574,6 +577,8 @@ export function Navbar() {
           </div>
         </div>
       </nav>
+
+      <EmailVerificationBanner />
 
       {/* Backdrop for location dropdown */}
       {locationOpen && (

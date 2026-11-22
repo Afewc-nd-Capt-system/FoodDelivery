@@ -1,6 +1,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const authMiddleware = require('../middleware/auth');
+const requireVerifiedEmail = require('../middleware/requireVerifiedEmail');
 const Order = require('../models/Order');
 const User = require('../models/User');
 const { frontendUrl } = require('../config/frontend');
@@ -139,7 +140,7 @@ async function verifyReference(req, reference) {
   return markOrderPaid(req, order, reference, data.data);
 }
 
-router.post('/initialize', authMiddleware, async (req, res) => {
+router.post('/initialize', authMiddleware, requireVerifiedEmail, async (req, res) => {
   try {
     const { orderId } = req.body;
 

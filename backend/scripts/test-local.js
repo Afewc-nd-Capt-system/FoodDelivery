@@ -920,6 +920,196 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
   assert(failedWelcome, 'the failing welcome email was not logged as failed');
   check(true, 'order creation, payment initialize and confirmation succeed while email fails');
 
+  // ---- 10. Email verification (switch OFF main server, switch ON second server) ----
+  const emailVerificationMigration = require(path.join(backendRoot, 'src', 'migrations', '005-email-verification.js'));
+  const offHealth = await (await fetch(`http://127.0.0.1:${port}/health`)).json();
+  assert(offHealth.requireEmailVerification === false, 'main server switch should default to false');
+
+  const verifiedPort = port + 1;
+  const verifiedEnv = {
+    ...env,
+    PORT: String(verifiedPort),
+    REQUIRE_EMAIL_VERIFICATION: 'true',
+  };
+  const verifiedChild = spawn(process.execPath, [path.join(backendRoot, 'src', 'server.js')], {
+    cwd: backendRoot,
+    env: verifiedEnv,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let verifiedOutput = '';
+  verifiedChild.stdout.on('data', (d) => { verifiedOutput += d.toString(); });
+  verifiedChild.stderr.on('data', (d) => { verifiedOutput += d.toString(); });
+  cleanupFns.push(() => { try { verifiedChild.kill('SIGKILL'); } catch {} });
+  let verifiedHealthy = false;
+  const verifiedDeadline = Date.now() + 60000;
+  while (Date.now() < verifiedDeadline) {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    if (verifiedChild.exitCode !== null) break;
+    if (await httpStatus(verifiedPort, '/health') === 200) { verifiedHealthy = true; break; }
+  }
+  assert(verifiedHealthy, `second server did not become healthy: ${verifiedOutput.slice(-500)}`);
+  const apiVerified = makeApi(verifiedPort);
+  const onHealth = await (await fetch(`http://127.0.0.1:${verifiedPort}/health`)).json();
+  assert(onHealth.requireEmailVerification === true, 'second server switch should be true');
+  check(true, 'REQUIRE_EMAIL_VERIFICATION defaults off and is reported on /health');
+
+  const migrationFirst = await emailVerificationMigration.up(mongoose.connection.db);
+  const migrationSecond = await emailVerificationMigration.up(mongoose.connection.db);
+  const adminAfterMigration = await User.findOne({ email: adminEmail });
+  const customerAfterMigration = await User.findOne({ email: customerEmail });
+  assert(adminAfterMigration?.emailVerified === true, 'migration did not verify the admin account');
+  assert(customerAfterMigration?.emailVerified === false, 'migration must not verify customers');
+  const migrationSecondModified = migrationSecond.modified ?? migrationSecond.nModified ?? 0;
+  assert(migrationSecondModified === 0, `migration is not idempotent: ${migrationSecondModified} modified`);
+  check(true, 'email verification migration marks non-customer roles only and is idempotent',
+    `modified=${migrationFirst.modified ?? migrationFirst.nModified ?? 0}`);
+
+  const verifyEmailAddr = `verify-${Date.now()}@example.test`;
+  const verifyPassword = testPassword('Verify');
+  const verifyReg = await apiVerified('/auth/register', {
+    method: 'POST',
+    body: {
+      name: 'Verify User', email: verifyEmailAddr,
+      password: verifyPassword, confirmPassword: verifyPassword,
+    },
+  });
+  assert(verifyReg.status === 201, `verification registration returned ${verifyReg.status}: ${verifyReg.text}`);
+  assert(verifyReg.body?.user?.emailVerified === false, 'new customer should start unverified');
+  const verifyAccessToken = verifyReg.body.token;
+  const verifyMail = await waitForEmail(emailCaptureFile,
+    (mail) => mail.to === verifyEmailAddr && /verify/i.test(mail.subject || ''));
+  assert(verifyMail, 'verification email was not captured');
+  const verifyLinkMatch = String(verifyMail.html || '').match(/https?:\/\/[^"'\s]+\/verify-email\/([A-Za-z0-9_-]+)/);
+  assert(verifyLinkMatch, 'verification email has no /verify-email/<token> link');
+  assert(verifyLinkMatch[0].startsWith('http://localhost:3000/verify-email/'),
+    `verification link is not on FRONTEND_URL: ${verifyLinkMatch[0]}`);
+  const verificationToken = verifyLinkMatch[1];
+
+  const verifyOrderPayload = {
+    restaurantId,
+    items: [{ menuItem: itemId, quantity: 1, customizations: [{ name: 'Size', option: 'Large' }] }],
+    deliveryAddress: '1 Verify Street, Lagos',
+    paymentMethod: 'cash',
+  };
+  const blockedOrder = await apiVerified('/orders', {
+    method: 'POST', token: verifyAccessToken, body: verifyOrderPayload,
+  });
+  assert(blockedOrder.status === 403 && blockedOrder.body?.code === 'EMAIL_NOT_VERIFIED',
+    `unverified order should be blocked, got ${blockedOrder.status}: ${blockedOrder.text}`);
+  check(true, 'unverified customer is blocked from ordering with EMAIL_NOT_VERIFIED');
+
+  const invalidToken = await apiVerified('/auth/verify-email', {
+    method: 'POST', body: { token: 'a'.repeat(64) },
+  });
+  assert(invalidToken.status === 400, `invalid token returned ${invalidToken.status}`);
+  const tamperedToken = await apiVerified('/auth/verify-email', {
+    method: 'POST',
+    body: { token: verificationToken.slice(0, -1) + (verificationToken.endsWith('a') ? 'b' : 'a') },
+  });
+  assert(tamperedToken.status === 400, `tampered token returned ${tamperedToken.status}`);
+
+  const verified = await apiVerified('/auth/verify-email', {
+    method: 'POST', body: { token: verificationToken },
+  });
+  assert(verified.status === 200, `verify returned ${verified.status}: ${verified.text}`);
+  const allowedOrder = await apiVerified('/orders', {
+    method: 'POST', token: verifyAccessToken, body: verifyOrderPayload,
+  });
+  assert(allowedOrder.status === 201, `verified order returned ${allowedOrder.status}: ${allowedOrder.text}`);
+  const reusedToken = await apiVerified('/auth/verify-email', {
+    method: 'POST', body: { token: verificationToken },
+  });
+  assert(reusedToken.status === 400, `reused token returned ${reusedToken.status}`);
+
+  const expiredEmailAddr = `expired-${Date.now()}@example.test`;
+  const expiredPassword = testPassword('Expired');
+  const expiredReg = await apiVerified('/auth/register', {
+    method: 'POST',
+    body: {
+      name: 'Expired Verify', email: expiredEmailAddr,
+      password: expiredPassword, confirmPassword: expiredPassword,
+    },
+  });
+  assert(expiredReg.status === 201, `expired registration returned ${expiredReg.status}`);
+  const expiredMail = await waitForEmail(emailCaptureFile,
+    (mail) => mail.to === expiredEmailAddr && /verify/i.test(mail.subject || ''));
+  assert(expiredMail, 'expired verification email was not captured');
+  const expiredTokenMatch = String(expiredMail.html).match(/\/verify-email\/([A-Za-z0-9_-]+)/);
+  assert(expiredTokenMatch, 'expired verification email has no token');
+  await User.updateOne({ email: expiredEmailAddr }, { $set: { emailVerificationExpires: new Date(Date.now() - 1000) } });
+  const expiredVerify = await apiVerified('/auth/verify-email', {
+    method: 'POST', body: { token: expiredTokenMatch[1] },
+  });
+  assert(expiredVerify.status === 400 && expiredVerify.body?.code === 'EMAIL_VERIFICATION_EXPIRED',
+    `expired token returned ${expiredVerify.status}: ${expiredVerify.text}`);
+
+  const reviewEmailAddr = `resend-${Date.now()}@example.test`;
+  const reviewPassword = testPassword('Resend');
+  const reviewReg = await apiVerified('/auth/register', {
+    method: 'POST',
+    body: {
+      name: 'Resend Verify', email: reviewEmailAddr,
+      password: reviewPassword, confirmPassword: reviewPassword,
+    },
+  });
+  assert(reviewReg.status === 201, `resend registration returned ${reviewReg.status}`);
+  const reviewAccess = reviewReg.body.token;
+  const countVerificationMails = () => EmailLog.countDocuments({ type: 'email-verification', recipient: reviewEmailAddr });
+  const waitForVerificationCount = async (expected, timeoutMs = 10000) => {
+    const started = Date.now();
+    let count = await countVerificationMails();
+    while (count < expected && Date.now() - started < timeoutMs) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      count = await countVerificationMails();
+    }
+    return count;
+  };
+
+  await User.updateOne({ email: reviewEmailAddr }, {
+    $set: { emailVerificationLastSentAt: new Date(Date.now() - 61000) },
+  });
+  const resendBefore = await countVerificationMails();
+  const resend1 = await apiVerified('/auth/resend-verification', { method: 'POST', token: reviewAccess });
+  const resend2 = await apiVerified('/auth/resend-verification', { method: 'POST', token: reviewAccess });
+  assert(resend1.status === 200 && resend2.status === 200, 'resend responses must be 200');
+  assert(resend1.body?.message === resend2.body?.message, 'resend response shapes differ');
+  const resendAfter = await waitForVerificationCount(resendBefore + 1);
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+  const resendAfterCooldown = await countVerificationMails();
+  assert(resendAfter === resendBefore + 1 && resendAfterCooldown === resendBefore + 1,
+    `resend cooldown did not hold (before=${resendBefore}, after=${resendAfterCooldown})`);
+
+  await User.updateOne({ email: reviewEmailAddr }, {
+    $set: {
+      emailVerificationLastSentAt: new Date(Date.now() - 61000),
+      emailVerificationHourlyCount: 3,
+      emailVerificationHourlyWindowStart: new Date(),
+    },
+  });
+  const capBefore = await countVerificationMails();
+  await apiVerified('/auth/resend-verification', { method: 'POST', token: reviewAccess });
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+  const capAfter = await countVerificationMails();
+  assert(capAfter === capBefore, `hourly cap did not hold (before=${capBefore}, after=${capAfter})`);
+  check(true, 'resend cooldown and hourly cap hold with identical responses');
+
+  const changedEmailAddr = `changed-${Date.now()}@example.test`;
+  const changedProfile = await apiVerified('/auth/profile', {
+    method: 'PUT', token: verifyAccessToken, body: { email: changedEmailAddr },
+  });
+  assert(changedProfile.status === 200 && changedProfile.body?.emailVerified === false,
+    `email change did not reset verification: ${changedProfile.status} ${changedProfile.text}`);
+  const changedMail = await waitForEmail(emailCaptureFile,
+    (mail) => mail.to === changedEmailAddr && /verify/i.test(mail.subject || ''));
+  assert(changedMail, 'email change did not send a verification link to the new address');
+  check(true, 'verify unlocks ordering; reused, expired, invalid and tampered tokens are rejected; email change resets verification');
+
+  const failedVerificationEmail = await waitForLog({
+    type: 'email-verification', recipient: failBuyerEmail, status: 'failed',
+  });
+  assert(failedVerificationEmail, 'verification-email failure was not logged');
+  check(true, 'verification-email failure never breaks registration');
+
   // ---- Summary ----
   const failed = results.filter((row) => !row.ok);
   console.log(`\nTEST:LOCAL ${results.length - failed.length}/${results.length} checks passed`);

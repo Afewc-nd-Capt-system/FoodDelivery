@@ -74,6 +74,7 @@ let documentStorageMode = 'unknown';
 let healthEnv = '';
 let emailProvider = 'unknown';
 let emailConfigured = false;
+let requireEmailVerification = false;
 
 // Every record this run creates is tracked here and removed in a finally block
 // so a failed check can never leave test accounts, restaurants or orders in
@@ -308,6 +309,7 @@ async function runScenario() {
     healthEnv = body?.env || '';
     emailProvider = body?.emailProvider || 'unknown';
     emailConfigured = body?.emailConfigured === true;
+    requireEmailVerification = body?.requireEmailVerification === true;
     assert(
       documentStorageMode === 'cloudinary' || documentStorageMode === 'local',
       `health.documentStorage must be "cloudinary" or "local" (got ${documentStorageMode})`
@@ -317,7 +319,8 @@ async function runScenario() {
       `health.emailProvider must be resend/smtp/mock (got ${emailProvider})`
     );
     assert(typeof body?.emailConfigured === 'boolean', 'health.emailConfigured must be a boolean');
-    return `uptime=${Math.round(body?.uptime || 0)}s documentStorage=${documentStorageMode} emailProvider=${emailProvider} emailConfigured=${emailConfigured}`;
+    assert(typeof body?.requireEmailVerification === 'boolean', 'health.requireEmailVerification must be a boolean');
+    return `uptime=${Math.round(body?.uptime || 0)}s documentStorage=${documentStorageMode} emailProvider=${emailProvider} emailConfigured=${emailConfigured} requireEmailVerification=${requireEmailVerification}`;
   });
 
   for (const role of Object.keys(accounts)) {
