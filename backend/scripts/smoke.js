@@ -595,6 +595,10 @@ async function fetchRestaurants() {
           await markButton.waitFor({ state: 'visible', timeout: 30000 });
           await markButton.click();
           await adminPage.waitForSelector('[data-testid="admin-users-message"]', { timeout: 20000 });
+          // The customer app reads verification state from /auth/profile on
+          // load, so reload the customer page after the support action.
+          await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
+          await waitForNavbarUser().catch(() => '');
           await page.waitForFunction(
             () => !document.querySelector('[data-testid="email-verification-banner"]'),
             { timeout: 20000 }
