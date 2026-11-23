@@ -34,6 +34,8 @@ const API_V2 = (
 const API_ORIGIN = new URL(API_V2).origin;
 const BYPASS = (process.env.SMOKE_BYPASS || '').trim();
 const CHROME_PATH = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
+const HOMEPAGE_SHOT_DIR = process.env.HOMEPAGE_SCREENSHOT_DIR
+  || path.join(__dirname, 'artifacts', 'homepage');
 
 const results = [];
 function check(name, ok, detail) {
@@ -54,9 +56,9 @@ const consoleErrors = [];
 const failedRequests = [];
 const apiRequests = [];
 
-async function newPage(browser) {
+async function newPage(browser, viewport = { width: 1440, height: 900 }) {
   const context = await browser.newContext({
-    viewport: { width: 1440, height: 900 },
+    viewport,
     extraHTTPHeaders: BYPASS
       ? {
         'x-vercel-protection-bypass': BYPASS,
@@ -494,15 +496,160 @@ async function fetchRestaurants() {
   }
 
   // ---- Round 2: fixed pages must not render cancelled mock markers ----
-  try {
-    const { page } = await newPage(browser);
-    const res = await gotoPage(page, BASE + '/');
-    const text = await bodyText(page);
-    const bad = /50K\+|28 min delivery|Happy Customers/.test(text) || /failed to fetch|something went wrong/i.test(text);
-    check('homepage uses real stats (no fake counters)', res && res.status() === 200 && !bad,
-      `chars=${text.length}${bad ? ' mock-marker found' : ''}`);
-  } catch (error) {
-    check('homepage uses real stats (no fake counters)', false, error.message);
+  // ---- Guest homepage: honest copy/promos, responsive hero, images, proof ----
+  {
+    const { context, page } = await newPage(browser, { width: 390, height: 844 });
+    const recorded = new Set();
+    const record = (name, ok, detail) => { recorded.add(name); check(name, ok, detail); };
+    try {
+      const res = await gotoPage(page, BASE + '/');
+      await page.waitForSelector('[data-testid="hero-headline"]', { timeout: 30000 });
+      await page.waitForTimeout(1200);
+      const text = await bodyText(page);
+      const fake = /50K\+?|50,000|Happy Customers|Average delivery time|#1 Food Delivery|VIBES20|Free Delivery[^\n]{0,40}above/i.test(text)
+        || /failed to fetch|something went wrong/i.test(text);
+      record('homepage shows no fake stats or hardcoded promo codes',
+        res && res.status() === 200 && !fake,
+        `chars=${text.length}${fake ? ' fake-marker found' : ''}`);
+
+      // Any code rendered in a homepage banner must pass the public validation
+      // endpoint; a rejected code fails the smoke.
+      const shownPromos = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('[data-promo-code]'))
+          .map((el) => el.getAttribute('data-promo-code'))
+          .filter(Boolean)
+      );
+      let promosValid = true;
+      let promoDetail = 'no promo banners shown';
+      if (shownPromos.length) {
+        const details = [];
+        for (const code of shownPromos) {
+          const response = await fetch(`${API_V2}/promo-codes/validate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Origin: BASE },
+            body: JSON.stringify({ code }),
+          });
+          const body = await response.json().catch(() => ({}));
+          const ok = response.ok && body.valid === true;
+          if (!ok) promosValid = false;
+          details.push(`${code}=${ok ? 'valid' : (body.message || `status ${response.status}`)}`);
+        }
+        promoDetail = details.join(', ');
+      }
+      record('every homepage promo code is accepted by promo validation', promosValid, promoDetail);
+
+      fs.mkdirSync(HOMEPAGE_SHOT_DIR, { recursive: true });
+      const required = [
+        { name: 'phone', width: 390, height: 844 },
+        { name: 'tablet', width: 768, height: 1024 },
+        { name: 'desktop', width: 1440, height: 900 },
+      ];
+      const sweep = [
+        { name: 'phone-360', width: 360, height: 800 },
+        ...required,
+        { name: 'tablet-landscape-1024', width: 1024, height: 768 },
+        { name: 'wide-1920', width: 1920, height: 1080 },
+        { name: 'phone-desktop-site-980', width: 980, height: 800 },
+      ];
+      const sweepFailures = [];
+
+      for (const viewport of sweep) {
+        await page.setViewportSize({ width: viewport.width, height: viewport.height });
+        await page.waitForTimeout(400);
+        const isRequired = required.some((item) => item.name === viewport.name);
+        const layout = await page.evaluate(({ requireVerticalFit }) => {
+          const out = { missing: [], outside: [], covered: [], overflow: 0 };
+          const selectors = {
+            headline: '[data-testid="hero-headline"]',
+            subtitle: '[data-testid="hero-subtitle"]',
+            search: '[data-testid="hero-search"]',
+            stats: '[data-testid="hero-stats"]',
+          };
+          for (const [name, selector] of Object.entries(selectors)) {
+            const el = document.querySelector(selector);
+            if (!el) { out.missing.push(name); continue; }
+            const r = el.getBoundingClientRect();
+            if (r.width < 1 || r.height < 1) out.missing.push(`${name}:zero-size`);
+            if (r.left < -1 || r.right > window.innerWidth + 1) {
+              out.outside.push(`${name}[l=${Math.round(r.left)} r=${Math.round(r.right)}]`);
+            }
+            // The three visual sizes must fit the first screen; the extra-width
+            // sweep only proves nothing is clipped horizontally, so a hero that
+            // scrolls (e.g. 1024x768) is still allowed there.
+            if (requireVerticalFit && (r.top < -1 || r.bottom > window.innerHeight + 1)) {
+              out.outside.push(`${name}[t=${Math.round(r.top)} b=${Math.round(r.bottom)}]`);
+            }
+            const x = Math.round(r.left + r.width / 2);
+            const y = Math.round(r.top + r.height / 2);
+            if (x >= 0 && x <= window.innerWidth && y >= 0 && y <= window.innerHeight) {
+              const hit = document.elementFromPoint(x, y);
+              if (!hit || !(hit === el || el.contains(hit))) {
+                out.covered.push(`${name}<-${hit ? `${hit.tagName}.${String(hit.className || '').slice(0, 30)}` : 'none'}`);
+              }
+            }
+          }
+          out.overflow = Math.max(0, document.documentElement.scrollWidth - window.innerWidth);
+          out.inner = { width: window.innerWidth, height: window.innerHeight };
+          return out;
+        }, { requireVerticalFit: isRequired });
+        const ok = !layout.missing.length && !layout.outside.length
+          && !layout.covered.length && layout.overflow <= 1;
+
+        if (isRequired) {
+          record(`homepage ${viewport.name} hero fits the viewport and is not covered`, ok, JSON.stringify(layout));
+          await page.screenshot({
+            path: path.join(HOMEPAGE_SHOT_DIR, `homepage-${viewport.name}-${viewport.width}x${viewport.height}.png`),
+          });
+        } else if (!ok) {
+          sweepFailures.push(`${viewport.name}[${viewport.width}x${viewport.height}] ${JSON.stringify(layout)}`);
+        }
+
+        if (viewport.name === 'phone' || viewport.name === 'desktop') {
+          const broken = await page.evaluate(async () => {
+            document.querySelectorAll('img[loading="lazy"]').forEach((img) => { img.loading = 'eager'; });
+            for (let y = 0; y < document.body.scrollHeight; y += 700) {
+              window.scrollTo(0, y);
+              await new Promise((resolve) => setTimeout(resolve, 120));
+            }
+            window.scrollTo(0, 0);
+            await Promise.all(Array.from(document.images).map((img) => {
+              if (img.complete) return Promise.resolve();
+              return new Promise((resolve) => {
+                img.addEventListener('load', resolve, { once: true });
+                img.addEventListener('error', resolve, { once: true });
+                setTimeout(resolve, 5000);
+              });
+            }));
+            await new Promise((resolve) => setTimeout(resolve, 800));
+            return Array.from(document.images)
+              .filter((img) => img.complete && img.naturalWidth === 0)
+              .map((img) => `${img.currentSrc || img.src} (alt=${img.alt || ''})`);
+          });
+          record(`homepage has no broken images at ${viewport.name}`, broken.length === 0,
+            broken.slice(0, 5).join(' | ') || 'all images loaded');
+        }
+      }
+
+      record('homepage hero fits 360/1024/1920 and desktop-site widths', sweepFailures.length === 0,
+        sweepFailures.join(' | ') || 'all extra widths clean');
+      console.log(`Homepage screenshots: ${HOMEPAGE_SHOT_DIR}`);
+    } catch (error) {
+      const homepageChecks = [
+        'homepage shows no fake stats or hardcoded promo codes',
+        'every homepage promo code is accepted by promo validation',
+        'homepage phone hero fits the viewport and is not covered',
+        'homepage tablet hero fits the viewport and is not covered',
+        'homepage desktop hero fits the viewport and is not covered',
+        'homepage has no broken images at phone',
+        'homepage has no broken images at desktop',
+        'homepage hero fits 360/1024/1920 and desktop-site widths',
+      ];
+      homepageChecks
+        .filter((name) => !recorded.has(name))
+        .forEach((name) => check(name, false, error.message));
+    } finally {
+      await context.close().catch(() => {});
+    }
   }
 
   try {

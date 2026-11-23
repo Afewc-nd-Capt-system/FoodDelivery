@@ -151,6 +151,7 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
   const BusinessSubscriptionPlan = require(path.join(backendRoot, 'src', 'models', 'BusinessSubscriptionPlan'));
   const EmailLog = require(path.join(backendRoot, 'src', 'models', 'EmailLog'));
   const Order = require(path.join(backendRoot, 'src', 'models', 'Order'));
+  const PromoCode = require(path.join(backendRoot, 'src', 'models', 'PromoCode'));
   const emailCaptureFile = path.join(temp, 'captured-emails.jsonl');
   process.env.EMAIL_CAPTURE_FILE = emailCaptureFile;
 
@@ -1176,6 +1177,37 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
   });
   assert(failedVerificationEmail, 'verification-email failure was not logged');
   check(true, 'verification-email failure never breaks registration');
+
+  // ---- Public promo list: live codes only, and they validate ----
+  const livePromoCode = `LIVE${String(Date.now()).slice(-6)}`;
+  const expiredPromoCode = `DEAD${String(Date.now()).slice(-6)}`;
+  await PromoCode.create({
+    code: livePromoCode,
+    discountType: 'percentage',
+    discountValue: 10,
+    minOrderAmount: 2000,
+    validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  });
+  await PromoCode.create({
+    code: expiredPromoCode,
+    discountType: 'percentage',
+    discountValue: 10,
+    validUntil: new Date(Date.now() - 24 * 60 * 60 * 1000),
+  });
+  cleanupFns.push(() => PromoCode.deleteMany({ code: { $in: [livePromoCode, expiredPromoCode] } }).catch(() => {}));
+
+  const promoList = await api('/promo-codes');
+  assert(promoList.status === 200 && Array.isArray(promoList.body),
+    `public promo list returned ${promoList.status}: ${promoList.text}`);
+  const listedPromoCodes = promoList.body.map((promo) => promo.code);
+  assert(listedPromoCodes.includes(livePromoCode) && !listedPromoCodes.includes(expiredPromoCode),
+    `public promo list is wrong: ${JSON.stringify(listedPromoCodes)}`);
+  const liveValidation = await api('/promo-codes/validate', { method: 'POST', body: { code: livePromoCode } });
+  assert(liveValidation.status === 200 && liveValidation.body?.valid === true,
+    `live promo did not validate: ${liveValidation.status} ${liveValidation.text}`);
+  const expiredValidation = await api('/promo-codes/validate', { method: 'POST', body: { code: expiredPromoCode } });
+  assert(expiredValidation.body?.valid === false, 'an expired promo validated');
+  check(true, 'public promo list returns live codes only and they validate', `live=${livePromoCode}`);
 
   // ---- Summary ----
   const failed = results.filter((row) => !row.ok);

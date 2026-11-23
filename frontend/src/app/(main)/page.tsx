@@ -3,7 +3,7 @@ import { API_V2 } from '@/lib/apiBase';
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, MapPin, ChevronRight, Star, Clock, Zap, Shield, ArrowRight, Flame, TrendingUp, ChevronLeft, Loader2, Heart, RefreshCw, Gift } from 'lucide-react';
+import { Search, MapPin, ChevronRight, Star, Clock, Zap, Shield, ArrowRight, Flame, ChevronLeft, Loader2, Heart, RefreshCw, Gift } from 'lucide-react';
 import Image from 'next/image';
 import { useLocation } from '@/context/LocationContext';
 import { useAuth } from '@/context/AuthContext';
@@ -60,8 +60,8 @@ function NearbyRestaurantsSection({ city }: { city?: string }) {
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 20px rgba(0,0,0,0.07)'; }}
           >
             <div style={{ height: '160px', background: 'linear-gradient(135deg, #E8621A, #BE3A2A)', position: 'relative', overflow: 'hidden' }}>
-              {r.image && <img src={r.image} alt={r.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-              {!r.image && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '48px' }}>🍽️</div>}
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px' }}>🍽️</div>
+              {r.image && <img src={r.image} alt={r.name} onError={(e) => { e.currentTarget.style.display = 'none'; }} style={{ position: 'relative', width: '100%', height: '100%', objectFit: 'cover' }} />}
               {r.isOpen === false && (
                 <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <span style={{ color: 'white', fontWeight: '700', background: 'rgba(0,0,0,0.7)', padding: '4px 12px', borderRadius: '20px', fontSize: '13px' }}>Closed</span>
@@ -190,13 +190,19 @@ function SkeletonRestaurantCard() {
 
 function VendorCard({ vendor, onClick }: { vendor: any; onClick: () => void }) {
   const [hovered, setHovered] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
+  const vendorName = vendor.businessName || vendor.name || 'Home cook';
+  const cuisineLabel = Array.isArray(vendor.cuisine)
+    ? vendor.cuisine.join(', ')
+    : (vendor.cuisine || vendor.categories?.[0] || '');
+  const showImage = Boolean(vendor.image) && !imageFailed;
   return (
     <div onClick={onClick} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       className="rounded-3xl overflow-hidden bg-white cursor-pointer shrink-0 w-72 select-none"
       style={{ boxShadow: hovered ? '0 24px 48px rgba(232,98,26,0.18), 0 8px 16px rgba(0,0,0,0.06)' : '0 4px 20px rgba(0,0,0,0.07)', transform: hovered ? 'translateY(-6px) scale(1.01)' : 'translateY(0) scale(1)', transition: 'all 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}
     >
       <div className="relative h-44 overflow-hidden">
-        {vendor.image ? <Image src={vendor.image} alt={vendor.name} width={288} height={176} className="w-full h-full object-cover" style={{ transform: hovered ? 'scale(1.07)' : 'scale(1)', transition: 'transform 0.5s ease' }} /> : <div className="w-full h-full flex items-center justify-center text-5xl" style={{ background: 'linear-gradient(135deg, #E8621A, #BE3A2A)' }}>🥘</div>}
+        {showImage ? <Image src={vendor.image} alt={vendorName} width={288} height={176} className="w-full h-full object-cover" style={{ transform: hovered ? 'scale(1.07)' : 'scale(1)', transition: 'transform 0.5s ease' }} onError={() => setImageFailed(true)} /> : <div className="w-full h-full flex items-center justify-center text-5xl" style={{ background: 'linear-gradient(135deg, #E8621A, #BE3A2A)' }}>🥘</div>}
         <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.1) 50%, transparent 100%)' }} />
         {vendor.promoted && <div className="absolute top-3 left-3 px-2.5 py-1 rounded-lg text-[11px] font-black tracking-wide text-white" style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}>FEATURED</div>}
         {vendor.discount && <div className="absolute top-3 right-3 px-2.5 py-1 rounded-lg text-[11px] font-black text-white" style={{ background: 'linear-gradient(135deg, #BE3A2A, #8B2520)' }}>{vendor.discount}</div>}
@@ -205,10 +211,10 @@ function VendorCard({ vendor, onClick }: { vendor: any; onClick: () => void }) {
       </div>
       <div className="p-4">
         <div className="flex items-start justify-between mb-1.5">
-          <h3 className="font-black text-sm leading-snug" style={{ color: '#1C1C1E' }}>{vendor.name}</h3>
+          <h3 className="font-black text-sm leading-snug" style={{ color: '#1C1C1E' }}>{vendorName}</h3>
           {vendor.rating && <div className="flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-lg ml-2" style={{ backgroundColor: '#FFF1E8' }}><Star size={11} fill="#E8621A" stroke="none" /><span className="text-xs font-black" style={{ color: '#E8621A' }}>{vendor.rating}</span></div>}
         </div>
-        <p className="text-xs mb-3 font-medium" style={{ color: '#A0A0A0' }}>{vendor.cuisine || vendor.categories?.[0] || ''}</p>
+        <p className="text-xs mb-3 font-medium" style={{ color: '#A0A0A0' }}>{cuisineLabel}</p>
         <div className="flex items-center gap-3 text-xs" style={{ color: '#636366' }}>
           <div className="flex items-center gap-1"><Clock size={11} /><span className="font-medium">{vendor.deliveryTime || ''}</span></div>
           {vendor.priceRange && <><span className="text-gray-300">•</span><span className="font-medium">{vendor.priceRange}</span></>}
@@ -223,13 +229,18 @@ function VendorCard({ vendor, onClick }: { vendor: any; onClick: () => void }) {
 
 function RestaurantCard({ restaurant, onClick }: { restaurant: any; onClick: () => void }) {
   const [hovered, setHovered] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
+  const cuisineLabel = Array.isArray(restaurant.cuisine)
+    ? restaurant.cuisine.join(', ')
+    : (restaurant.cuisine || restaurant.categories?.[0] || '');
+  const showImage = Boolean(restaurant.image) && !imageFailed;
   return (
     <div onClick={onClick} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       className="rounded-3xl overflow-hidden bg-white shrink-0 w-72 select-none"
       style={{ cursor: 'pointer', boxShadow: hovered ? '0 24px 48px rgba(232,98,26,0.18), 0 8px 16px rgba(0,0,0,0.06)' : '0 4px 20px rgba(0,0,0,0.07)', transform: hovered ? 'translateY(-6px) scale(1.01)' : 'translateY(0) scale(1)', transition: 'all 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}
     >
       <div className="relative h-44 overflow-hidden">
-        {restaurant.image ? <Image src={restaurant.image} alt={restaurant.name} width={288} height={176} className="w-full h-full object-cover" style={{ transform: hovered ? 'scale(1.07)' : 'scale(1)', transition: 'transform 0.5s ease' }} /> : <div className="w-full h-full flex items-center justify-center text-5xl" style={{ background: 'linear-gradient(135deg, #E8621A, #BE3A2A)' }}>🍽️</div>}
+        {showImage ? <Image src={restaurant.image} alt={restaurant.name} width={288} height={176} className="w-full h-full object-cover" style={{ transform: hovered ? 'scale(1.07)' : 'scale(1)', transition: 'transform 0.5s ease' }} onError={() => setImageFailed(true)} /> : <div className="w-full h-full flex items-center justify-center text-5xl" style={{ background: 'linear-gradient(135deg, #E8621A, #BE3A2A)' }}>🍽️</div>}
         <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.1) 50%, transparent 100%)' }} />
         {restaurant.promoted && <div className="absolute top-3 left-3 px-2.5 py-1 rounded-lg text-[11px] font-black tracking-wide text-white" style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}>FEATURED</div>}
         {restaurant.discount && <div className="absolute top-3 right-3 px-2.5 py-1 rounded-lg text-[11px] font-black text-white" style={{ background: 'linear-gradient(135deg, #BE3A2A, #8B2520)' }}>{restaurant.discount}</div>}
@@ -241,7 +252,7 @@ function RestaurantCard({ restaurant, onClick }: { restaurant: any; onClick: () 
           <h3 className="font-black text-sm leading-snug" style={{ color: '#1C1C1E' }}>{restaurant.name}</h3>
           {restaurant.rating && <div className="flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-lg ml-2" style={{ backgroundColor: '#FFF1E8' }}><Star size={11} fill="#E8621A" stroke="none" /><span className="text-xs font-black" style={{ color: '#E8621A' }}>{restaurant.rating}</span></div>}
         </div>
-        <p className="text-xs mb-3 font-medium" style={{ color: '#A0A0A0' }}>{restaurant.cuisine || restaurant.categories?.[0] || ''}</p>
+        <p className="text-xs mb-3 font-medium" style={{ color: '#A0A0A0' }}>{cuisineLabel}</p>
         <div className="flex items-center gap-3 text-xs" style={{ color: '#636366' }}>
           <div className="flex items-center gap-1"><Clock size={11} /><span className="font-medium">{restaurant.deliveryTime || ''}</span></div>
           {restaurant.priceRange && <><span className="text-gray-300">•</span><span className="font-medium">{restaurant.priceRange}</span></>}
@@ -297,6 +308,9 @@ export default function HomePage() {
   const [restaurantTotal, setRestaurantTotal] = useState<number | null>(null);
   const [loadingData, setLoadingData] = useState(true);
   const [loyaltyPoints, setLoyaltyPoints] = useState(0);
+  const [promoCodes, setPromoCodes] = useState<any[]>([]);
+  const [heroImageFailed, setHeroImageFailed] = useState(false);
+  const [dataFailed, setDataFailed] = useState(false);
 
   useEffect(() => {
     if (!token) return;
@@ -316,12 +330,28 @@ export default function HomePage() {
         setRestaurantTotal(typeof restData.total === 'number' ? restData.total : null);
         setAllVendors(vendData.vendors || []);
       })
-      .catch(err => console.error('Failed to fetch homepage data:', err))
+      .catch(err => {
+        console.error('Failed to fetch homepage data:', err);
+        setDataFailed(true);
+      })
       .finally(() => setLoadingData(false));
+  }, []);
+
+  // Banners may only advertise promo codes the API says are live. If the list
+  // is empty or unreachable the section is not rendered at all.
+  useEffect(() => {
+    fetch(`${API_V2}/promo-codes`)
+      .then(r => (r.ok ? r.json() : []))
+      .then(d => setPromoCodes(Array.isArray(d) ? d : []))
+      .catch(() => setPromoCodes([]));
   }, []);
 
   const openRestaurants = featuredRestaurants.filter((r: any) => r.isOpen);
   const openVendors = allVendors.filter((v: any) => v.isOpen);
+  const featuredPromos = promoCodes
+    .filter((promo: any) => promo?.code && (promo.usageLimit == null || Number(promo.usageCount || 0) < Number(promo.usageLimit)))
+    .slice(0, 2);
+  const statsReady = !loadingData && !dataFailed;
 
   // ── SESSION RESTORE ─────────────────────
   // Hold the page until AuthContext has read storage; otherwise a signed-in
@@ -388,36 +418,53 @@ export default function HomePage() {
   // ── GUEST VIEW ──────────────────────────
   return (
     <div style={{ backgroundColor: '#FFF8F0' }}>
-      <section className="relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #1A0E0A 0%, #2C1810 45%, #1A1410 100%)', minHeight: '600px' }}>
-        <div className="absolute top-[-80px] left-[-80px] w-[420px] h-[420px] rounded-full opacity-20 blur-3xl pointer-events-none" style={{ background: 'radial-gradient(circle, #E8621A 0%, transparent 70%)' }} />
-        <div className="absolute bottom-[-60px] right-[-60px] w-[300px] h-[300px] rounded-full opacity-15 blur-3xl pointer-events-none" style={{ background: 'radial-gradient(circle, #BE3A2A 0%, transparent 70%)' }} />
-        <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '45%', overflow: 'hidden', zIndex: 1 }}>
-          <img src="https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=800&q=80" alt="Nigerian food" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.85, display: 'block' }} />
-          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to right, #1A0E0A 0%, rgba(26,14,10,0.5) 30%, transparent 60%)' }} />
+      <section
+        className="guest-hero"
+        data-testid="guest-hero"
+        style={{ background: 'linear-gradient(135deg, #1A0E0A 0%, #2C1810 45%, #1A1410 100%)' }}
+      >
+        <div className="absolute top-[-80px] left-[-80px] w-[420px] h-[420px] rounded-full opacity-20 blur-3xl pointer-events-none z-0" style={{ background: 'radial-gradient(circle, #E8621A 0%, transparent 70%)' }} />
+        <div className="absolute bottom-[-60px] right-[-60px] w-[300px] h-[300px] rounded-full opacity-15 blur-3xl pointer-events-none z-0" style={{ background: 'radial-gradient(circle, #BE3A2A 0%, transparent 70%)' }} />
+        <div className="guest-hero-photo" aria-hidden="true">
+          {!heroImageFailed && (
+            <Image
+              src="https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=1600&q=80"
+              alt=""
+              width={1920}
+              height={1280}
+              sizes="100vw"
+              priority
+              className="guest-hero-photo-img"
+              onError={() => setHeroImageFailed(true)}
+            />
+          )}
         </div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-28">
-          <div className="max-w-xl">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold mb-7" style={{ background: 'rgba(232,98,26,0.15)', border: '1px solid rgba(232,98,26,0.35)', color: '#FF9055' }}>
-              <Flame size={12} /> #1 Food Delivery{isLocationEnabled ? ` in ${userLocation.city}` : ' in Nigeria'} <TrendingUp size={12} />
+        <div className="guest-hero-scrim" aria-hidden="true" />
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-8 sm:pt-14 sm:pb-12 lg:pt-24 lg:pb-20">
+          <div className="guest-hero-copy">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[11px] sm:text-xs font-bold mb-4 sm:mb-7" style={{ background: 'rgba(232,98,26,0.18)', border: '1px solid rgba(232,98,26,0.4)', color: '#FFB07A' }}>
+              <Flame size={12} /> Local restaurants &amp; home cooks
             </div>
-            <h1 className="font-black text-white leading-[1.05] mb-5" style={{ fontSize: 'clamp(2.4rem, 5vw, 3.5rem)' }}>
+            <h1 data-testid="hero-headline" className="font-black text-white leading-[1.06] mb-3.5 sm:mb-5" style={{ fontSize: 'clamp(2rem, 7.2vw, 3.5rem)', textShadow: '0 2px 18px rgba(0,0,0,0.35)' }}>
               Order food you love, <br />
               <span style={{ background: 'linear-gradient(90deg, #FF8C42, #E8621A)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>delivered fast</span>
             </h1>
-            <p className="text-white/60 mb-9 leading-relaxed" style={{ fontSize: '1.05rem' }}>From the best Nigerian restaurants to your doorstep in 30 minutes or less. Real food, real vibes.</p>
+            <p data-testid="hero-subtitle" className="text-white/85 mb-5 sm:mb-8 leading-relaxed" style={{ fontSize: 'clamp(0.95rem, 2.4vw, 1.05rem)', textShadow: '0 1px 12px rgba(0,0,0,0.5)' }}>
+              Real Nigerian restaurants and home cooks near you — order, pay and track it live.
+            </p>
             {!isLocationEnabled && (
-              <div className="mb-6 p-4 rounded-2xl flex items-center justify-between" style={{ backgroundColor: 'rgba(232,98,26,0.1)', border: '1px solid rgba(232,98,26,0.3)' }}>
+              <div className="mb-4 sm:mb-6 p-3.5 sm:p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" style={{ backgroundColor: 'rgba(232,98,26,0.14)', border: '1px solid rgba(232,98,26,0.35)' }}>
                 <div className="flex items-center gap-3">
-                  <MapPin size={20} style={{ color: '#E8621A' }} />
-                  <div><p className="text-sm font-semibold text-white">Enable location to see restaurants near you</p><p className="text-xs text-white/70">Get personalized recommendations and faster delivery</p></div>
+                  <MapPin size={20} style={{ color: '#FF9055', flexShrink: 0 }} />
+                  <div><p className="text-sm font-semibold text-white">Enable location to see restaurants near you</p><p className="text-xs text-white/70">Get recommendations for your area</p></div>
                 </div>
-                <button onClick={detectLocation} disabled={isDetecting} className="px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 active:scale-95 disabled:opacity-50" style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}>
+                <button onClick={detectLocation} disabled={isDetecting} className="w-full sm:w-auto px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 active:scale-95 disabled:opacity-50 shrink-0" style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}>
                   {isDetecting ? <><Loader2 size={14} className="animate-spin inline mr-1" /> Detecting...</> : 'Enable Location'}
                 </button>
               </div>
             )}
-            <form onSubmit={handleSearch}>
-              <div className="flex gap-2 p-2 rounded-2xl" style={{ backgroundColor: 'white', boxShadow: '0 20px 60px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.05)' }}>
+            <form onSubmit={handleSearch} data-testid="hero-search">
+              <div className="flex gap-2 p-2 rounded-2xl" style={{ backgroundColor: 'white', boxShadow: '0 20px 60px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.08)' }}>
                 <div className="hidden sm:flex items-center gap-1.5 pl-3 pr-3 border-r shrink-0 cursor-pointer hover:bg-gray-50 rounded-xl transition-colors" style={{ borderColor: '#F0EAE0' }} onClick={() => router.push('/restaurants?location=true')}>
                   <MapPin size={15} style={{ color: isLocationEnabled ? '#16A34A' : '#E8621A' }} />
                   <span className="text-sm font-semibold whitespace-nowrap" style={{ color: '#1C1C1E' }}>{getLocationDisplay()}</span>
@@ -426,32 +473,56 @@ export default function HomePage() {
                 <button type="submit" className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-bold transition-all hover:scale-105 active:scale-95 shrink-0" style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}><Search size={16} /><span className="hidden sm:inline">Search</span></button>
               </div>
             </form>
-            <div className="flex flex-wrap items-center gap-2 mt-5"><span className="text-white/30 text-xs font-medium">Trending:</span>{['Jollof Rice', 'Suya', 'Egusi', 'Shawarma', 'Puff Puff'].map(term => { let url = `/restaurants?q=${encodeURIComponent(term)}`; if (isLocationEnabled && userLocation.lat && userLocation.lng) url += `&lat=${userLocation.lat}&lng=${userLocation.lng}`; else if (isLocationEnabled && userLocation.city) url += `&city=${encodeURIComponent(userLocation.city)}`; return (<button key={term} onClick={() => router.push(url)} className="px-3 py-1 rounded-full text-xs font-medium transition-all hover:bg-white/20" style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.65)' }}>{term}</button>); })}</div>
+            <div className="flex flex-wrap items-center gap-2 mt-4 sm:mt-5"><span className="text-white/45 text-xs font-medium">Trending:</span>{['Jollof Rice', 'Suya', 'Egusi', 'Shawarma', 'Puff Puff'].map(term => { let url = `/restaurants?q=${encodeURIComponent(term)}`; if (isLocationEnabled && userLocation.lat && userLocation.lng) url += `&lat=${userLocation.lat}&lng=${userLocation.lng}`; else if (isLocationEnabled && userLocation.city) url += `&city=${encodeURIComponent(userLocation.city)}`; return (<button key={term} onClick={() => router.push(url)} className="px-3 py-1 rounded-full text-xs font-medium transition-all hover:bg-white/20" style={{ backgroundColor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.16)', color: 'rgba(255,255,255,0.8)' }}>{term}</button>); })}</div>
           </div>
         </div>
-        <div className="relative border-t" style={{ borderColor: 'rgba(255,255,255,0.06)', backgroundColor: 'rgba(0,0,0,0.25)' }}>
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
-            <div className="grid grid-cols-3 gap-4">
-              {[{ value: restaurantTotal !== null ? String(restaurantTotal) : '—', label: 'Restaurants' }, { value: openRestaurants.length ? `${openRestaurants.length} open` : '—', label: 'Ready to Deliver' }, { value: openVendors.length ? `${openVendors.length} open` : '—', label: 'Vendor Stalls' }].map((stat, i) => (
-                <div key={stat.label} className={`text-center ${i >= 3 ? 'hidden sm:block' : ''}`}><div className="text-xl font-black" style={{ color: '#E8621A' }}>{stat.value}</div><div className="text-xs font-medium mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>{stat.label}</div></div>
+        <div data-testid="hero-stats" className="relative z-10 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)', backgroundColor: 'rgba(0,0,0,0.3)' }}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
+            <div className="grid grid-cols-3 gap-3 sm:gap-4">
+              {[
+                { value: statsReady && restaurantTotal !== null ? restaurantTotal.toLocaleString() : '—', label: 'Restaurants' },
+                { value: statsReady ? openRestaurants.length.toLocaleString() : '—', label: 'Open now' },
+                { value: statsReady ? openVendors.length.toLocaleString() : '—', label: 'Vendor stalls open' },
+              ].map((stat) => (
+                <div key={stat.label} className="text-center"><div className="text-lg sm:text-xl font-black" style={{ color: '#FF9055' }}>{stat.value}</div><div className="text-[10px] sm:text-xs font-medium mt-0.5" style={{ color: 'rgba(255,255,255,0.55)' }}>{stat.label}</div></div>
               ))}
             </div>
           </div>
         </div>
       </section>
 
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="relative overflow-hidden rounded-3xl p-7 text-white cursor-pointer group transition-transform hover:scale-[1.01]" style={{ background: 'linear-gradient(135deg, #E8621A 0%, #C4501A 100%)' }} onClick={() => router.push('/restaurants')}>
-            <div className="absolute -right-6 -bottom-6 text-[110px] opacity-15 select-none group-hover:opacity-25 transition-opacity">🍔</div>
-            <div className="relative"><div className="text-xs font-bold opacity-75 mb-1 tracking-wide uppercase">Limited Time</div><div className="text-4xl font-black mb-1">20% OFF</div><div className="text-sm opacity-80 mb-5">Use code <span className="font-black bg-white/20 px-2 py-0.5 rounded-lg">VIBES20</span> at checkout</div><div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-xl text-sm font-black transition-transform group-hover:scale-105" style={{ color: '#E8621A' }}>Order Now <ArrowRight size={14} /></div></div>
+      {featuredPromos.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-4" data-testid="home-promos">
+          <div className={`grid grid-cols-1 ${featuredPromos.length > 1 ? 'md:grid-cols-2' : ''} gap-4`}>
+            {featuredPromos.map((promo: any, i: number) => {
+              const isPercentage = promo.discountType === 'percentage';
+              const title = isPercentage
+                ? `${Number(promo.discountValue)}% OFF`
+                : `₦${Number(promo.discountValue || 0).toLocaleString()} OFF`;
+              const minOrder = Number(promo.minOrderAmount || 0);
+              const validUntil = promo.validUntil ? new Date(promo.validUntil) : null;
+              const validLabel = validUntil && !Number.isNaN(validUntil.getTime())
+                ? validUntil.toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+                : '';
+              return (
+                <div key={promo.code} data-promo-code={promo.code} className="relative overflow-hidden rounded-3xl p-6 sm:p-7 text-white cursor-pointer group transition-transform hover:scale-[1.01]" style={{ background: i % 2 === 0 ? 'linear-gradient(135deg, #E8621A 0%, #C4501A 100%)' : 'linear-gradient(135deg, #BE3A2A 0%, #8B2520 100%)' }} onClick={() => router.push('/restaurants')}>
+                  <div className="absolute -right-6 -bottom-6 text-[100px] opacity-15 select-none group-hover:opacity-25 transition-opacity">🎁</div>
+                  <div className="relative">
+                    <div className="text-xs font-bold opacity-80 mb-1 tracking-wide uppercase">Active promo</div>
+                    <div className="text-3xl sm:text-4xl font-black mb-1">{title}</div>
+                    <div className="text-sm opacity-90">Use code <span className="font-black bg-white/20 px-2 py-0.5 rounded-lg">{promo.code}</span></div>
+                    <div className="text-xs opacity-85 mt-2 mb-4">
+                      {minOrder > 0 ? `On orders from ₦${minOrder.toLocaleString()}` : 'No minimum order'}
+                      {validLabel ? ` · Until ${validLabel}` : ''}
+                    </div>
+                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-xl text-sm font-black transition-transform group-hover:scale-105" style={{ color: i % 2 === 0 ? '#E8621A' : '#BE3A2A' }}>Order Now <ArrowRight size={14} /></div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <div className="relative overflow-hidden rounded-3xl p-7 text-white cursor-pointer group transition-transform hover:scale-[1.01]" style={{ background: 'linear-gradient(135deg, #BE3A2A 0%, #8B2520 100%)' }} onClick={() => router.push('/restaurants')}>
-            <div className="absolute -right-6 -bottom-6 text-[110px] opacity-15 select-none group-hover:opacity-25 transition-opacity">🍲</div>
-            <div className="relative"><div className="text-xs font-bold opacity-75 mb-1 tracking-wide uppercase">Weekend Special</div><div className="text-4xl font-black mb-1">Free Delivery</div><div className="text-sm opacity-80 mb-5">On all orders above ₦3,000 this weekend</div><div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-xl text-sm font-black transition-transform group-hover:scale-105" style={{ color: '#BE3A2A' }}>Explore <ArrowRight size={14} /></div></div>
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         <div className="flex items-center justify-between mb-6">
@@ -480,7 +551,7 @@ export default function HomePage() {
       </section>
 
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-12">
-        <div className="flex items-center justify-between mb-6"><div><h2 className="text-2xl font-black" style={{ color: '#1C1C1E' }}>Featured Vendors</h2><p className="text-sm mt-0.5" style={{ color: '#A0A0A0' }}>Top-rated home cooks and caterers near you</p></div><button onClick={() => router.push('/vendors')} className="flex items-center gap-1 text-sm font-bold" style={{ color: '#E8621A' }}>View all <ChevronRight size={16} /></button></div>
+        <div className="flex items-center justify-between mb-6"><div><h2 className="text-2xl font-black" style={{ color: '#1C1C1E' }}>Featured Vendors</h2><p className="text-sm mt-0.5" style={{ color: '#A0A0A0' }}>Home cooks and caterers on VibeChops</p></div><button onClick={() => router.push('/vendors')} className="flex items-center gap-1 text-sm font-bold" style={{ color: '#E8621A' }}>View all <ChevronRight size={16} /></button></div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">{allVendors.slice(0, 4).map((v: any) => (<VendorCard key={v._id} vendor={v} onClick={() => router.push(`/vendors/${v._id}`)} />))}</div>
       </section>
 
@@ -498,7 +569,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="text-center mb-14"><h2 className="text-3xl font-black text-white mb-3">How VibeChops Works</h2><p className="text-white/40 text-sm">Order your favourite Nigerian food in 3 simple steps</p></div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[{ step: '01', icon: Search, title: 'Find Your Vibe', desc: 'Browse every restaurant on VibeChops and thousands of dishes. Filter by cuisine, rating, price or delivery time.', color: '#E8621A' },
+            {[{ step: '01', icon: Search, title: 'Find Your Vibe', desc: 'Browse the restaurants and home cooks on VibeChops and their menus. Filter by cuisine, rating, price or delivery time.', color: '#E8621A' },
               { step: '02', icon: Zap, title: 'Place Your Order', desc: 'Customise your meal, add to cart and checkout in seconds. Pay via Paystack, card or bank transfer.', color: '#FF8C42' },
               { step: '03', icon: MapPin, title: 'Track & Enjoy', desc: 'Watch your order in real-time as it gets prepared and delivered hot to your door. Rate & review after.', color: '#BE3A2A' },
             ].map((item, i) => (
@@ -516,9 +587,9 @@ export default function HomePage() {
 
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {[{ icon: Shield, title: 'Secure Payments', desc: 'All transactions protected with bank-level SSL encryption via Paystack. Your money is always safe.' },
-            { icon: Zap, title: 'Lightning Fast', desc: 'Average delivery time of just 28 minutes. Real-time GPS tracking so you always know where your food is.' },
-            { icon: Star, title: 'Quality Guaranteed', desc: 'Every partner restaurant is vetted, rated and quality-checked. Only the best make it onto VibeChops.' },
+          {[{ icon: Shield, title: 'Secure Payments', desc: 'Card payments are processed securely by Paystack; your card details never touch our servers.' },
+            { icon: Zap, title: 'Live Order Tracking', desc: 'Follow your order from the kitchen to your door with real-time status updates.' },
+            { icon: Star, title: 'Vetted Partners', desc: 'Only approved restaurants and vendors are listed on VibeChops.' },
           ].map(item => (
             <div key={item.title} className="flex items-start gap-4 p-6 rounded-2xl bg-white group transition-all duration-300 hover:-translate-y-1" style={{ boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }}>
               <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-110" style={{ background: 'linear-gradient(135deg, #FFF1E8, #FFE0CC)' }}><item.icon size={22} style={{ color: '#E8621A' }} /></div>
@@ -533,7 +604,7 @@ export default function HomePage() {
           <div className="absolute inset-0 overflow-hidden pointer-events-none">{['🍔', '🍲', '🔥', '🍚', '🥩', '🍿'].map((emoji, i) => (<span key={i} className="absolute text-5xl opacity-[0.12] select-none" style={{ left: `${i * 18}%`, bottom: '-8px', transform: 'rotate(-10deg)' }}>{emoji}</span>))}</div>
           <div className="relative text-center py-16 px-6">
             <h2 className="text-3xl sm:text-4xl font-black text-white mb-3">Ready to VibeChop? 🔥</h2>
-            <p className="text-white/70 mb-8 max-w-md mx-auto text-base">Join 50,000+ Lagosians ordering their favourite meals daily. Your first order gets <strong className="text-white">15% off</strong>!</p>
+            <p className="text-white/70 mb-8 max-w-md mx-auto text-base">Browse the restaurants and home cooks near you, then order, pay and track it live.</p>
             <button onClick={() => router.push('/restaurants')} className="inline-flex items-center gap-3 px-8 py-4 bg-white rounded-2xl font-black text-lg transition-all hover:scale-105 active:scale-95 shadow-2xl" style={{ color: '#E8621A' }}>Start Ordering <ArrowRight size={22} /></button>
           </div>
         </div>

@@ -24,7 +24,7 @@ const DELIVERY_PRESETS = ['Home', 'Work', "Partner's"];
 export default function CartPage() {
   const router = useRouter();
   const { user, register, login, resendVerification, refreshSession } = useAuth();
-  const { items, updateQuantity, removeItem, clearCart, subtotal, discount } = useCart();
+  const { items, updateQuantity, removeItem, clearCart, subtotal } = useCart();
 
   const [promoInput, setPromoInput] = useState('');
   const [promoStatus, setPromoStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -84,7 +84,7 @@ export default function CartPage() {
   const [storeFees, setStoreFees] = useState<{ deliveryFee: number; serviceFee: number } | null>(null);
   const deliveryFee = storeFees ? storeFees.deliveryFee : 40;
   const serviceFee = storeFees ? storeFees.serviceFee : 0;
-  const discountAmount = appliedPromo ? appliedPromo.discount : Math.round(subtotal * discount);
+  const discountAmount = appliedPromo ? appliedPromo.discount : 0;
   const total = subtotal - discountAmount + deliveryFee + serviceFee;
 
   // Promo codes are validated by the server; the same code is sent with the
@@ -657,7 +657,7 @@ export default function CartPage() {
                       type="text"
                       value={promoInput}
                       onChange={e => { setPromoInput(e.target.value.toUpperCase()); setPromoStatus('idle'); }}
-                      placeholder="Enter promo code (e.g. VIBES20)"
+                      placeholder="Enter promo code"
                       className="flex-1 px-4 py-3 rounded-xl text-sm outline-none"
                       style={{
                         border: `1.5px solid ${promoStatus === 'error' ? '#EF4444' : '#E8E8E8'}`,
@@ -805,7 +805,7 @@ export default function CartPage() {
                 </div>
                 {discountAmount > 0 && (
                   <div className="flex justify-between text-sm">
-                    <span style={{ color: '#22C55E' }}>Discount ({(discount * 100).toFixed(0)}%)</span>
+                    <span style={{ color: '#22C55E' }}>Discount</span>
                     <span className="font-semibold text-green-600">–₦{discountAmount.toLocaleString()}</span>
                   </div>
                 )}

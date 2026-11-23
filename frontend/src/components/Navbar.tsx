@@ -252,7 +252,7 @@ export function Navbar() {
             </div>
 
             {/* Nav links — desktop */}
-            <div className="hidden md:flex items-center gap-1">
+            <div className="hidden lg:flex items-center gap-1">
               {navLinks.map(link => (
                 <Link
                   key={link.to}
@@ -405,7 +405,7 @@ export function Navbar() {
               {/* Hamburger */}
               <button
                 onClick={() => setMobileOpen(!mobileOpen)}
-                className="md:hidden p-2 rounded-xl transition-colors hover:bg-orange-50"
+                className="lg:hidden p-2 rounded-xl transition-colors hover:bg-orange-50"
                 style={{ color: '#1C1C1E' }}
               >
                 {mobileOpen ? <X size={22} /> : <Menu size={22} />}
@@ -416,7 +416,7 @@ export function Navbar() {
 
         {/* Mobile menu */}
         <div
-          className="md:hidden overflow-hidden transition-all duration-300"
+          className="lg:hidden overflow-hidden transition-all duration-300"
           style={{ maxHeight: mobileOpen ? '90vh' : '0', overflowY: mobileOpen ? 'auto' : 'hidden', borderTop: mobileOpen ? '1px solid #F0EAE0' : 'none' }}
         >
           <div className="bg-white px-4 py-4 space-y-1">

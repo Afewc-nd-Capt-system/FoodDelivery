@@ -9,13 +9,17 @@ const router = express.Router();
 
 router.get('/', async (req, res) => {
   try {
+    const now = new Date();
     const promoCodes = await PromoCode.find({
       isActive: true,
-      validUntil: { $gt: new Date() },
+      validFrom: { $lte: now },
+      validUntil: { $gt: now },
+      // $expr is required here: comparing usageCount to the usageLimit field
+      // with a "$usageLimit" string throws a CastError (the endpoint 500'd).
       $or: [
         { usageLimit: null },
-        { usageCount: { $lt: '$usageLimit' } }
-      ]
+        { $expr: { $lt: ['$usageCount', '$usageLimit'] } },
+      ],
     });
     res.json(promoCodes);
   } catch (error) {

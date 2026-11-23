@@ -14,3 +14,4 @@ Thumbs.db
 /backend/backups/
 .vercel
 backend/scripts/smoke-report.json
+backend/scripts/artifacts/
