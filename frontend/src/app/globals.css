@@ -447,6 +447,11 @@ body {
     rgba(0, 0, 0, 0) 100%
   );
 }
+.guest-hero-photo picture {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
 .guest-hero-photo-img {
   width: 100%;
   height: 100%;
@@ -470,29 +475,49 @@ body {
     #000 100%
   );
 }
-/* Soft scrim in the hero's own base colour: keeps left-aligned text readable
-   where the masked photo is translucent, never creates a hard edge. */
+/* Phones: light overall scrim only — legibility comes from text shadows and
+   the dark glass cards, so the portrait photo stays bright edge to edge. */
 .guest-hero-scrim {
   position: absolute;
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  background: linear-gradient(
-    90deg,
-    rgba(26, 14, 10, 0.96) 0%,
-    rgba(26, 14, 10, 0.9) 34%,
-    rgba(26, 14, 10, 0.68) 48%,
-    rgba(26, 14, 10, 0) 66%
-  );
+  background: rgba(20, 10, 5, 0.25);
 }
 .guest-hero-copy {
   width: 100%;
-  max-width: 36rem;
+}
+@media (min-width: 768px) {
+  /* Centred column over the unchanged photo/mask. */
+  .guest-hero-copy {
+    max-width: 50rem;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
+  }
+  .guest-hero-scrim {
+    background: radial-gradient(
+      ellipse 800px 560px at 50% 46%,
+      rgba(20, 10, 5, 0.9) 0%,
+      rgba(20, 10, 5, 0.84) 48%,
+      rgba(20, 10, 5, 0.62) 68%,
+      rgba(20, 10, 5, 0.24) 86%,
+      rgba(20, 10, 5, 0) 100%
+    );
+  }
+  .guest-hero-location {
+    justify-content: center;
+  }
+  .guest-hero-chips {
+    justify-content: center;
+  }
+  .guest-hero-stats {
+    max-width: 50rem;
+    margin-left: auto;
+    margin-right: auto;
+  }
 }
 @media (min-width: 768px) and (max-width: 1023px) {
-  .guest-hero-copy {
-    max-width: 30rem;
-  }
   .guest-hero-photo-img {
     -webkit-mask-image: linear-gradient(
       to right,
@@ -512,19 +537,17 @@ body {
     );
   }
   .guest-hero-scrim {
-    background: linear-gradient(
-      90deg,
-      rgba(26, 14, 10, 0.97) 0%,
-      rgba(26, 14, 10, 0.94) 60%,
-      rgba(26, 14, 10, 0.62) 74%,
-      rgba(26, 14, 10, 0) 92%
+    background: radial-gradient(
+      ellipse 620px 520px at 50% 46%,
+      rgba(20, 10, 5, 0.9) 0%,
+      rgba(20, 10, 5, 0.84) 48%,
+      rgba(20, 10, 5, 0.62) 68%,
+      rgba(20, 10, 5, 0.24) 86%,
+      rgba(20, 10, 5, 0) 100%
     );
   }
 }
 @media (min-width: 1024px) and (max-width: 1279px) {
-  .guest-hero-copy {
-    max-width: 34rem;
-  }
   .guest-hero-photo-img {
     -webkit-mask-image: linear-gradient(
       to right,
@@ -541,43 +564,65 @@ body {
       rgba(0, 0, 0, 0.35) 54%,
       #000 72%,
       #000 100%
-    );
-  }
-  .guest-hero-scrim {
-    background: linear-gradient(
-      90deg,
-      rgba(26, 14, 10, 0.95) 0%,
-      rgba(26, 14, 10, 0.9) 52%,
-      rgba(26, 14, 10, 0.55) 66%,
-      rgba(26, 14, 10, 0) 84%
     );
   }
 }
 @media (max-width: 767px) {
-  /* Full-width text on phones: centre the subject and darken it enough that
-     white body text stays above 4.5:1. */
-  .guest-hero-photo-img {
-    object-position: 62% 40%;
-    opacity: 0.62;
+  /* Portrait crop, full-bleed and nearly full brightness. */
+  .guest-hero-photo {
     -webkit-mask-image: linear-gradient(
-      to right,
-      #000 0%,
-      #000 82%,
-      rgba(0, 0, 0, 0.35) 100%
+      to bottom,
+      rgba(0, 0, 0, 0) 0%,
+      #000 8%,
+      #000 90%,
+      rgba(0, 0, 0, 0) 100%
     );
     mask-image: linear-gradient(
-      to right,
-      #000 0%,
-      #000 82%,
-      rgba(0, 0, 0, 0.35) 100%
+      to bottom,
+      rgba(0, 0, 0, 0) 0%,
+      #000 8%,
+      #000 90%,
+      rgba(0, 0, 0, 0) 100%
     );
   }
-  .guest-hero-scrim {
-    background: linear-gradient(
-      100deg,
-      rgba(10, 6, 4, 0.92) 0%,
-      rgba(10, 6, 4, 0.82) 55%,
-      rgba(10, 6, 4, 0.72) 100%
-    );
+  .guest-hero-photo-img {
+    object-position: center center;
+    opacity: 1;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  .guest-hero-title {
+    text-shadow: 0 2px 18px rgba(0, 0, 0, 0.8), 0 1px 4px rgba(0, 0, 0, 0.9) !important;
+  }
+  .guest-hero-title span {
+    -webkit-text-stroke: 0.9px rgba(20, 10, 5, 0.6);
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.95)) drop-shadow(0 3px 12px rgba(0, 0, 0, 0.9));
+  }
+  .guest-hero-subtitle {
+    text-shadow: 0 2px 14px rgba(0, 0, 0, 0.85), 0 1px 4px rgba(0, 0, 0, 0.9) !important;
+  }
+  .guest-hero-glass {
+    background-color: rgba(20, 10, 5, 0.55) !important;
+    border-color: rgba(255, 255, 255, 0.18) !important;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+  }
+  .guest-hero-search-pill {
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35) !important;
+  }
+  .guest-hero-search-input {
+    background-color: transparent !important;
+    color: #ffffff !important;
+  }
+  .guest-hero-search-input::placeholder {
+    color: rgba(255, 255, 255, 0.68) !important;
+  }
+  .guest-hero-chip {
+    color: rgba(255, 255, 255, 0.92) !important;
+  }
+  .guest-hero-chips-label {
+    color: rgba(255, 255, 255, 0.75) !important;
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8);
   }
 }

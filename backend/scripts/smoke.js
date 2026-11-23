@@ -140,6 +140,157 @@ async function fetchRestaurants() {
   return body.restaurants || body.data || body;
 }
 
+// Render the hero once without glyphs (glass backgrounds stay) and measure the
+// photo brightness around the text plus the real text-background contrast.
+async function measureHeroBackground(page, browser) {
+  const geo = await page.evaluate(() => {
+    const box = (selector) => {
+      const el = document.querySelector(selector);
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.left, y: r.top, w: r.width, h: r.height };
+    };
+    return {
+      hero: box('[data-testid="guest-hero"]'),
+      stats: box('[data-testid="hero-stats"]'),
+      badge: box('[data-testid="guest-hero"] .guest-hero-glass'),
+      headline: box('[data-testid="hero-headline"]'),
+      subtitle: box('[data-testid="hero-subtitle"]'),
+      location: box('[data-testid="guest-hero"] .guest-hero-location'),
+      search: box('[data-testid="hero-search"]'),
+      chips: box('[data-testid="guest-hero"] .guest-hero-chips'),
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+    };
+  });
+  if (!geo.hero || !geo.stats) throw new Error('hero geometry missing');
+
+  const clip = {
+    x: 0,
+    y: Math.max(0, geo.hero.y),
+    width: geo.viewport.width,
+    height: Math.max(1, Math.round(geo.stats.y - geo.hero.y)),
+  };
+  const relative = (box) => (box
+    ? { x: box.x - clip.x, y: box.y - clip.y, w: box.w, h: box.h }
+    : null);
+  const rects = {
+    badge: relative(geo.badge),
+    headline: relative(geo.headline),
+    subtitle: relative(geo.subtitle),
+    location: relative(geo.location),
+    search: relative(geo.search),
+    chips: relative(geo.chips),
+  };
+
+  await page.evaluate(() => {
+    if (document.getElementById('smoke-hero-background')) return;
+    const style = document.createElement('style');
+    style.id = 'smoke-hero-background';
+    style.textContent = `
+      [data-testid="guest-hero"] h1,
+      [data-testid="guest-hero"] h1 span,
+      [data-testid="guest-hero"] p,
+      [data-testid="guest-hero"] span,
+      [data-testid="guest-hero"] input,
+      [data-testid="guest-hero"] button,
+      [data-testid="guest-hero"] .guest-hero-glass {
+        color: transparent !important;
+        -webkit-text-fill-color: transparent !important;
+        text-shadow: none !important;
+        background-image: none !important;
+      }
+      [data-testid="guest-hero"] input::placeholder { color: transparent !important; }
+      [data-testid="guest-hero"] svg { opacity: 0 !important; }
+    `;
+    document.head.appendChild(style);
+  });
+  await page.waitForTimeout(150);
+  const shot = await page.screenshot({ clip, fullPage: true });
+  await page.evaluate(() => document.getElementById('smoke-hero-background')?.remove());
+
+  const context = await browser.newContext();
+  const analyzer = await context.newPage();
+  try {
+    return await analyzer.evaluate(async ({ dataUrl, rects: boxes }) => {
+      const img = new Image();
+      img.src = dataUrl;
+      await img.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const W = canvas.width;
+      const H = canvas.height;
+      const linear = (value) => {
+        const v = value / 255;
+        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+      };
+      const luminance = (r, g, b) => 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+      const inside = (x, y, rect, pad = 0) => rect
+        && x >= rect.x - pad && x < rect.x + rect.w + pad
+        && y >= rect.y - pad && y < rect.y + rect.h + pad;
+
+      const region = (rect) => {
+        if (!rect) return null;
+        const lums = [];
+        let brightnessSum = 0;
+        let count = 0;
+        const x0 = Math.max(0, Math.floor(rect.x));
+        const y0 = Math.max(0, Math.floor(rect.y));
+        const x1 = Math.min(W, Math.ceil(rect.x + rect.w));
+        const y1 = Math.min(H, Math.ceil(rect.y + rect.h));
+        for (let y = y0; y < y1; y += 2) {
+          for (let x = x0; x < x1; x += 2) {
+            const i = (y * W + x) * 4;
+            lums.push(luminance(data[i], data[i + 1], data[i + 2]));
+            brightnessSum += (data[i] + data[i + 1] + data[i + 2]) / 3;
+            count += 1;
+          }
+        }
+        lums.sort((a, b) => a - b);
+        const meanLum = lums.reduce((sum, value) => sum + value, 0) / Math.max(1, lums.length);
+        const p95Lum = lums[Math.min(lums.length - 1, Math.floor(lums.length * 0.95))] || 0;
+        return {
+          meanBrightness: Math.round(brightnessSum / Math.max(1, count)),
+          meanContrast: Math.round((1.05 / (meanLum + 0.05)) * 10) / 10,
+          p95Contrast: Math.round((1.05 / (p95Lum + 0.05)) * 10) / 10,
+        };
+      };
+
+      const exclusions = Object.values(boxes).filter(Boolean);
+      const outsideValues = [];
+      for (let y = 0; y < H; y += 2) {
+        for (let x = 0; x < W; x += 2) {
+          if (exclusions.some((rect) => inside(x, y, rect, 8))) continue;
+          const i = (y * W + x) * 4;
+          outsideValues.push((data[i] + data[i + 1] + data[i + 2]) / 3);
+        }
+      }
+      outsideValues.sort((a, b) => a - b);
+      const outsideAvg = outsideValues.reduce((sum, value) => sum + value, 0) / Math.max(1, outsideValues.length);
+      const outsideMedian = outsideValues[Math.floor(outsideValues.length / 2)] || 0;
+      const outsideP95 = outsideValues[Math.min(outsideValues.length - 1, Math.floor(outsideValues.length * 0.95))] || 0;
+      return {
+        size: { width: W, height: H },
+        outside: {
+          averageBrightness: Math.round(outsideAvg),
+          medianBrightness: Math.round(outsideMedian),
+          p95Brightness: Math.round(outsideP95),
+          pixels: outsideValues.length,
+        },
+        headline: region(boxes.headline),
+        subtitle: region(boxes.subtitle),
+        location: region(boxes.location),
+        chips: region(boxes.chips),
+      };
+    }, { dataUrl: `data:image/png;base64,${shot.toString('base64')}`, rects });
+  } finally {
+    await context.close().catch(() => {});
+  }
+}
+
 (async () => {
   console.log(`Smoke target: ${BASE}`);
   console.log(`Direct API:   ${API_V2}`);
@@ -501,6 +652,18 @@ async function fetchRestaurants() {
     const { context, page } = await newPage(browser, { width: 390, height: 844 });
     const recorded = new Set();
     const record = (name, ok, detail) => { recorded.add(name); check(name, ok, detail); };
+    const screenshotSizes = [
+      { name: 'phone', width: 390, height: 844, vertical: true },
+      { name: 'phone-412', width: 412, height: 915, vertical: true },
+      { name: 'tablet', width: 768, height: 1024, vertical: true },
+      { name: 'tablet-landscape', width: 1024, height: 768, vertical: false },
+      { name: 'desktop', width: 1440, height: 900, vertical: true },
+      { name: 'wide', width: 1920, height: 1080, vertical: true },
+    ];
+    const extraSizes = [
+      { name: 'phone-360', width: 360, height: 800, vertical: true },
+      { name: 'phone-desktop-site', width: 980, height: 800, vertical: true },
+    ];
     try {
       const res = await gotoPage(page, BASE + '/');
       await page.waitForSelector('[data-testid="hero-headline"]', { timeout: 30000 });
@@ -539,24 +702,15 @@ async function fetchRestaurants() {
       record('every homepage promo code is accepted by promo validation', promosValid, promoDetail);
 
       fs.mkdirSync(HOMEPAGE_SHOT_DIR, { recursive: true });
-      const required = [
-        { name: 'phone', width: 390, height: 844 },
-        { name: 'tablet', width: 768, height: 1024 },
-        { name: 'desktop', width: 1440, height: 900 },
-      ];
-      const sweep = [
-        { name: 'phone-360', width: 360, height: 800 },
-        ...required,
-        { name: 'tablet-landscape-1024', width: 1024, height: 768 },
-        { name: 'wide-1920', width: 1920, height: 1080 },
-        { name: 'phone-desktop-site-980', width: 980, height: 800 },
-      ];
+      const sweep = [...screenshotSizes, ...extraSizes];
       const sweepFailures = [];
+      const measurements = [];
 
       for (const viewport of sweep) {
         await page.setViewportSize({ width: viewport.width, height: viewport.height });
+        await page.evaluate(() => window.scrollTo(0, 0));
         await page.waitForTimeout(400);
-        const isRequired = required.some((item) => item.name === viewport.name);
+        const isScreenshot = screenshotSizes.some((item) => item.name === viewport.name);
         const layout = await page.evaluate(({ requireVerticalFit }) => {
           const out = { missing: [], outside: [], covered: [], overflow: 0 };
           const selectors = {
@@ -573,9 +727,8 @@ async function fetchRestaurants() {
             if (r.left < -1 || r.right > window.innerWidth + 1) {
               out.outside.push(`${name}[l=${Math.round(r.left)} r=${Math.round(r.right)}]`);
             }
-            // The three visual sizes must fit the first screen; the extra-width
-            // sweep only proves nothing is clipped horizontally, so a hero that
-            // scrolls (e.g. 1024x768) is still allowed there.
+            // Every size must fit horizontally; the 1024x768 screenshot is
+            // allowed to scroll vertically (nothing is clipped).
             if (requireVerticalFit && (r.top < -1 || r.bottom > window.innerHeight + 1)) {
               out.outside.push(`${name}[t=${Math.round(r.top)} b=${Math.round(r.bottom)}]`);
             }
@@ -591,15 +744,34 @@ async function fetchRestaurants() {
           out.overflow = Math.max(0, document.documentElement.scrollWidth - window.innerWidth);
           out.inner = { width: window.innerWidth, height: window.innerHeight };
           return out;
-        }, { requireVerticalFit: isRequired });
+        }, { requireVerticalFit: viewport.vertical });
         const ok = !layout.missing.length && !layout.outside.length
           && !layout.covered.length && layout.overflow <= 1;
 
-        if (isRequired) {
+        if (isScreenshot) {
           record(`homepage ${viewport.name} hero fits the viewport and is not covered`, ok, JSON.stringify(layout));
           await page.screenshot({
             path: path.join(HOMEPAGE_SHOT_DIR, `homepage-${viewport.name}-${viewport.width}x${viewport.height}.png`),
           });
+          const measured = await measureHeroBackground(page, browser);
+          measurements.push({ name: viewport.name, width: viewport.width, height: viewport.height, ...measured });
+          const headlineContrast = measured.headline?.p95Contrast || 0;
+          const subtitleContrast = measured.subtitle?.p95Contrast || 0;
+          record(`homepage ${viewport.name} text contrast meets AA`,
+            headlineContrast >= 3 && subtitleContrast >= 4.5,
+            `headline=${headlineContrast}:1 (large, need 3) subtitle=${subtitleContrast}:1 (need 4.5)`);
+          if (viewport.name === 'phone') {
+            const photoOk = measured.outside.averageBrightness >= 30
+              && measured.outside.medianBrightness >= 20
+              && measured.outside.p95Brightness >= 70;
+            record('homepage phone photo is clearly visible', photoOk,
+              `avgBrightness=${measured.outside.averageBrightness}/255 median=${measured.outside.medianBrightness}/255 p95=${measured.outside.p95Brightness}/255 outside-text pixels=${measured.outside.pixels}`);
+            const locationContrast = measured.location?.p95Contrast || 0;
+            const chipsContrast = measured.chips?.p95Contrast || 0;
+            const glassContrast = Math.min(locationContrast, chipsContrast);
+            record('homepage phone glass cards keep text readable', glassContrast >= 4.5,
+              `location=${locationContrast}:1 chips=${chipsContrast}:1 (need 4.5 each)`);
+          }
         } else if (!ok) {
           sweepFailures.push(`${viewport.name}[${viewport.width}x${viewport.height}] ${JSON.stringify(layout)}`);
         }
@@ -630,19 +802,21 @@ async function fetchRestaurants() {
         }
       }
 
-      record('homepage hero fits 360/1024/1920 and desktop-site widths', sweepFailures.length === 0,
+      record('homepage hero fits 360 and desktop-site widths', sweepFailures.length === 0,
         sweepFailures.join(' | ') || 'all extra widths clean');
       console.log(`Homepage screenshots: ${HOMEPAGE_SHOT_DIR}`);
+      console.log('Homepage measurements:', JSON.stringify(measurements));
     } catch (error) {
       const homepageChecks = [
         'homepage shows no fake stats or hardcoded promo codes',
         'every homepage promo code is accepted by promo validation',
-        'homepage phone hero fits the viewport and is not covered',
-        'homepage tablet hero fits the viewport and is not covered',
-        'homepage desktop hero fits the viewport and is not covered',
+        ...screenshotSizes.map((viewport) => `homepage ${viewport.name} hero fits the viewport and is not covered`),
+        ...screenshotSizes.map((viewport) => `homepage ${viewport.name} text contrast meets AA`),
+        'homepage phone photo is clearly visible',
+        'homepage phone glass cards keep text readable',
         'homepage has no broken images at phone',
         'homepage has no broken images at desktop',
-        'homepage hero fits 360/1024/1920 and desktop-site widths',
+        'homepage hero fits 360 and desktop-site widths',
       ];
       homepageChecks
         .filter((name) => !recorded.has(name))

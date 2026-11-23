@@ -198,7 +198,7 @@ function VendorCard({ vendor, onClick }: { vendor: any; onClick: () => void }) {
   const showImage = Boolean(vendor.image) && !imageFailed;
   return (
     <div onClick={onClick} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
-      className="rounded-3xl overflow-hidden bg-white cursor-pointer shrink-0 w-72 select-none"
+      className="rounded-3xl overflow-hidden bg-white cursor-pointer shrink-0 w-72 select-none snap-start"
       style={{ boxShadow: hovered ? '0 24px 48px rgba(232,98,26,0.18), 0 8px 16px rgba(0,0,0,0.06)' : '0 4px 20px rgba(0,0,0,0.07)', transform: hovered ? 'translateY(-6px) scale(1.01)' : 'translateY(0) scale(1)', transition: 'all 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}
     >
       <div className="relative h-44 overflow-hidden">
@@ -236,7 +236,7 @@ function RestaurantCard({ restaurant, onClick }: { restaurant: any; onClick: () 
   const showImage = Boolean(restaurant.image) && !imageFailed;
   return (
     <div onClick={onClick} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
-      className="rounded-3xl overflow-hidden bg-white shrink-0 w-72 select-none"
+      className="rounded-3xl overflow-hidden bg-white shrink-0 w-72 select-none snap-start"
       style={{ cursor: 'pointer', boxShadow: hovered ? '0 24px 48px rgba(232,98,26,0.18), 0 8px 16px rgba(0,0,0,0.06)' : '0 4px 20px rgba(0,0,0,0.07)', transform: hovered ? 'translateY(-6px) scale(1.01)' : 'translateY(0) scale(1)', transition: 'all 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}
     >
       <div className="relative h-44 overflow-hidden">
@@ -427,34 +427,37 @@ export default function HomePage() {
         <div className="absolute bottom-[-60px] right-[-60px] w-[300px] h-[300px] rounded-full opacity-15 blur-3xl pointer-events-none z-0" style={{ background: 'radial-gradient(circle, #BE3A2A 0%, transparent 70%)' }} />
         <div className="guest-hero-photo" aria-hidden="true">
           {!heroImageFailed && (
-            <Image
-              src="https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=1600&q=80"
-              alt=""
-              width={1920}
-              height={1280}
-              sizes="100vw"
-              priority
-              className="guest-hero-photo-img"
-              onError={() => setHeroImageFailed(true)}
-            />
+            <picture>
+              <source media="(max-width: 767px)" srcSet="/hero-food-portrait.jpg" />
+              <img
+                src="/hero-food-landscape.jpg"
+                alt=""
+                width={1920}
+                height={1280}
+                fetchPriority="high"
+                decoding="async"
+                className="guest-hero-photo-img"
+                onError={() => setHeroImageFailed(true)}
+              />
+            </picture>
           )}
         </div>
         <div className="guest-hero-scrim" aria-hidden="true" />
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-8 sm:pt-14 sm:pb-12 lg:pt-24 lg:pb-20">
           <div className="guest-hero-copy">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[11px] sm:text-xs font-bold mb-4 sm:mb-7" style={{ background: 'rgba(232,98,26,0.18)', border: '1px solid rgba(232,98,26,0.4)', color: '#FFB07A' }}>
+            <div className="guest-hero-glass inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[11px] sm:text-xs font-bold mb-4 sm:mb-7" style={{ background: 'rgba(232,98,26,0.18)', border: '1px solid rgba(232,98,26,0.4)', color: '#FFB07A' }}>
               <Flame size={12} /> Local restaurants &amp; home cooks
             </div>
-            <h1 data-testid="hero-headline" className="font-black text-white leading-[1.06] mb-3.5 sm:mb-5" style={{ fontSize: 'clamp(2rem, 7.2vw, 3.5rem)', textShadow: '0 2px 18px rgba(0,0,0,0.35)' }}>
+            <h1 data-testid="hero-headline" className="guest-hero-title font-black text-white leading-[1.06] mb-3.5 sm:mb-5" style={{ fontSize: 'clamp(2rem, 7.2vw, 3.5rem)', textShadow: '0 2px 18px rgba(0,0,0,0.35)' }}>
               Order food you love, <br />
               <span style={{ background: 'linear-gradient(90deg, #FF8C42, #E8621A)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>delivered fast</span>
             </h1>
-            <p data-testid="hero-subtitle" className="text-white/85 mb-5 sm:mb-8 leading-relaxed" style={{ fontSize: 'clamp(0.95rem, 2.4vw, 1.05rem)', textShadow: '0 1px 12px rgba(0,0,0,0.5)' }}>
+            <p data-testid="hero-subtitle" className="guest-hero-subtitle text-white/85 mb-5 sm:mb-8 leading-relaxed" style={{ fontSize: 'clamp(0.95rem, 2.4vw, 1.05rem)', textShadow: '0 1px 12px rgba(0,0,0,0.5)' }}>
               Real Nigerian restaurants and home cooks near you — order, pay and track it live.
             </p>
             {!isLocationEnabled && (
-              <div className="mb-4 sm:mb-6 p-3.5 sm:p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" style={{ backgroundColor: 'rgba(232,98,26,0.14)', border: '1px solid rgba(232,98,26,0.35)' }}>
-                <div className="flex items-center gap-3">
+              <div className="guest-hero-glass guest-hero-location mb-4 sm:mb-6 p-3.5 sm:p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" style={{ backgroundColor: 'rgba(232,98,26,0.14)', border: '1px solid rgba(232,98,26,0.35)' }}>
+                <div className="flex items-center gap-3 text-left">
                   <MapPin size={20} style={{ color: '#FF9055', flexShrink: 0 }} />
                   <div><p className="text-sm font-semibold text-white">Enable location to see restaurants near you</p><p className="text-xs text-white/70">Get recommendations for your area</p></div>
                 </div>
@@ -464,21 +467,21 @@ export default function HomePage() {
               </div>
             )}
             <form onSubmit={handleSearch} data-testid="hero-search">
-              <div className="flex gap-2 p-2 rounded-2xl" style={{ backgroundColor: 'white', boxShadow: '0 20px 60px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.08)' }}>
+              <div className="guest-hero-glass guest-hero-search-pill flex gap-2 p-2 rounded-2xl" style={{ backgroundColor: 'white', boxShadow: '0 20px 60px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.08)' }}>
                 <div className="hidden sm:flex items-center gap-1.5 pl-3 pr-3 border-r shrink-0 cursor-pointer hover:bg-gray-50 rounded-xl transition-colors" style={{ borderColor: '#F0EAE0' }} onClick={() => router.push('/restaurants?location=true')}>
                   <MapPin size={15} style={{ color: isLocationEnabled ? '#16A34A' : '#E8621A' }} />
                   <span className="text-sm font-semibold whitespace-nowrap" style={{ color: '#1C1C1E' }}>{getLocationDisplay()}</span>
                 </div>
-                <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder={isLocationEnabled ? 'Search for food, restaurants, or dishes...' : 'Enable location to search nearby restaurants...'} className="flex-1 text-sm outline-none py-2.5 min-w-0 placeholder:text-gray-400" style={{ color: '#1C1C1E' }} />
+                <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder={isLocationEnabled ? 'Search for food, restaurants, or dishes...' : 'Enable location to search nearby restaurants...'} className="guest-hero-search-input flex-1 text-sm outline-none py-2.5 min-w-0 placeholder:text-gray-400" style={{ color: '#1C1C1E' }} />
                 <button type="submit" className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-bold transition-all hover:scale-105 active:scale-95 shrink-0" style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}><Search size={16} /><span className="hidden sm:inline">Search</span></button>
               </div>
             </form>
-            <div className="flex flex-wrap items-center gap-2 mt-4 sm:mt-5"><span className="text-white/45 text-xs font-medium">Trending:</span>{['Jollof Rice', 'Suya', 'Egusi', 'Shawarma', 'Puff Puff'].map(term => { let url = `/restaurants?q=${encodeURIComponent(term)}`; if (isLocationEnabled && userLocation.lat && userLocation.lng) url += `&lat=${userLocation.lat}&lng=${userLocation.lng}`; else if (isLocationEnabled && userLocation.city) url += `&city=${encodeURIComponent(userLocation.city)}`; return (<button key={term} onClick={() => router.push(url)} className="px-3 py-1 rounded-full text-xs font-medium transition-all hover:bg-white/20" style={{ backgroundColor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.16)', color: 'rgba(255,255,255,0.8)' }}>{term}</button>); })}</div>
+            <div className="guest-hero-chips flex flex-wrap items-center gap-2 mt-4 sm:mt-5"><span className="guest-hero-chips-label text-white/45 text-xs font-medium">Trending:</span>{['Jollof Rice', 'Suya', 'Egusi', 'Shawarma', 'Puff Puff'].map(term => { let url = `/restaurants?q=${encodeURIComponent(term)}`; if (isLocationEnabled && userLocation.lat && userLocation.lng) url += `&lat=${userLocation.lat}&lng=${userLocation.lng}`; else if (isLocationEnabled && userLocation.city) url += `&city=${encodeURIComponent(userLocation.city)}`; return (<button key={term} onClick={() => router.push(url)} className="guest-hero-glass guest-hero-chip px-3 py-1 rounded-full text-xs font-medium transition-all hover:bg-white/20" style={{ backgroundColor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.16)', color: 'rgba(255,255,255,0.8)' }}>{term}</button>); })}</div>
           </div>
         </div>
         <div data-testid="hero-stats" className="relative z-10 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)', backgroundColor: 'rgba(0,0,0,0.3)' }}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
-            <div className="grid grid-cols-3 gap-3 sm:gap-4">
+            <div className="guest-hero-stats grid grid-cols-3 gap-3 sm:gap-4">
               {[
                 { value: statsReady && restaurantTotal !== null ? restaurantTotal.toLocaleString() : '—', label: 'Restaurants' },
                 { value: statsReady ? openRestaurants.length.toLocaleString() : '—', label: 'Open now' },
@@ -545,14 +548,14 @@ export default function HomePage() {
             <button onClick={() => router.push('/restaurants')} className="flex items-center gap-1 text-sm font-bold" style={{ color: '#E8621A' }}>View all <ChevronRight size={16} /></button>
           </div>
         </div>
-        <div ref={carouselRef} onScroll={handleScroll} className="flex gap-4 overflow-x-auto pb-4" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <div ref={carouselRef} onScroll={handleScroll} className="-mx-4 px-4 sm:mx-0 sm:px-0 flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {featuredRestaurants.map((r: any) => (<RestaurantCard key={r._id} restaurant={r} onClick={() => router.push(`/restaurant/${r._id}`)} />))}
         </div>
       </section>
 
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-12">
         <div className="flex items-center justify-between mb-6"><div><h2 className="text-2xl font-black" style={{ color: '#1C1C1E' }}>Featured Vendors</h2><p className="text-sm mt-0.5" style={{ color: '#A0A0A0' }}>Home cooks and caterers on VibeChops</p></div><button onClick={() => router.push('/vendors')} className="flex items-center gap-1 text-sm font-bold" style={{ color: '#E8621A' }}>View all <ChevronRight size={16} /></button></div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">{allVendors.slice(0, 4).map((v: any) => (<VendorCard key={v._id} vendor={v} onClick={() => router.push(`/vendors/${v._id}`)} />))}</div>
+        <div className="-mx-4 px-4 sm:mx-0 sm:px-0 flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:gap-5 sm:overflow-visible sm:pb-0" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>{allVendors.slice(0, 4).map((v: any) => (<VendorCard key={v._id} vendor={v} onClick={() => router.push(`/vendors/${v._id}`)} />))}</div>
       </section>
 
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-12">
