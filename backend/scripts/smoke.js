@@ -131,6 +131,63 @@ async function gotoPage(page, url, timeout = 60000) {
   return response;
 }
 
+// Sample the rendered "delivered fast" span: it must be clearly orange, never
+// brown from a text-shadow showing through a gradient text fill.
+async function sampleDeliveredFast(page, browser, shotPath) {
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const span = page.locator('[data-testid="hero-headline"] .guest-hero-gradient');
+  await span.waitFor({ state: 'visible', timeout: 20000 });
+  const box = await span.boundingBox();
+  if (!box) throw new Error('delivered-fast span has no bounding box');
+  const clip = {
+    x: Math.max(0, box.x),
+    y: Math.max(0, box.y),
+    width: Math.max(1, box.width),
+    height: Math.max(1, box.height),
+  };
+  const shot = await page.screenshot({ clip, path: shotPath });
+
+  const context = await browser.newContext();
+  const analyzer = await context.newPage();
+  try {
+    const sample = await analyzer.evaluate(async ({ dataUrl }) => {
+      const img = new Image();
+      img.src = dataUrl;
+      await img.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const pixels = [];
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const a = data[i + 3];
+        if (a < 200) continue;
+        if (r > 150 && r > g * 1.15 && g > b * 1.15 && g > 40) pixels.push([r, g, b]);
+      }
+      if (!pixels.length) return { count: 0, hex: null };
+      const median = (index) => {
+        const values = pixels.map((pixel) => pixel[index]).sort((a, b) => a - b);
+        return values[Math.floor(values.length / 2)];
+      };
+      const [r, g, b] = [median(0), median(1), median(2)];
+      const hex = `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`.toUpperCase();
+      return { count: pixels.length, r, g, b, hex };
+    }, { dataUrl: `data:image/png;base64,${shot.toString('base64')}` });
+    return {
+      ...sample,
+      ok: sample.r >= 190 && sample.g >= 45 && sample.g <= 150
+        && sample.b <= 90 && sample.r > sample.g && sample.g > sample.b,
+    };
+  } finally {
+    await context.close().catch(() => {});
+  }
+}
+
 async function fetchRestaurants() {
   const response = await fetch(`${API_V2}/restaurants?limit=50`, {
     headers: { Origin: BASE },
@@ -753,6 +810,15 @@ async function measureHeroBackground(page, browser) {
           await page.screenshot({
             path: path.join(HOMEPAGE_SHOT_DIR, `homepage-${viewport.name}-${viewport.width}x${viewport.height}.png`),
           });
+          if (viewport.name === 'phone' || viewport.name === 'desktop') {
+            const sample = await sampleDeliveredFast(
+              page,
+              browser,
+              path.join(HOMEPAGE_SHOT_DIR, `delivered-fast-${viewport.name}-${viewport.width}x${viewport.height}.png`)
+            );
+            record(`homepage delivered-fast is orange at ${viewport.name}`, sample.ok,
+              `sampled=${sample.hex} (${sample.count} orange px)`);
+          }
           const measured = await measureHeroBackground(page, browser);
           measurements.push({ name: viewport.name, width: viewport.width, height: viewport.height, ...measured });
           const headlineContrast = measured.headline?.p95Contrast || 0;
@@ -812,6 +878,8 @@ async function measureHeroBackground(page, browser) {
         'every homepage promo code is accepted by promo validation',
         ...screenshotSizes.map((viewport) => `homepage ${viewport.name} hero fits the viewport and is not covered`),
         ...screenshotSizes.map((viewport) => `homepage ${viewport.name} text contrast meets AA`),
+        'homepage delivered-fast is orange at phone',
+        'homepage delivered-fast is orange at desktop',
         'homepage phone photo is clearly visible',
         'homepage phone glass cards keep text readable',
         'homepage has no broken images at phone',
@@ -821,6 +889,77 @@ async function measureHeroBackground(page, browser) {
       homepageChecks
         .filter((name) => !recorded.has(name))
         .forEach((name) => check(name, false, error.message));
+    } finally {
+      await context.close().catch(() => {});
+    }
+  }
+
+  // ---- Footer: single headings, honest copy, live links, proof shots ----
+  {
+    const { context, page } = await newPage(browser, { width: 390, height: 844 });
+    try {
+      for (const size of [
+        { name: 'phone', width: 390, height: 844 },
+        { name: 'desktop', width: 1440, height: 900 },
+      ]) {
+        await page.setViewportSize({ width: size.width, height: size.height });
+        await gotoPage(page, BASE + '/');
+        await page.waitForSelector('footer', { timeout: 30000 });
+        await page.waitForTimeout(600);
+
+        const footerInfo = await page.evaluate(() => {
+          const footer = document.querySelector('footer');
+          const headings = Array.from(footer.querySelectorAll('h2, h3, h4'))
+            .map((el) => el.textContent.trim())
+            .filter(Boolean);
+          const links = Array.from(footer.querySelectorAll('a[href]'))
+            .map((el) => el.getAttribute('href'))
+            .filter(Boolean);
+          return { headings, text: footer.innerText, links };
+        });
+
+        for (const heading of ['Explore', 'Company', 'Get In Touch']) {
+          check(`footer ${heading} appears exactly once at ${size.width}px`,
+            footerInfo.headings.filter((value) => value === heading).length === 1,
+            `headings=${JSON.stringify(footerInfo.headings)}`);
+        }
+
+        const banned = /Allen Avenue|345 6789|vibechops\.ng|App Store|Google Play|Technologies Ltd/i.test(footerInfo.text);
+        check(`footer has no fake contact, app or legal copy at ${size.width}px`, !banned,
+          banned ? 'banned copy found' : 'clean');
+
+        const hrefs = [...new Set(footerInfo.links)]
+          .filter((href) => href.startsWith('/') && !href.startsWith('//'));
+        const linkFailures = [];
+        for (const href of hrefs) {
+          const response = await page.request.get(new URL(href, BASE).toString(), {
+            failOnStatusCode: false,
+            maxRedirects: 0,
+          });
+          if (response.status() === 404) linkFailures.push(`${href}=404`);
+        }
+        check(`every footer link returns a non-404 page at ${size.width}px`, linkFailures.length === 0,
+          linkFailures.join(', ') || `${hrefs.length} link(s): ${hrefs.join(' ')}`);
+
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await page.waitForTimeout(300);
+        await page.screenshot({
+          path: path.join(HOMEPAGE_SHOT_DIR, `hero-${size.name}-${size.width}x${size.height}.png`),
+        });
+        await page.locator('footer').scrollIntoViewIfNeeded();
+        await page.waitForTimeout(300);
+        await page.locator('footer').screenshot({
+          path: path.join(HOMEPAGE_SHOT_DIR, `footer-${size.name}-${size.width}x${size.height}.png`),
+        });
+      }
+    } catch (error) {
+      for (const width of [390, 1440]) {
+        for (const heading of ['Explore', 'Company', 'Get In Touch']) {
+          check(`footer ${heading} appears exactly once at ${width}px`, false, error.message);
+        }
+        check(`footer has no fake contact, app or legal copy at ${width}px`, false, error.message);
+        check(`every footer link returns a non-404 page at ${width}px`, false, error.message);
+      }
     } finally {
       await context.close().catch(() => {});
     }

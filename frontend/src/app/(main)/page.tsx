@@ -448,12 +448,12 @@ export default function HomePage() {
             <div className="guest-hero-glass inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[11px] sm:text-xs font-bold mb-4 sm:mb-7" style={{ background: 'rgba(232,98,26,0.18)', border: '1px solid rgba(232,98,26,0.4)', color: '#FFB07A' }}>
               <Flame size={12} /> Local restaurants &amp; home cooks
             </div>
-            <h1 data-testid="hero-headline" className="guest-hero-title font-black text-white leading-[1.06] mb-3.5 sm:mb-5" style={{ fontSize: 'clamp(2rem, 7.2vw, 3.5rem)', textShadow: '0 2px 18px rgba(0,0,0,0.35)' }}>
-              Order food you love, <br />
-              <span style={{ background: 'linear-gradient(90deg, #FF8C42, #E8621A)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>delivered fast</span>
+            <h1 data-testid="hero-headline" className="font-black text-white leading-[1.06] mb-3.5 sm:mb-5" style={{ fontSize: 'clamp(2rem, 7.2vw, 3.5rem)' }}>
+              <span className="guest-hero-line-white">Order food you love,</span> <br />
+              <span className="guest-hero-gradient">delivered fast</span>
             </h1>
             <p data-testid="hero-subtitle" className="guest-hero-subtitle text-white/85 mb-5 sm:mb-8 leading-relaxed" style={{ fontSize: 'clamp(0.95rem, 2.4vw, 1.05rem)', textShadow: '0 1px 12px rgba(0,0,0,0.5)' }}>
-              Real Nigerian restaurants and home cooks near you — order, pay and track it live.
+              Real Nigerian restaurants and home cooks near you, order, pay and track it live.
             </p>
             {!isLocationEnabled && (
               <div className="guest-hero-glass guest-hero-location mb-4 sm:mb-6 p-3.5 sm:p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" style={{ backgroundColor: 'rgba(232,98,26,0.14)', border: '1px solid rgba(232,98,26,0.35)' }}>
@@ -472,11 +472,11 @@ export default function HomePage() {
                   <MapPin size={15} style={{ color: isLocationEnabled ? '#16A34A' : '#E8621A' }} />
                   <span className="text-sm font-semibold whitespace-nowrap" style={{ color: '#1C1C1E' }}>{getLocationDisplay()}</span>
                 </div>
-                <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder={isLocationEnabled ? 'Search for food, restaurants, or dishes...' : 'Enable location to search nearby restaurants...'} className="guest-hero-search-input flex-1 text-sm outline-none py-2.5 min-w-0 placeholder:text-gray-400" style={{ color: '#1C1C1E' }} />
+                <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search food or restaurants" className="guest-hero-search-input flex-1 text-sm outline-none py-2.5 min-w-0 placeholder:text-gray-400" style={{ color: '#1C1C1E' }} />
                 <button type="submit" className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-bold transition-all hover:scale-105 active:scale-95 shrink-0" style={{ background: 'linear-gradient(135deg, #E8621A, #C4501A)' }}><Search size={16} /><span className="hidden sm:inline">Search</span></button>
               </div>
             </form>
-            <div className="guest-hero-chips flex flex-wrap items-center gap-2 mt-4 sm:mt-5"><span className="guest-hero-chips-label text-white/45 text-xs font-medium">Trending:</span>{['Jollof Rice', 'Suya', 'Egusi', 'Shawarma', 'Puff Puff'].map(term => { let url = `/restaurants?q=${encodeURIComponent(term)}`; if (isLocationEnabled && userLocation.lat && userLocation.lng) url += `&lat=${userLocation.lat}&lng=${userLocation.lng}`; else if (isLocationEnabled && userLocation.city) url += `&city=${encodeURIComponent(userLocation.city)}`; return (<button key={term} onClick={() => router.push(url)} className="guest-hero-glass guest-hero-chip px-3 py-1 rounded-full text-xs font-medium transition-all hover:bg-white/20" style={{ backgroundColor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.16)', color: 'rgba(255,255,255,0.8)' }}>{term}</button>); })}</div>
+            <div className="guest-hero-chips flex flex-wrap items-center gap-2 mt-4 sm:mt-5"><span className="guest-hero-chips-label text-white/45 text-xs font-medium w-full sm:w-auto">Trending:</span>{['Jollof Rice', 'Suya', 'Egusi', 'Shawarma', 'Puff Puff'].map(term => { let url = `/restaurants?q=${encodeURIComponent(term)}`; if (isLocationEnabled && userLocation.lat && userLocation.lng) url += `&lat=${userLocation.lat}&lng=${userLocation.lng}`; else if (isLocationEnabled && userLocation.city) url += `&city=${encodeURIComponent(userLocation.city)}`; return (<button key={term} onClick={() => router.push(url)} className="guest-hero-glass guest-hero-chip px-3 py-1 rounded-full text-xs font-medium transition-all hover:bg-white/20" style={{ backgroundColor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.16)', color: 'rgba(255,255,255,0.8)' }}>{term}</button>); })}</div>
           </div>
         </div>
         <div data-testid="hero-stats" className="relative z-10 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)', backgroundColor: 'rgba(0,0,0,0.3)' }}>

@@ -1,6 +1,19 @@
 import Link from 'next/link';
 import { MapPin, Phone, Mail, Instagram, Twitter, Facebook } from 'lucide-react';
 
+const contactEmail = (process.env.NEXT_PUBLIC_CONTACT_EMAIL || '').trim();
+const contactPhone = (process.env.NEXT_PUBLIC_CONTACT_PHONE || '').trim();
+
+const socialLinks = [
+  { label: 'Instagram', href: (process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM || '').trim(), icon: Instagram },
+  {
+    label: 'X',
+    href: (process.env.NEXT_PUBLIC_SOCIAL_X || process.env.NEXT_PUBLIC_SOCIAL_TWITTER || '').trim(),
+    icon: Twitter,
+  },
+  { label: 'Facebook', href: (process.env.NEXT_PUBLIC_SOCIAL_FACEBOOK || '').trim(), icon: Facebook },
+].filter((link) => link.href);
+
 export function Footer() {
   return (
     <footer style={{ backgroundColor: '#1C1C1E', color: '#A1A1A1' }}>
@@ -18,27 +31,34 @@ export function Footer() {
               </span>
             </div>
             <p className="text-sm leading-relaxed">
-              Your premium Nigerian food delivery platform. Bringing the best of Lagos kitchens to your doorstep in minutes.
+              Your premium African food delivery platform. Bringing the best of African kitchens to your doorstep in minutes.
             </p>
-            <div className="flex items-center gap-3">
-              {[Instagram, Twitter, Facebook].map((Icon, i) => (
-                <button key={i} className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors hover:bg-white/10"
-                  style={{ border: '1px solid #333' }}>
-                  <Icon size={16} />
-                </button>
-              ))}
-            </div>
+            {socialLinks.length > 0 && (
+              <div className="flex items-center gap-3">
+                {socialLinks.map(({ label, href, icon: Icon }) => (
+                  <a
+                    key={label}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={label}
+                    className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors hover:bg-white/10"
+                    style={{ border: '1px solid #333' }}
+                  >
+                    <Icon size={16} />
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Explore */}
           <div className="space-y-4">
             <h4 className="text-white font-semibold">Explore</h4>
             <ul className="space-y-2.5 text-sm">
-              {['All Restaurants', 'Popular Dishes', 'New Arrivals', 'Special Offers', 'Top Rated'].map(item => (
-                <li key={item}>
-                  <Link href="/restaurants" className="hover:text-white transition-colors">{item}</Link>
-                </li>
-              ))}
+              <li><Link href="/restaurants" className="hover:text-white transition-colors">All Restaurants</Link></li>
+              <li><Link href="/vendors" className="hover:text-white transition-colors">Home Cooks</Link></li>
+              <li><Link href="/vibepass" className="hover:text-white transition-colors">VibePass</Link></li>
             </ul>
           </div>
 
@@ -46,14 +66,8 @@ export function Footer() {
           <div className="space-y-4">
             <h4 className="text-white font-semibold">Company</h4>
             <ul className="space-y-2.5 text-sm">
-              {['About Us', 'Careers', 'Blog', 'Press'].map(item => (
-                <li key={item}>
-                  <a href="#" className="hover:text-white transition-colors">{item}</a>
-                </li>
-              ))}
-              <li>
-                <Link href="/contact" className="hover:text-white transition-colors">Partner with Us</Link>
-              </li>
+              <li><Link href="/contact" className="hover:text-white transition-colors">Contact us</Link></li>
+              <li><Link href="/contact" className="hover:text-white transition-colors">Partner with Us</Link></li>
             </ul>
           </div>
 
@@ -63,41 +77,30 @@ export function Footer() {
             <div className="space-y-3 text-sm">
               <div className="flex items-start gap-2.5">
                 <MapPin size={16} className="shrink-0 mt-0.5" style={{ color: '#E8621A' }} />
-                <span>Plot 14, Allen Avenue, Ikeja, Lagos, Nigeria</span>
+                <div>
+                  <p>Head Office: Maiduguri</p>
+                  <p>Branch Office: Bauchi State</p>
+                </div>
               </div>
-              <div className="flex items-center gap-2.5">
-                <Phone size={16} style={{ color: '#E8621A' }} />
-                <span>+234 812 345 6789</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <Mail size={16} style={{ color: '#E8621A' }} />
-                <span>hello@vibechops.ng</span>
-              </div>
-            </div>
-            {/* App download badges */}
-            <div className="flex gap-2 mt-4">
-              <div className="px-3 py-2 rounded-xl text-xs font-medium text-white"
-                style={{ backgroundColor: '#2C2C2E', border: '1px solid #333' }}>
-                <div className="text-[10px] opacity-60">Download on the</div>
-                <div className="font-semibold">App Store</div>
-              </div>
-              <div className="px-3 py-2 rounded-xl text-xs font-medium text-white"
-                style={{ backgroundColor: '#2C2C2E', border: '1px solid #333' }}>
-                <div className="text-[10px] opacity-60">Get it on</div>
-                <div className="font-semibold">Google Play</div>
-              </div>
+              {contactPhone && (
+                <a href={`tel:${contactPhone.replace(/\s+/g, '')}`} className="flex items-center gap-2.5 hover:text-white transition-colors">
+                  <Phone size={16} style={{ color: '#E8621A' }} />
+                  <span>{contactPhone}</span>
+                </a>
+              )}
+              {contactEmail && (
+                <a href={`mailto:${contactEmail}`} className="flex items-center gap-2.5 hover:text-white transition-colors">
+                  <Mail size={16} style={{ color: '#E8621A' }} />
+                  <span>{contactEmail}</span>
+                </a>
+              )}
             </div>
           </div>
         </div>
 
         {/* Bottom bar */}
         <div className="pt-8 border-t border-white/10 flex flex-col sm:flex-row justify-between items-center gap-4 text-sm">
-          <span>© 2026 VibeChops Technologies Ltd. All rights reserved.</span>
-          <div className="flex gap-6">
-            {['Privacy Policy', 'Terms of Service', 'Cookie Policy'].map(item => (
-              <a key={item} href="#" className="hover:text-white transition-colors">{item}</a>
-            ))}
-          </div>
+          <span>© 2026 VibeChops. All rights reserved.</span>
         </div>
       </div>
     </footer>
