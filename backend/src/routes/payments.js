@@ -5,6 +5,7 @@ const requireVerifiedEmail = require('../middleware/requireVerifiedEmail');
 const Order = require('../models/Order');
 const User = require('../models/User');
 const { frontendUrl } = require('../config/frontend');
+const { expectedChargeKobo, processingFeeNaira } = require('../services/paystackFees');
 
 const router = express.Router();
 
@@ -54,7 +55,8 @@ function emitNewOrder(req, order) {
 }
 
 function assertPaymentMatchesOrder(order, payment) {
-  const expectedAmount = Math.round(Number(order.totalAmount || 0) * 100);
+  const expectedAmount = Number(order.paymentExpectedAmount)
+    || Math.round(Number(order.totalAmount || 0) * 100);
   const expectedCurrency = String(order.currency || 'NGN').toUpperCase();
   const actualAmount = Number(payment?.amount);
   const actualCurrency = String(payment?.currency || '').toUpperCase();
@@ -62,7 +64,7 @@ function assertPaymentMatchesOrder(order, payment) {
   if (!Number.isInteger(actualAmount) || actualAmount !== expectedAmount
     || actualCurrency !== expectedCurrency) {
     const error = new Error(
-      `Payment amount/currency does not match order (expected ${expectedAmount} ${expectedCurrency})`
+      `Payment amount/currency does not match the expected charge (expected ₦${(expectedAmount / 100).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${expectedCurrency})`
     );
     error.status = 400;
     throw error;
@@ -163,10 +165,17 @@ router.post('/initialize', authMiddleware, requireVerifiedEmail, async (req, res
     }
 
     // The amount is always the server-computed order total, never req.body.amount.
-    const amount = Math.round(Number(order.totalAmount || 0) * 100);
+    const amount = expectedChargeKobo(order.totalAmount);
+    const processingFee = processingFeeNaira(order.totalAmount);
     if (!Number.isFinite(amount) || amount < 1) {
       return res.status(400).json({ message: 'Order has no payable amount' });
     }
+
+    // Persist the exact expected Paystack charge (kobo) so verify and webhook
+    // compare like-for-like and a paid customer is never marked failed.
+    order.paymentExpectedAmount = amount;
+    order.paymentProcessingFee = processingFee;
+    await order.save();
 
     const user = await User.findById(req.user.id).select('email');
     if (!user?.email) {
@@ -182,6 +191,7 @@ router.post('/initialize', authMiddleware, requireVerifiedEmail, async (req, res
       body: JSON.stringify({
         email: user.email,
         amount,
+        bearer: 'account',
         reference: `order_${order._id}_${Date.now()}`,
         callback_url: frontendUrl('/orders/verify'),
         metadata: {
@@ -201,6 +211,7 @@ router.post('/initialize', authMiddleware, requireVerifiedEmail, async (req, res
       authorizationUrl: data.data.authorization_url,
       reference: data.data.reference,
       amount,
+      processingFee,
       currency: String(order.currency || 'NGN').toUpperCase(),
     });
   } catch (error) {

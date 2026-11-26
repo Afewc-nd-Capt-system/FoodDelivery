@@ -80,6 +80,8 @@ const orderSchema = new mongoose.Schema({
     lat: Number,
     lng: Number,
   },
+  paymentExpectedAmount: Number,
+  paymentProcessingFee: Number,
   status: {
     type: String,
     enum: [

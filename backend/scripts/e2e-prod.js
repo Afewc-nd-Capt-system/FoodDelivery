@@ -28,7 +28,7 @@ function normalizeE2eOrigin(value) {
   return url.origin;
 }
 
-const BASE_URL = (process.env.BASE_URL || 'https://vibechops.onrender.com').replace(/\/+$/, '');
+const BASE_URL = (process.env.E2E_API_URL || 'https://vibechops.onrender.com').replace(/\/+$/, '');
 const API = `${BASE_URL}/api/v2`;
 const ORIGIN = normalizeE2eOrigin(
   process.env.E2E_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:3000'

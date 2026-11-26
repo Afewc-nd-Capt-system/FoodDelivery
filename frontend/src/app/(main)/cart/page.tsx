@@ -103,7 +103,9 @@ export default function CartPage() {
   const serviceFee = quote ? Number(quote.serviceFee) : (storeFees ? storeFees.serviceFee : 0);
   const discountAmount = quote ? Number(quote.promoDiscount || 0) : 0;
   const quotedSubtotal = quote ? Number(quote.subtotal) : subtotal;
-  const total = quote ? Number(quote.totalAmount) : subtotal - discountAmount + deliveryFee + serviceFee;
+  const total = quote
+    ? Number(quote.totalWithProcessingFee ?? quote.totalAmount)
+    : subtotal - discountAmount + deliveryFee + serviceFee;
   const addressComplete = Boolean(address.street.trim() && address.city.trim() && address.state && address.phone.trim());
   const serviceAreaMismatch = Boolean(
     restaurantCity
@@ -1060,7 +1062,11 @@ export default function CartPage() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span style={{ color: '#636366' }}>Service Fee</span>
-                  <span className="font-semibold" style={{ color: '#1C1C1E' }}>₦{serviceFee}</span>
+                  <span className="font-semibold" style={{ color: '#1C1C1E' }}>₦{Number(serviceFee).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span style={{ color: '#636366' }}>Payment processing fee</span>
+                  <span className="font-semibold" style={{ color: '#1C1C1E' }}>₦{Number(quote?.processingFee || 0).toFixed(2)}</span>
                 </div>
                 <div
                   className="flex justify-between font-black pt-3 border-t"

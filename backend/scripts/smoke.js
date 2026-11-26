@@ -574,11 +574,11 @@ async function measureHeroBackground(page, browser) {
     let paymentAmount = null;
     try {
       await page.route('**/payments/initialize', async (route) => {
-        try { paymentAmount = route.request().postDataJSON()?.amount ?? null; } catch {}
         const response = await route.fetch();
         try {
           const json = await response.json();
           authorizationUrl = json.authorizationUrl || json.data?.authorizationUrl || null;
+          paymentAmount = json.amount ?? null;
         } catch {}
         await route.fulfill({ response });
       });
@@ -608,6 +608,7 @@ async function measureHeroBackground(page, browser) {
       const payCount = await payButton.count();
       check('Paystack pay button present', payCount > 0, `count=${payCount}`);
       if (payCount > 0) {
+        const displayedTotalText = await page.getByTestId('cart-total').first().innerText().catch(() => '');
         // Make the access token deliberately invalid while keeping the refresh
         // token. The unified client must refresh once and retry checkout.
         await page.evaluate(() => {
@@ -617,17 +618,27 @@ async function measureHeroBackground(page, browser) {
         await payButton.click();
         for (let i = 0; i < 30 && !authorizationUrl; i += 1) await page.waitForTimeout(500);
         check('cart initializes Paystack payment', !!authorizationUrl, authorizationUrl || 'no authorizationUrl returned');
-        const totalText = await page.getByTestId('cart-total').first().innerText().catch(() => '');
-        const displayedTotal = Number(String(totalText).replace(/[^0-9.]/g, ''));
+        const displayedTotal = Number(String(displayedTotalText).replace(/[^0-9.]/g, ''));
         check('cart total equals the Paystack amount',
-          Number.isFinite(displayedTotal) && Number.isFinite(Number(paymentAmount)) && displayedTotal === Number(paymentAmount),
-          `displayed=${displayedTotal} payment=${paymentAmount}`);
+          Number.isFinite(displayedTotal) && Number.isFinite(Number(paymentAmount))
+            && Math.round(displayedTotal * 100) === Number(paymentAmount),
+          `displayed=₦${displayedTotal} paystackKobo=${paymentAmount}`);
         check('expired access token still reaches Paystack after refresh', !!authorizationUrl,
           authorizationUrl ? 'refresh + retry succeeded' : 'no authorizationUrl after refresh');
         check('cart redirects to Paystack', /paystack/i.test(page.url()) || !!authorizationUrl, page.url());
 
         // Failed refresh: keep the cart, show the session message and return to
-        // checkout after signing in again.
+        // checkout after signing in again. Return to the app first; a
+        // successful Paystack redirect leaves the browser on their origin.
+        await page.goto(BASE + '/cart', { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {});
+        await page.waitForTimeout(800);
+        if (await page.getByTestId('cart-address-street').count()) {
+          await page.getByTestId('cart-address-street').fill('12 Smoke Street');
+          await page.getByTestId('cart-address-city').fill('Lagos');
+          await page.getByTestId('cart-address-state').selectOption('Lagos');
+          await page.getByTestId('cart-address-phone').fill('+2348012345678');
+          await page.waitForTimeout(300);
+        }
         await page.evaluate(() => {
           localStorage.removeItem('refreshToken');
           const token = localStorage.getItem('token');
