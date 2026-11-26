@@ -124,16 +124,21 @@ export function resolvePostAuthPath(user: any, next?: string | null): string {
   return dashboardPathForRole(user?.role)
 }
 
-export function redirectToLogin() {
+export function redirectToLogin(next?: string) {
   if (typeof window === 'undefined') return
   const role = localStorage.getItem('userRole')
   clearAuthSession()
   if (!window.location.pathname.endsWith('/login')) {
-    window.location.href = loginPathForRole(role)
+    const loginPath = loginPathForRole(role)
+    const safeNext = sanitizeNextPath(next)
+    const canReturn = loginPath === '/login'
+    window.location.href = safeNext && canReturn ? `${loginPath}?next=${encodeURIComponent(safeNext)}` : loginPath
   }
 }
 
-export async function refreshAccessToken(): Promise<string | null> {
+let refreshInFlight: Promise<string | null> | null = null
+
+async function performRefresh(): Promise<string | null> {
   if (typeof window === 'undefined') return null
   const refreshToken = localStorage.getItem('refreshToken')
   if (!refreshToken) return null
@@ -146,23 +151,32 @@ export async function refreshAccessToken(): Promise<string | null> {
       credentials: 'include',
     })
     if (!response.ok) {
-      setSessionMessage('Your session expired. Please sign in again.')
+      setSessionMessage('Your session expired. Sign in to continue.')
       clearAuthSession()
       return null
     }
     const data: AuthPayload = await response.json()
     if (!data.token) {
-      setSessionMessage('Your session expired. Please sign in again.')
+      setSessionMessage('Your session expired. Sign in to continue.')
       clearAuthSession()
       return null
     }
     persistAuthSession(data)
     return data.token
   } catch {
-    setSessionMessage('Your session expired. Please sign in again.')
+    setSessionMessage('Your session expired. Sign in to continue.')
     clearAuthSession()
     return null
   }
+}
+
+// Concurrent callers share one refresh; rotating the refresh token twice
+// would revoke the family and sign the customer out mid-checkout.
+export function refreshAccessToken(): Promise<string | null> {
+  if (!refreshInFlight) {
+    refreshInFlight = performRefresh().finally(() => { refreshInFlight = null })
+  }
+  return refreshInFlight
 }
 
 export async function completeMfaIfRequired(data: AuthPayload): Promise<AuthPayload> {

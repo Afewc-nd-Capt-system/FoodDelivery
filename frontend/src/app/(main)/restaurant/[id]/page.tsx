@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import { useCart } from '@/context/CartContext';
+import { useLocation } from '@/context/LocationContext';
 
 interface MenuItemOption {
   label: string;
@@ -290,6 +291,7 @@ export default function RestaurantDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { addItem, items, updateQuantity, totalItems, subtotal } = useCart();
+  const { location: userLocation } = useLocation();
 
   const id = params.id as string;
 
@@ -312,7 +314,8 @@ export default function RestaurantDetailPage() {
           _id: data._id,
           coverImage: data.image || data.coverImage || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200',
           address: typeof data.address === 'string' ? data.address : (data.address?.formattedAddress || `${data.address?.street || ''}, ${data.address?.area || ''}, ${data.address?.city || ''}`),
-          distance: data.distance || '~2.5 km',
+          addressCity: data.address?.city || '',
+          distance: data.distance || '',
           cuisine: Array.isArray(data.cuisine) ? data.cuisine.join(', ') : (data.cuisine || 'Nigerian'),
           deliveryFee: data.deliveryFee ?? 0,
           minOrder: data.minOrderValue ?? data.minOrder ?? 0,
@@ -489,7 +492,7 @@ export default function RestaurantDetailPage() {
                   bg: 'rgba(232,98,26,0.25)',
                 },
                 { icon: Clock, text: restaurant.deliveryTime, bg: 'rgba(0,0,0,0.3)' },
-                { icon: MapPin, text: restaurant.distance, bg: 'rgba(0,0,0,0.3)' },
+                ...(restaurant.distance ? [{ icon: MapPin, text: restaurant.distance, bg: 'rgba(0,0,0,0.3)' }] : []),
                 ...(hoursLabel ? [{ icon: Clock, text: hoursLabel, bg: 'rgba(0,0,0,0.3)' }] : []),
               ].map(badge => (
                 <div
@@ -523,6 +526,16 @@ export default function RestaurantDetailPage() {
 
       {/* Body */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7">
+        {restaurant.addressCity && userLocation?.city
+          && restaurant.addressCity.trim().toLowerCase() !== userLocation.city.trim().toLowerCase() && (
+          <div
+            data-testid="restaurant-service-area-notice"
+            className="mb-5 p-4 rounded-2xl text-sm"
+            style={{ backgroundColor: '#FFF1E8', border: '1px solid #FFD4B8', color: '#7A3A1A' }}
+          >
+            This restaurant delivers in <strong>{restaurant.addressCity}</strong> only. Your selected location is <strong>{userLocation.city}</strong>. Choose a {restaurant.addressCity} delivery address at checkout.
+          </div>
+        )}
         <div className="flex gap-8">
           {/* ── MENU ── */}
           <div className="flex-1 min-w-0">

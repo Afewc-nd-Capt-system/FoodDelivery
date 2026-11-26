@@ -14,6 +14,7 @@ const PayOnDeliveryService = require('../../services/PayOnDeliveryService');
 const OrderCompletionService = require('../../services/OrderCompletionService');
 const { priceOrder } = require('../../services/orderPricingService');
 const PromoCode = require('../../models/PromoCode');
+const { validateDeliveryAddress, formatAddress, assertServiceArea } = require('../../config/deliveryArea');
 const { sendOrderConfirmation, sendOrderStatusUpdate } = require('../../utils/email');
 const router = express.Router();
 
@@ -165,13 +166,20 @@ router.post('/', authMiddleware, requireVerifiedEmail, async (req, res) => {
       vendor,
       items,
       deliveryAddress,
+      deliveryAddressDetails,
       paymentMethod,
       promoCode,
       promo,
     } = req.body;
 
-    if (typeof deliveryAddress !== 'string' || !deliveryAddress.trim()) {
-      return res.status(400).json({ message: 'Delivery address is required' });
+    let address;
+    try {
+      address = validateDeliveryAddress(deliveryAddressDetails || deliveryAddress);
+    } catch (addressError) {
+      return res.status(addressError.status || 400).json({
+        message: addressError.message,
+        code: addressError.code || 'INVALID_DELIVERY_ADDRESS',
+      });
     }
 
     // Never use client-supplied prices, totals, fees, discounts, or wallet
@@ -182,6 +190,8 @@ router.post('/', authMiddleware, requireVerifiedEmail, async (req, res) => {
       items,
       promoCode: promoCode || promo,
     });
+
+    assertServiceArea(pricing.store, address);
 
     const allowedPaymentMethods = ['cash', 'card', 'wallet', 'wallet_card'];
     const resolvedPaymentMethod = allowedPaymentMethods.includes(paymentMethod)
@@ -255,7 +265,8 @@ router.post('/', authMiddleware, requireVerifiedEmail, async (req, res) => {
       loyaltyDiscount,
       loyaltyPointsRedeemed: loyaltyPointsRequested,
       walletAmountUsed,
-      deliveryAddress: deliveryAddress.trim(),
+      deliveryAddress: formatAddress(address),
+      deliveryAddressDetails: address,
       paymentMethod: resolvedPaymentMethod,
       isPaid: payableAmount === 0,
       paymentStatus: payableAmount === 0 ? 'paid' : 'pending',
@@ -343,7 +354,7 @@ router.post('/', authMiddleware, requireVerifiedEmail, async (req, res) => {
     res.status(201).json({ order });
   } catch (error) {
     console.error('Order creation error:', error);
-    res.status(error.status || 400).json({ message: error.message });
+    res.status(error.status || 400).json({ message: error.message, ...(error.code ? { code: error.code } : {}) });
   }
 });
 

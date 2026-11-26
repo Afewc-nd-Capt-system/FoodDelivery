@@ -152,6 +152,9 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
   const EmailLog = require(path.join(backendRoot, 'src', 'models', 'EmailLog'));
   const Order = require(path.join(backendRoot, 'src', 'models', 'Order'));
   const PromoCode = require(path.join(backendRoot, 'src', 'models', 'PromoCode'));
+  const testAddress = (street = '12 Test Street', city = 'Lagos', state = 'Lagos') => ({
+    street, area: 'Ikeja', city, state, phone: '+2348012345678',
+  });
   const emailCaptureFile = path.join(temp, 'captured-emails.jsonl');
   process.env.EMAIL_CAPTURE_FILE = emailCaptureFile;
 
@@ -482,7 +485,7 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
     body: {
       restaurantId,
       items: [{ menuItem: itemId, quantity: 1 }],
-      deliveryAddress: '12 Customer Street, Lagos',
+      deliveryAddress: testAddress('12 Customer Street'),
       paymentMethod: 'cash',
     },
   });
@@ -498,7 +501,7 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
         quantity: 2,
         customizations: [{ name: 'Size', option: 'Large' }],
       }],
-      deliveryAddress: '12 Customer Street, Lagos',
+      deliveryAddress: testAddress('12 Customer Street'),
       paymentMethod: 'cash',
     },
   });
@@ -507,6 +510,33 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
   assert(Number(order.body?.order?.deliveryFee) === 300, `delivery fee was ${order.body?.order?.deliveryFee}, expected 300`);
   assert(Number(order.body?.order?.totalAmount) === 5300, `total was ${order.body?.order?.totalAmount}, expected 5300`);
   check(true, 'customer order requires the required option and prices it correctly (₦5,300)');
+
+  const outOfArea = await api('/orders', {
+    method: 'POST',
+    token: customerToken,
+    body: {
+      restaurantId,
+      items: [{ menuItem: itemId, quantity: 1, customizations: [{ name: 'Size', option: 'Large' }] }],
+      deliveryAddress: testAddress('1 Maiduguri Road', 'Maiduguri', 'Borno'),
+      paymentMethod: 'cash',
+    },
+  });
+  assert(outOfArea.status === 400 && outOfArea.body?.code === 'OUT_OF_SERVICE_AREA',
+    `out-of-area order was not rejected: ${outOfArea.status} ${outOfArea.text}`);
+
+  const malformedAddress = await api('/orders', {
+    method: 'POST',
+    token: customerToken,
+    body: {
+      restaurantId,
+      items: [{ menuItem: itemId, quantity: 1, customizations: [{ name: 'Size', option: 'Large' }] }],
+      deliveryAddress: { street: '', city: '', state: '', phone: '' },
+      paymentMethod: 'cash',
+    },
+  });
+  assert(malformedAddress.status === 400 && malformedAddress.body?.code === 'INVALID_DELIVERY_ADDRESS',
+    `malformed address was not rejected: ${malformedAddress.status} ${malformedAddress.text}`);
+  check(true, 'delivery address is validated and outside-service-area orders are rejected');
 
   // ---- 5b. Customer account area: profile fields, addresses, password ----
   const initialProfile = await api('/auth/profile', { token: customerToken });
@@ -781,7 +811,7 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
   await financialEmailJobs.sendAdBudgetWarning(financeAddress, { remaining: 100 });
 
   const expectedEmails = [
-    ['welcome', customerEmail],
+    ['email-verification', customerEmail],
     ['password-reset', recoveryEmail],
     ['partner-application-admin', process.env.EMAIL_OWNER],
     ['partner-application-received', ownerEmail],
@@ -811,7 +841,7 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
   const latest = (type, to) => [...captured].reverse().find((mail) => mail.type === type && mail.to === to);
   const resetMail = latest('password-reset', recoveryEmail);
   const approvedMail = latest('partner-approved', ownerEmail);
-  const welcomeMail = latest('welcome', customerEmail);
+  const welcomeMail = latest('email-verification', customerEmail);
   const orderMail = latest('order-confirmation', customerEmail);
   const otpMail = latest('delivery-otp', customerEmail);
   const linksOk = Boolean(
@@ -819,8 +849,8 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
     && resetMail?.text?.includes('http://localhost:3000/reset-password/')
     && approvedMail?.html?.includes('invite=')
     && approvedMail?.text?.includes('invite=')
-    && welcomeMail?.html?.includes('/restaurants')
-    && welcomeMail?.text?.includes('/restaurants')
+    && welcomeMail?.html?.includes('/verify-email/')
+    && welcomeMail?.text?.includes('/verify-email/')
     && orderMail?.html?.includes('/orders')
     && otpMail?.text?.includes('654321')
   );
@@ -858,7 +888,7 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
     `api=${failureContact.status} attempts=${failedEmailLog?.attempts} error=${failedEmailLog?.errorClass}`
   );
 
-  const sampleLog = await EmailLog.findOne({ type: 'welcome' }).lean();
+  const sampleLog = await EmailLog.findOne({ type: 'email-verification' }).lean();
   const logKeys = Object.keys(sampleLog || {});
   check(
     Boolean(sampleLog && sampleLog.provider === 'mock' && /^mock_/.test(sampleLog.providerMessageId || '')
@@ -893,7 +923,7 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
     body: {
       restaurantId,
       items: [{ menuItem: itemId, quantity: 1, customizations: [{ name: 'Size', option: 'Large' }] }],
-      deliveryAddress: '9 Email Fail Street, Lagos',
+      deliveryAddress: testAddress('9 Email Fail Street'),
       paymentMethod: 'card',
     },
   });
@@ -935,7 +965,7 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
   assert(paidOrder && paidOrder.isPaid === true && paidOrder.paymentStatus === 'paid',
     'the order was not marked paid after the webhook');
 
-  const failedWelcome = await waitForLog({ type: 'welcome', recipient: failBuyerEmail, status: 'failed' });
+  const failedWelcome = await waitForLog({ type: 'email-verification', recipient: failBuyerEmail, status: 'failed' });
   assert(failedWelcome, 'the failing welcome email was not logged as failed');
   check(true, 'order creation, payment initialize and confirmation succeed while email fails');
 
@@ -1045,7 +1075,7 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
   assert(verifyReg.body?.user?.emailVerified === false, 'new customer should start unverified');
   const verifyAccessToken = verifyReg.body.token;
   const verifyMail = await waitForEmail(emailCaptureFile,
-    (mail) => mail.to === verifyEmailAddr && /verify/i.test(mail.subject || ''));
+    (mail) => mail.to === verifyEmailAddr && /verify|confirm/i.test(mail.subject || ''));
   assert(verifyMail, 'verification email was not captured');
   const verifyLinkMatch = String(verifyMail.html || '').match(/https?:\/\/[^"'\s]+\/verify-email\/([A-Za-z0-9_-]+)/);
   assert(verifyLinkMatch, 'verification email has no /verify-email/<token> link');
@@ -1056,7 +1086,7 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
   const verifyOrderPayload = {
     restaurantId,
     items: [{ menuItem: itemId, quantity: 1, customizations: [{ name: 'Size', option: 'Large' }] }],
-    deliveryAddress: '1 Verify Street, Lagos',
+    deliveryAddress: testAddress('1 Verify Street'),
     paymentMethod: 'cash',
   };
   const blockedOrder = await apiVerified('/orders', {
@@ -1100,7 +1130,7 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
   });
   assert(expiredReg.status === 201, `expired registration returned ${expiredReg.status}`);
   const expiredMail = await waitForEmail(emailCaptureFile,
-    (mail) => mail.to === expiredEmailAddr && /verify/i.test(mail.subject || ''));
+    (mail) => mail.to === expiredEmailAddr && /verify|confirm/i.test(mail.subject || ''));
   assert(expiredMail, 'expired verification email was not captured');
   const expiredTokenMatch = String(expiredMail.html).match(/\/verify-email\/([A-Za-z0-9_-]+)/);
   assert(expiredTokenMatch, 'expired verification email has no token');
@@ -1168,7 +1198,7 @@ async function waitForEmail(file, predicate, afterMail = null, timeoutMs = 8000)
   assert(changedProfile.status === 200 && changedProfile.body?.emailVerified === false,
     `email change did not reset verification: ${changedProfile.status} ${changedProfile.text}`);
   const changedMail = await waitForEmail(emailCaptureFile,
-    (mail) => mail.to === changedEmailAddr && /verify/i.test(mail.subject || ''));
+    (mail) => mail.to === changedEmailAddr && /verify|confirm/i.test(mail.subject || ''));
   assert(changedMail, 'email change did not send a verification link to the new address');
   check(true, 'verify unlocks ordering; reused, expired, invalid and tampered tokens are rejected; email change resets verification');
 

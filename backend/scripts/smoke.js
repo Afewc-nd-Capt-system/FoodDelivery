@@ -589,18 +589,80 @@ async function measureHeroBackground(page, browser) {
       const hasItem = !cartItem || (text.includes(cartItem.name) && (!cartItem.option || text.includes(cartItem.option)));
       check('cart page loads customized item', res && res.status() === 200 && text.length > 200 && hasItem,
         `item=${cartItem ? cartItem.name : 'unknown'} option=${cartItem ? cartItem.option : ''}`);
+      check('cart contains no fake delivery address',
+        !/12 Allen Avenue|123 Main Street|Ikoyi, Lagos/.test(text), 'checked rendered cart copy');
+
+      // Payment now requires a real, same-city address. Fill the Lagos address
+      // for the Lagos restaurant so the Paystack path is exercised.
+      if (await page.getByTestId('cart-address-street').count()) {
+        await page.getByTestId('cart-address-street').fill('12 Smoke Street');
+        await page.getByTestId('cart-address-city').fill('Lagos');
+        await page.getByTestId('cart-address-state').selectOption('Lagos');
+        await page.getByTestId('cart-address-phone').fill('+2348012345678');
+        await page.waitForTimeout(300);
+      }
 
       const payButton = page.locator('button', { hasText: /Pay with Paystack/i }).first();
       const payCount = await payButton.count();
       check('Paystack pay button present', payCount > 0, `count=${payCount}`);
       if (payCount > 0) {
+        // Make the access token deliberately invalid while keeping the refresh
+        // token. The unified client must refresh once and retry checkout.
+        await page.evaluate(() => {
+          const token = localStorage.getItem('token');
+          if (token) localStorage.setItem('token', `${token.slice(0, -6)}abcdef`);
+        });
         await payButton.click();
         for (let i = 0; i < 30 && !authorizationUrl; i += 1) await page.waitForTimeout(500);
         check('cart initializes Paystack payment', !!authorizationUrl, authorizationUrl || 'no authorizationUrl returned');
+        check('expired access token still reaches Paystack after refresh', !!authorizationUrl,
+          authorizationUrl ? 'refresh + retry succeeded' : 'no authorizationUrl after refresh');
         check('cart redirects to Paystack', /paystack/i.test(page.url()) || !!authorizationUrl, page.url());
+
+        // Failed refresh: keep the cart, show the session message and return to
+        // checkout after signing in again.
+        await page.evaluate(() => {
+          localStorage.removeItem('refreshToken');
+          const token = localStorage.getItem('token');
+          if (token) localStorage.setItem('token', `${token.slice(0, -6)}abcdef`);
+        });
+        const cartBefore = await page.evaluate(() => localStorage.getItem('vibechops_cart_v1'));
+        const payAgain = page.locator('button', { hasText: /Pay with Paystack/i }).first();
+        if (await payAgain.count()) {
+          await payAgain.click();
+          await page.waitForURL(/\/login/i, { timeout: 40000 }).catch(() => {});
+        }
+        check('failed refresh returns to /login with the cart',
+          /\/login/i.test(page.url()) && /next=.*cart|cart/i.test(decodeURIComponent(page.url())),
+          page.url().replace(/\?.*/, '?next=…'));
+        if (page.url().includes('/login')) {
+          await page.fill('input[type=email]', process.env.E2E_CUSTOMER_EMAIL || '');
+          await page.fill('input[type=password]', process.env.E2E_CUSTOMER_PASSWORD || '');
+          await page.locator('button', { hasText: /Sign In/i }).first().click();
+          await page.waitForURL(/\/cart/i, { timeout: 60000 }).catch(() => {});
+          const cartAfter = await page.evaluate(() => localStorage.getItem('vibechops_cart_v1'));
+          check('cart survives a failed refresh and login', Boolean(cartBefore) && cartAfter === cartBefore,
+            cartAfter ? 'cart restored' : 'cart missing');
+        } else {
+          check('cart survives a failed refresh and login', false, 'login redirect missing');
+        }
       }
     } catch (error) {
       check('cart -> Paystack', false, error.message);
+    }
+  }
+
+  // ---- Tracking page must not show a hard-coded address ----
+  {
+    try {
+      const { context, page } = await newPage(browser);
+      const res = await gotoPage(page, BASE + '/tracking');
+      const text = await bodyText(page);
+      check('tracking page has no fake delivery address',
+        res && !/12 Allen Avenue|123 Main Street|Ikoyi, Lagos/.test(text), 'checked tracking copy');
+      await context.close().catch(() => {});
+    } catch (error) {
+      check('tracking page has no fake delivery address', false, error.message);
     }
   }
 
@@ -612,7 +674,7 @@ async function measureHeroBackground(page, browser) {
       await page.waitForTimeout(6000);
       const text = await bodyText(page);
       const bad = /failed to fetch|something went wrong/i.test(text);
-      check('rider dashboard', res && res.status() === 200 && !bad && text.length > 200, `chars=${text.length}`);
+      check('rider dashboard', res && res.status() === 200 && !bad && text.length > 200 && !/Ikoyi, Lagos/.test(text), `chars=${text.length}`);
     } catch (error) {
       check('rider dashboard', false, error.message);
     }
@@ -1114,21 +1176,23 @@ async function measureHeroBackground(page, browser) {
           await markButton.waitFor({ state: 'visible', timeout: 30000 });
           await markButton.click();
           await adminPage.waitForSelector('[data-testid="admin-users-message"]', { timeout: 20000 });
-          // The customer app reads verification state from /auth/profile on
-          // load, so reload the customer page after the support action.
-          await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
-          await waitForNavbarUser().catch(() => '');
+          // Verification happened in another session/device. A focus event must
+          // refresh /auth/profile and clear the banner without a page reload.
+          const beforeFocusUrl = page.url();
+          await page.evaluate(() => window.dispatchEvent(new Event('focus')));
           await page.waitForFunction(
             () => !document.querySelector('[data-testid="email-verification-banner"]'),
             { timeout: 20000 }
           ).catch(() => {});
           const bannerAfter = await page.locator('[data-testid="email-verification-banner"]').count();
-          check('admin Mark verified clears the customer banner', bannerAfter === 0, `banner=${bannerAfter}`);
+          check('verified on another device clears the banner without reload',
+            bannerAfter === 0 && page.url() === beforeFocusUrl,
+            `banner=${bannerAfter} urlUnchanged=${page.url() === beforeFocusUrl}`);
         } catch (error) {
-          check('admin Mark verified clears the customer banner', false, error.message);
+          check('verified on another device clears the banner without reload', false, error.message);
         }
       } else {
-        check('admin Mark verified clears the customer banner', false, 'missing user id or admin session');
+        check('verified on another device clears the banner without reload', false, 'missing user id or admin session');
       }
 
       // Open the avatar menu and use the real Profile page.

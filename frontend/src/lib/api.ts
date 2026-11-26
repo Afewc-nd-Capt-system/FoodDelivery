@@ -1,42 +1,18 @@
-import { API_V2 as API_URL } from './apiBase';
-import { refreshAccessToken, redirectToLogin } from './authClient';
+// All API modules share the single refresh-aware client. Keeping the public
+// `api` facade means existing callers get proactive refresh, one retry on 401
+// and the same error shapes without duplicating fetch logic.
+import { apiCall } from './apiClient';
 
 interface RequestOptions {
   method?: string;
   body?: any;
 }
 
-async function request(endpoint: string, options: RequestOptions = {}, retried = false): Promise<any> {
-  const { method = 'GET', body } = options;
-
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-
-  const res = await fetch(API_URL + endpoint, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    credentials: 'include',
-    body: body ? JSON.stringify(body) : undefined,
+async function request(endpoint: string, options: RequestOptions = {}): Promise<any> {
+  return apiCall(endpoint, {
+    method: options.method || 'GET',
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
   });
-
-  if (res.status === 401 && !retried && !endpoint.startsWith('/auth/')) {
-    const refreshed = await refreshAccessToken();
-    if (refreshed) return request(endpoint, options, true);
-    redirectToLogin();
-  }
-
-  const data = await res.json();
-
-  if (!res.ok) {
-    const error = new Error(data.message || 'API request failed') as Error & { code?: string; status?: number };
-    error.code = data.code;
-    error.status = res.status;
-    throw error;
-  }
-
-  return data;
 }
 
 export const api = {

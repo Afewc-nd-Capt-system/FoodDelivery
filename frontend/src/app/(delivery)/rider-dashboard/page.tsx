@@ -35,7 +35,7 @@ export default function DeliveryDashboardPage() {
   const { user: authUser, loading: authLoading, authorized } = useAuthGuard('delivery_rider')
   const [activeTab, setActiveTab] = useState('overview');
   const [isOnline, setIsOnline] = useState(true);
-  const [currentLocation, setCurrentLocation] = useState('Ikoyi, Lagos');
+  const [currentLocation, setCurrentLocation] = useState('');
   const [orders, setOrders] = useState<DeliveryOrder[]>([]);
   const [confirmingArrival, setConfirmingArrival] = useState<string | null>(null);
   const [socketConnected, setSocketConnected] = useState(false);
@@ -78,13 +78,13 @@ export default function DeliveryDashboardPage() {
         setOrders((prev: DeliveryOrder[]) => [{
           id: order._id || order.id || `DEL-${Date.now()}`,
           customer: order.customerName || order.user?.name || 'Customer',
-          address: typeof order.deliveryAddress === 'object' ? `${order.deliveryAddress.street || ''} ${order.deliveryAddress.city || ''}` : order.deliveryAddress || 'Address',
+          address: typeof order.deliveryAddress === 'object' ? `${order.deliveryAddress.street || ''} ${order.deliveryAddress.city || ''}`.trim() : order.deliveryAddress || 'Address not provided',
           restaurant: order.restaurantName || order.restaurant?.name || 'Restaurant',
           items: order.items?.length || 0,
           amount: order.totalAmount || order.amount || 0,
           status: 'pickup',
-          distance: order.distance || '3.2 km',
-          estimatedTime: order.estimatedTime || '15 min',
+          distance: order.distance || '',
+          estimatedTime: order.estimatedTime || '',
         }, ...prev]);
       });
 
@@ -209,7 +209,7 @@ export default function DeliveryDashboardPage() {
           <div className="flex items-center gap-4 mt-4">
             <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-lg">
               <MapPin size={14} className="text-white/60" />
-              <span className="text-white text-sm">{currentLocation}</span>
+              <span className="text-white text-sm">{currentLocation || 'Location unavailable'}</span>
             </div>
           </div>
         </div>

@@ -71,6 +71,15 @@ const orderSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  deliveryAddressDetails: {
+    street: String,
+    area: String,
+    city: String,
+    state: String,
+    phone: String,
+    lat: Number,
+    lng: Number,
+  },
   status: {
     type: String,
     enum: [

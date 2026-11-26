@@ -5,7 +5,7 @@ const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
 const { bruteForceProtection, loginLimiter } = require('../middleware/bruteForce');
 const { xssProtection } = require('../middleware/sanitize');
-const { sendWelcomeEmail, sendPasswordResetEmail } = require('../utils/email');
+const { sendPasswordResetEmail } = require('../utils/email');
 const { issueVerification, markEmailVerified, hashToken } = require('../services/emailVerification');
 const { addToBlacklist } = require('../utils/tokenBlacklist');
 const tokens = require('../security/tokenService');
@@ -127,16 +127,10 @@ router.post('/register', [
     });
     await user.save();
 
-    // Always send a verification email for customer accounts, even while the
-    // enforcement switch is off. A mail failure must never break registration.
+    // One combined welcome + verification email. A mail failure must never
+    // break registration; the resend endpoint re-sends the same email.
     await issueVerification(user, { enforceLimits: false }).catch((emailError) => {
       console.error('Verification email failed:', emailError.message);
-    });
-
-    // Fire-and-forget: a slow or misconfigured SMTP server must never delay or
-    // fail the registration response.
-    sendWelcomeEmail(user.email, user.name).catch((emailError) => {
-      console.error('Welcome email failed:', emailError.message);
     });
 
     res.status(201).json(await sessionResponse(res, user));

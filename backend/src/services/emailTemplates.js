@@ -46,7 +46,7 @@ function welcome({ name }) {
     subject: 'Welcome to VibeChops!',
     html: layout({
       heading: 'Welcome to VibeChops',
-      body: `<p>Hi ${safeName},</p><p>Your account is ready. Discover great Nigerian food, order in a few taps, and track it to your door.</p>`,
+      body: `<p>Hi ${safeName},</p><p>Your account is ready. Discover great food from local restaurants and home cooks, order in a few taps, and track it to your door.</p>`,
       ctaLabel: 'Browse restaurants',
       ctaUrl: frontendUrl('/restaurants'),
       footnote: 'If you did not create this account, you can ignore this email.',
@@ -305,15 +305,15 @@ function financialAdBudgetWarning({ data }) {
 function emailVerification({ name, verifyUrl }) {
   const safeName = escapeHtml(name || 'there');
   return {
-    subject: 'Verify your VibeChops email',
+    subject: 'Welcome to VibeChops: confirm your email',
     html: layout({
-      heading: 'Verify your email',
-      body: `<p>Hi ${safeName},</p><p>Confirm your email address to finish setting up your VibeChops account.</p><p>This link expires in 24 hours and can only be used once.</p>`,
-      ctaLabel: 'Verify email',
+      heading: 'Welcome to VibeChops',
+      body: `<p>Hi ${safeName},</p><p>Confirm your email to finish setting up your VibeChops account and start ordering great food from local restaurants and home cooks.</p><p>This link expires in 24 hours and can only be used once.</p>`,
+      ctaLabel: 'Confirm email',
       ctaUrl: verifyUrl,
       footnote: 'If you did not create this account, you can ignore this email.',
     }),
-    text: `Hi ${name || 'there'},\n\nConfirm your VibeChops email address (expires in 24 hours, single use):\n${verifyUrl}\n\nIf you did not create this account, you can ignore this email.`,
+    text: `Hi ${name || 'there'},\n\nWelcome to VibeChops. Confirm your email to finish setting up your account:\n${verifyUrl}\n\nThis link expires in 24 hours and can only be used once.\n\nIf you did not create this account, you can ignore this email.`,
   };
 }
 

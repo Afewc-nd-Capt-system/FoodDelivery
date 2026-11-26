@@ -122,7 +122,7 @@ function GoogleMap({ riderLat, riderLng, restaurantLat, restaurantLng, customerL
 
 export default function OrderTrackingPage() {
   const params = useParams();
-  const orderId = params?.id || 'ORD-8021';
+  const orderId = String(params?.id || '');
 
   const [currentStep, setCurrentStep] = useState(0);
   const [eta, setEta] = useState(12);
@@ -500,7 +500,11 @@ export default function OrderTrackingPage() {
               <div className="space-y-3 text-sm">
                 <div className="flex gap-2">
                   <MapPin className="w-4 h-4 text-[#E8621A] shrink-0" />
-                  <span className="text-[#636366]">123 Main Street, Victoria Island, Lagos</span>
+                  <span className="text-[#636366]">
+                    {order?.deliveryAddress
+                      || [order?.deliveryAddressDetails?.street, order?.deliveryAddressDetails?.city, order?.deliveryAddressDetails?.state].filter(Boolean).join(', ')
+                      || 'Delivery address not available'}
+                  </span>
                 </div>
                 <div className="flex gap-2">
                   <ShieldCheck className="w-4 h-4 text-[#16A34A] shrink-0" />

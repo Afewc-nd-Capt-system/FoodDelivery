@@ -10,6 +10,7 @@ import {
   refreshAccessToken, setSessionMessage, takeSessionMessage, AUTH_CHANGED_EVENT,
   type AuthPayload,
 } from '@/lib/authClient'
+import { installAuthFetchInterceptor } from '@/lib/apiClient'
 
 export interface User {
   _id?: string
@@ -21,19 +22,23 @@ export interface User {
   isVerified?: boolean
   address?: {
     street?: string
+    area?: string
     city?: string
     state?: string
     zipCode?: string
     country?: string
+    phone?: string
   }
   addresses?: Array<{
     _id?: string
     label?: string
     street?: string
+    area?: string
     city?: string
     state?: string
     zipCode?: string
     country?: string
+    phone?: string
     isDefault?: boolean
   }>
   notificationPreferences?: {
@@ -194,6 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Restore the session from storage once on mount, then validate in the
   // background so an expired 15-minute access token is refreshed silently.
   useEffect(() => {
+    installAuthFetchInterceptor()
     applyStoredState()
     const message = takeSessionMessage()
     if (message) setSessionMessageState(message)
@@ -213,6 +219,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Refresh the server profile on focus/visibility so a verification completed
+  // on another device (or an admin action) clears the banner without reload.
+  useEffect(() => {
+    let last = 0
+    const refreshIfStale = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+      const now = Date.now()
+      if (now - last < 5000) return
+      last = now
+      if (readStoredAuth().token) void refreshSession()
+    }
+    window.addEventListener('focus', refreshIfStale)
+    document.addEventListener('visibilitychange', refreshIfStale)
+    return () => {
+      window.removeEventListener('focus', refreshIfStale)
+      document.removeEventListener('visibilitychange', refreshIfStale)
+    }
+  }, [refreshSession])
 
   const applySession = useCallback((data: AuthPayload): User | null => {    if (!data?.token || !data?.user) return null
     versionRef.current += 1

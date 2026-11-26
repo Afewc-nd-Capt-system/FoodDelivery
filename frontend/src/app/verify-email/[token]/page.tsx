@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { API_V2 } from '@/lib/apiBase';
 import { useAuth } from '@/context/AuthContext';
+import { useCart } from '@/context/CartContext';
 
 type Status = 'loading' | 'success' | 'expired' | 'invalid';
 
@@ -12,6 +13,7 @@ export default function VerifyEmailPage() {
   const params = useParams();
   const token = String(params?.token || '');
   const { user, refreshSession, resendVerification } = useAuth();
+  const { items } = useCart();
   const [status, setStatus] = useState<Status>('loading');
   const [message, setMessage] = useState('Verifying your email…');
   const [resending, setResending] = useState(false);
@@ -36,7 +38,7 @@ export default function VerifyEmailPage() {
         if (!active) return;
         if (res.ok && body?.success) {
           setStatus('success');
-          setMessage(body.message || 'Your email is verified.');
+          setMessage('Your account is ready. You can now place orders.');
           if (user) await refreshSession().catch(() => {});
         } else if (body?.code === 'EMAIL_VERIFICATION_EXPIRED') {
           setStatus('expired');
@@ -85,8 +87,10 @@ export default function VerifyEmailPage() {
         <p className="text-sm mb-6" style={{ color: '#636366' }}>{message}</p>
 
         {status === 'success' && (
-          <Link href="/">
-            <button className="btn-primary w-full py-3">Continue shopping</button>
+          <Link href={items.length > 0 ? '/cart' : '/'}>
+            <button className="btn-primary w-full py-3">
+              {items.length > 0 ? 'Back to checkout' : 'Continue shopping'}
+            </button>
           </Link>
         )}
 

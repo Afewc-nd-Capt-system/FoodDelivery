@@ -1,4 +1,4 @@
-﻿require('dotenv').config();
+require('dotenv').config();
 const { validateEnvironment } = require('./middleware/security');
 validateEnvironment();
 
@@ -118,7 +118,7 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/food-deli
   w: 'majority',
 })
 .then(async () => {
-  console.log('MongoDB connected âœ…');
+  console.log('MongoDB connected ✅');
   try {
     const status = await migrationRunner.runPendingMigrationsAtBoot({ db: mongoose.connection.db });
     console.log(`[migrations] pending=${status.pending} applied=${status.applied} failed=${status.failed}`);
@@ -155,6 +155,7 @@ app.use('/api/v2/admin', authMiddleware, require('./routes/v2/admin-orders'));
 app.use('/api/v2/payments', paymentRoutes);
 app.use('/api/v2/promo-codes', require('./routes/promoCodes'));
 app.use('/api/v2/delivery', require('./routes/v2/delivery'));
+app.use('/api/v2/geocode', require('./routes/v2/geocode'));
 // Rider delivery lifecycle (accept, pickup, arrival, confirm)
 app.use('/api/v2/delivery', authMiddleware, require('./routes/v2/delivery-orders'));
 // Rider auth + available/current orders + earnings (legacy rider API, still used by the web app)
@@ -280,8 +281,9 @@ process.on('SIGINT', () => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`ðŸš€ Server running on port ${PORT}`);
-  console.log(`ðŸ“Š Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`ðŸ”— Health check: http://localhost:${PORT}/health`);
-  console.log(`ðŸŒ Frontend URL: ${getFrontendUrl()}`);
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+  console.log(`🌐 Frontend URL: ${getFrontendUrl()}`);
 });
+

@@ -1,5 +1,6 @@
 'use client';
 import { API_V2 } from '@/lib/apiBase';
+import { apiGet, apiPost, apiPut } from '@/lib/apiClient';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -19,7 +20,14 @@ const PAYMENT_METHODS = [
   { id: 'wallet', label: 'VibeChops Wallet', icon: Smartphone, desc: '' },
 ];
 
-const DELIVERY_PRESETS = ['Home', 'Work', "Partner's"];
+const DELIVERY_PRESETS = [];
+const NIGERIAN_STATES = [
+  'Abia', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa', 'Benue',
+  'Borno', 'Cross River', 'Delta', 'Ebonyi', 'Edo', 'Ekiti', 'Enugu', 'FCT',
+  'Gombe', 'Imo', 'Jigawa', 'Kaduna', 'Kano', 'Katsina', 'Kebbi', 'Kogi',
+  'Kwara', 'Lagos', 'Nasarawa', 'Niger', 'Ogun', 'Ondo', 'Osun', 'Oyo',
+  'Plateau', 'Rivers', 'Sokoto', 'Taraba', 'Yobe', 'Zamfara',
+];
 
 export default function CartPage() {
   const router = useRouter();
@@ -30,7 +38,13 @@ export default function CartPage() {
   const [promoStatus, setPromoStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [promoMessage, setPromoMessage] = useState('');
   const [appliedPromo, setAppliedPromo] = useState<{ code: string; discount: number } | null>(null);
-  const [address, setAddress] = useState('12 Allen Avenue, Ikeja, Lagos');
+  const [address, setAddress] = useState({ street: '', area: '', city: '', state: '', phone: '' });
+  const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState('');
+  const [saveAddress, setSaveAddress] = useState(false);
+  const [addressError, setAddressError] = useState('');
+  const [locating, setLocating] = useState(false);
+  const [restaurantCity, setRestaurantCity] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('paystack');
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [placing, setPlacing] = useState(false);
@@ -86,6 +100,92 @@ export default function CartPage() {
   const serviceFee = storeFees ? storeFees.serviceFee : 0;
   const discountAmount = appliedPromo ? appliedPromo.discount : 0;
   const total = subtotal - discountAmount + deliveryFee + serviceFee;
+  const addressComplete = Boolean(address.street.trim() && address.city.trim() && address.state && address.phone.trim());
+  const serviceAreaMismatch = Boolean(
+    restaurantCity
+    && address.city.trim()
+    && restaurantCity.trim().toLowerCase() !== address.city.trim().toLowerCase()
+  );
+
+  useEffect(() => {
+    void refreshSession().catch(() => {});
+  }, [refreshSession]);
+
+  useEffect(() => {
+    const list = Array.isArray(user?.addresses) ? user.addresses : [];
+    setSavedAddresses(list);
+    if (!address.street && list.length) {
+      const preferred = list.find((entry: any) => entry.isDefault) || list[0];
+      setAddress({
+        street: preferred.street || '',
+        area: preferred.area || '',
+        city: preferred.city || '',
+        state: preferred.state || '',
+        phone: preferred.phone || user?.phone || '',
+      });
+      setSelectedAddressId(preferred._id || '');
+    }
+    // Only react to a profile refresh; editing must not be overwritten.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  const chooseSavedAddress = (id: string) => {
+    setSelectedAddressId(id);
+    const chosen = savedAddresses.find((entry: any) => (entry._id || '') === id);
+    if (chosen) {
+      setAddress({
+        street: chosen.street || '',
+        area: chosen.area || '',
+        city: chosen.city || '',
+        state: chosen.state || '',
+        phone: chosen.phone || user?.phone || '',
+      });
+      setAddressError('');
+    }
+  };
+
+  const detectAddress = () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setAddressError('Location is not available in this browser.');
+      return;
+    }
+    setLocating(true);
+    setAddressError('');
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      try {
+        const result = await apiGet(`/geocode/reverse?lat=${position.coords.latitude}&lng=${position.coords.longitude}`);
+        setAddress((previous) => ({
+          street: result?.street || previous.street,
+          area: result?.area || previous.area,
+          city: result?.city || previous.city,
+          state: result?.state || previous.state,
+          phone: previous.phone,
+        }));
+      } catch {
+        setAddressError('Could not look up that location. Fill the address manually.');
+      } finally {
+        setLocating(false);
+      }
+    }, () => {
+      setLocating(false);
+      setAddressError('Location permission was denied. Fill the address manually.');
+    }, { timeout: 10000 });
+  };
+
+  const persistAddressIfRequested = async () => {
+    if (!saveAddress || !user) return;
+    const next = [
+      ...savedAddresses,
+      { ...address, label: 'Delivery', isDefault: savedAddresses.length === 0 },
+    ];
+    try {
+      await apiPut('/auth/profile', { addresses: next });
+      setSavedAddresses(next);
+      setSaveAddress(false);
+    } catch {
+      // A failed profile save must not block this checkout.
+    }
+  };
 
   // Promo codes are validated by the server; the same code is sent with the
   // order so the charged total matches the discount shown here.
@@ -130,12 +230,14 @@ export default function CartPage() {
     }
   };
 
-  // Load the fee configuration from the restaurant(s) in the cart.
+  // Load the fee configuration from the store(s) in the cart. The same fetch
+  // supplies the store city used for the visible service-area notice.
   useEffect(() => {
-    const restaurantId = items[0]?.restaurantId;
-    if (!restaurantId) return;
-    fetch(`${API_V2}/restaurants/${restaurantId}`)
-      .then((response) => (response.ok ? response.json() : null))
+    const firstItem = items[0];
+    const storeId = firstItem?.vendorId || firstItem?.restaurantId;
+    if (!storeId) return;
+    const path = firstItem?.vendorId ? `/vendors/${storeId}` : `/restaurants/${storeId}`;
+    apiGet(path)
       .then((data) => {
         if (data) {
           const del = Number(data.deliveryFee);
@@ -144,14 +246,25 @@ export default function CartPage() {
             deliveryFee: Number.isFinite(del) ? del : 40,
             serviceFee: Number.isFinite(svc) && svc > 0 ? svc : 0,
           });
+          setRestaurantCity(data.address?.city || '');
         }
       })
       .catch(() => setStoreFees({ deliveryFee: 40, serviceFee: 0 }));
   }, [items]);
 
   const handlePlaceOrder = async () => {
-    setPlacing(true);
     setOrderError('');
+    setAddressError('');
+    if (!addressComplete) {
+      setAddressError('Add a complete delivery address to continue.');
+      return;
+    }
+    if (serviceAreaMismatch) {
+      setOrderError(`This store delivers in ${restaurantCity} only. Choose a ${restaurantCity} delivery address.`);
+      return;
+    }
+
+    setPlacing(true);
     try {
       // Build order payload. The server validates every option against the
       // menu in the database and computes prices; we only send selections.
@@ -165,7 +278,13 @@ export default function CartPage() {
             ([name, option]) => ({ name, option })
           ),
         })),
-        deliveryAddress: address,
+        deliveryAddress: {
+          street: address.street.trim(),
+          area: address.area.trim(),
+          city: address.city.trim(),
+          state: address.state,
+          phone: address.phone.trim(),
+        },
         paymentMethod: paymentMethod === 'paystack' ? 'card' : paymentMethod,
         ...(firstItem?.vendorId
           ? { vendorId: firstItem.vendorId }
@@ -174,51 +293,36 @@ export default function CartPage() {
         ...(appliedPromo?.code ? { promoCode: appliedPromo.code } : {}),
       };
 
-      // Call API to create order
-      const token = localStorage.getItem('token');
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+      await persistAddressIfRequested();
 
-      const res = await fetch(`${API_V2}/orders`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(orderPayload),
-        signal: AbortSignal.timeout(30000),
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => null);
-        if (errData?.code === 'EMAIL_NOT_VERIFIED') {
+      let orderData;
+      try {
+        orderData = await apiPost('/orders', orderPayload);
+      } catch (error: any) {
+        if (error?.code === 'EMAIL_NOT_VERIFIED') {
           setVerificationRequired(true);
-          setOrderError('');
-          setPlacing(false);
           return;
         }
-        throw new Error(errData?.message || `Could not place order (${res.status}). Please try again.`);
+        throw error;
       }
 
-      const orderData = await res.json();
-
-      // If Paystack, initialize payment
+      // If Paystack, initialize payment through the same refresh-aware client.
       if (paymentMethod === 'paystack' || paymentMethod === 'card') {
-        const paystackRes = await fetch(`${API_V2}/payments/initialize`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
+        let paystackData;
+        try {
+          paystackData = await apiPost('/payments/initialize', {
             orderId: orderData._id || orderData.order?._id,
             amount: total,
-            email: user?.email || 'guest@vibechops.com',
-          }),
-          signal: AbortSignal.timeout(30000),
-        });
+            email: user?.email || '',
+          });
+        } catch (error: any) {
+          if (error?.code === 'SESSION_EXPIRED' || error?.name === 'SessionExpiredError') throw error;
+          paystackData = null;
+        }
 
-        if (paystackRes.ok) {
-          const paystackData = await paystackRes.json();
-          if (paystackData.authorizationUrl) {
-            window.location.href = paystackData.authorizationUrl;
-            setPlacing(false);
-            return;
-          }
+        if (paystackData?.authorizationUrl) {
+          window.location.href = paystackData.authorizationUrl;
+          return;
         }
 
         // Fallback: use Paystack inline popup. The public key is injected at
@@ -253,11 +357,18 @@ export default function CartPage() {
       setTimeout(() => router.push(`/tracking/${orderData._id || orderData.order?._id}`), 1600);
     } catch (err: any) {
       const timedOut = err?.name === 'TimeoutError' || err?.name === 'AbortError';
-      setOrderError(
-        timedOut
-          ? 'The request timed out. Check your connection and try again.'
-          : (err?.message || 'Failed to place order. Please try again.')
-      );
+      if (err?.name === 'SessionExpiredError' || err?.code === 'SESSION_EXPIRED') {
+        setOrderError('Your session expired. Sign in to continue.');
+      } else if (err?.code === 'OUT_OF_SERVICE_AREA') {
+        setOrderError(err.message || 'This address is outside the store’s delivery area.');
+      } else {
+        setOrderError(
+          timedOut
+            ? 'The request timed out. Check your connection and try again.'
+            : (err?.message || 'Failed to place order. Please try again.')
+        );
+      }
+    } finally {
       setPlacing(false);
     }
   };
@@ -275,10 +386,7 @@ export default function CartPage() {
   // Show the customer's real wallet balance on the payment method card.
   useEffect(() => {
     if (!user) return;
-    const token = localStorage.getItem('token');
-    if (!token) return;
-    fetch(`${API_V2}/wallet`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => (res.ok ? res.json() : null))
+    apiGet('/wallet')
       .then((data) => {
         const value = Number(
           data?.data?.balance ?? data?.balance ?? data?.wallet?.balance ?? NaN
@@ -591,9 +699,11 @@ export default function CartPage() {
                     />
                     <div className="flex-1 min-w-0">
                       <h4 className="font-bold text-sm mb-0.5" style={{ color: '#1C1C1E' }}>{item.name}</h4>
-                      {item.selectedOptions && Object.values(item.selectedOptions).length > 0 && (
+                      {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && (
                         <p className="text-xs mb-1" style={{ color: '#A0A0A0' }}>
-                          {Object.values(item.selectedOptions).join(', ')}
+                          {Object.entries(item.selectedOptions)
+                            .map(([group, option]) => `${group}: ${option}`)
+                            .join(' · ')}
                         </p>
                       )}
                       <span className="font-black text-sm" style={{ color: '#E8621A' }}>
@@ -690,33 +800,105 @@ export default function CartPage() {
               <h2 className="font-black text-lg mb-4 flex items-center gap-2" style={{ color: '#1C1C1E' }}>
                 <MapPin size={18} style={{ color: '#E8621A' }} /> Delivery Address
               </h2>
-              <textarea
-                value={address}
-                onChange={e => setAddress(e.target.value)}
-                rows={2}
-                className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none mb-3"
-                style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
-              />
-              <div className="flex gap-2 mb-4">
-                {DELIVERY_PRESETS.map(label => (
-                  <button
-                    key={label}
-                    className="px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors hover:bg-orange-100"
-                    style={{ backgroundColor: '#FFF1E8', color: '#E8621A' }}
-                  >
-                    {label}
-                  </button>
-                ))}
+
+              {savedAddresses.length > 0 && (
+                <select
+                  data-testid="cart-saved-address"
+                  value={selectedAddressId}
+                  onChange={(event) => chooseSavedAddress(event.target.value)}
+                  className="w-full px-4 py-3 rounded-xl text-sm outline-none mb-3"
+                  style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
+                >
+                  <option value="">Choose a saved address</option>
+                  {savedAddresses.map((entry: any) => (
+                    <option key={entry._id || `${entry.street}-${entry.city}`} value={entry._id || ''}>
+                      {[entry.label, entry.street, entry.city].filter(Boolean).join(' — ')}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <input
+                  data-testid="cart-address-street"
+                  value={address.street}
+                  onChange={(event) => setAddress((previous) => ({ ...previous, street: event.target.value }))}
+                  placeholder="Street or landmark"
+                  className="sm:col-span-2 px-4 py-3 rounded-xl text-sm outline-none"
+                  style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
+                />
+                <input
+                  value={address.area}
+                  onChange={(event) => setAddress((previous) => ({ ...previous, area: event.target.value }))}
+                  placeholder="Area (optional)"
+                  className="px-4 py-3 rounded-xl text-sm outline-none"
+                  style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
+                />
+                <input
+                  data-testid="cart-address-city"
+                  value={address.city}
+                  onChange={(event) => setAddress((previous) => ({ ...previous, city: event.target.value }))}
+                  placeholder="City"
+                  className="px-4 py-3 rounded-xl text-sm outline-none"
+                  style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
+                />
+                <select
+                  data-testid="cart-address-state"
+                  value={address.state}
+                  onChange={(event) => setAddress((previous) => ({ ...previous, state: event.target.value }))}
+                  className="px-4 py-3 rounded-xl text-sm outline-none"
+                  style={{ border: '1.5px solid #E8E8E8', color: address.state ? '#1C1C1E' : '#A0A0A0' }}
+                >
+                  <option value="">Select state</option>
+                  {NIGERIAN_STATES.map((state) => <option key={state} value={state}>{state}</option>)}
+                </select>
+                <input
+                  data-testid="cart-address-phone"
+                  value={address.phone}
+                  onChange={(event) => setAddress((previous) => ({ ...previous, phone: event.target.value }))}
+                  placeholder="Contact phone"
+                  inputMode="tel"
+                  className="px-4 py-3 rounded-xl text-sm outline-none"
+                  style={{ border: '1.5px solid #E8E8E8', color: '#1C1C1E' }}
+                />
               </div>
-              <div
-                className="flex items-center gap-3 p-3 rounded-2xl"
-                style={{ backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0' }}
-              >
-                <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />
-                <p className="text-xs font-medium" style={{ color: '#166534' }}>
-                  Estimated delivery: <strong>25–35 minutes</strong>
+
+              <div className="flex flex-wrap items-center gap-3 mt-3">
+                <button
+                  type="button"
+                  data-testid="cart-use-location"
+                  onClick={detectAddress}
+                  disabled={locating}
+                  className="px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-60"
+                  style={{ backgroundColor: '#FFF1E8', color: '#E8621A' }}
+                >
+                  {locating ? 'Locating…' : 'Use my location'}
+                </button>
+                <label className="flex items-center gap-2 text-xs" style={{ color: '#636366' }}>
+                  <input
+                    type="checkbox"
+                    checked={saveAddress}
+                    onChange={(event) => setSaveAddress(event.target.checked)}
+                  />
+                  Save to my profile
+                </label>
+              </div>
+
+              {addressError && (
+                <p data-testid="cart-address-error" className="text-xs mt-3" style={{ color: '#D32F2F' }}>
+                  {addressError}
                 </p>
-              </div>
+              )}
+              {serviceAreaMismatch && (
+                <p data-testid="cart-service-area-notice" className="text-xs mt-3 p-3 rounded-xl" style={{ color: '#7A3A1A', backgroundColor: '#FFF1E8', border: '1px solid #FFD4B8' }}>
+                  This store delivers in <strong>{restaurantCity}</strong> only. Choose a {restaurantCity} delivery address.
+                </p>
+              )}
+              {!addressComplete && !addressError && (
+                <p className="text-xs mt-3" style={{ color: '#A0A0A0' }}>
+                  A street, city, state and contact phone are required before payment.
+                </p>
+              )}
             </div>
 
             {/* ── Payment method ─────────────── */}
@@ -798,6 +980,17 @@ export default function CartPage() {
             >
               <h2 className="font-black text-lg mb-5" style={{ color: '#1C1C1E' }}>Order Summary</h2>
 
+              <div className="space-y-2 mb-4 pb-4 border-b" style={{ borderColor: '#F0EAE0' }}>
+                {items.map((item) => (
+                  <div key={item.id} className="text-xs" style={{ color: '#636366' }}>
+                    <span className="font-bold" style={{ color: '#1C1C1E' }}>{item.quantity}× {item.name}</span>
+                    {Object.keys(item.selectedOptions || {}).length > 0 && (
+                      <span> — {Object.entries(item.selectedOptions || {}).map(([group, option]) => `${group}: ${option}`).join(', ')}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
               <div className="space-y-3 mb-5">
                 <div className="flex justify-between text-sm">
                   <span style={{ color: '#636366' }}>Subtotal</span>
@@ -824,17 +1017,6 @@ export default function CartPage() {
                   <span style={{ color: '#1C1C1E' }}>Total</span>
                   <span className="text-xl" style={{ color: '#E8621A' }}>₦{total.toLocaleString()}</span>
                 </div>
-              </div>
-
-              {/* ETA */}
-              <div
-                className="flex items-center gap-2 p-3 rounded-2xl mb-5"
-                style={{ backgroundColor: '#FFF1E8' }}
-              >
-                <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />
-                <span className="text-xs" style={{ color: '#636366' }}>
-                  Estimated arrival: <strong style={{ color: '#1C1C1E' }}>25–35 min</strong>
-                </span>
               </div>
 
               {verificationRequired && (
@@ -874,32 +1056,43 @@ export default function CartPage() {
                 </div>
               )}
 
-              <button
-                onClick={handlePlaceOrder}
-                disabled={placing}
-                className="w-full py-4 rounded-2xl text-white font-black text-base flex items-center justify-center gap-2 transition-all"
-                style={{
-                  background: 'linear-gradient(135deg, #E8621A, #BE3A2A)',
-                  boxShadow: '0 8px 24px rgba(232,98,26,0.35)',
-                  opacity: placing ? 0.75 : 1,
-                  transform: placing ? 'scale(0.98)' : 'scale(1)',
-                }}
-              >
-                {placing ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    Pay with {PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label}
-                    <ChevronRight size={18} />
-                  </>
-                )}
-              </button>
+              {addressComplete && !serviceAreaMismatch ? (
+                <button
+                  onClick={handlePlaceOrder}
+                  disabled={placing}
+                  data-testid="cart-pay"
+                  className="w-full py-4 rounded-2xl text-white font-black text-base flex items-center justify-center gap-2 transition-all"
+                  style={{
+                    background: 'linear-gradient(135deg, #E8621A, #BE3A2A)',
+                    boxShadow: '0 8px 24px rgba(232,98,26,0.35)',
+                    opacity: placing ? 0.75 : 1,
+                    transform: placing ? 'scale(0.98)' : 'scale(1)',
+                  }}
+                >
+                  {placing ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      Pay with {PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label}
+                      <ChevronRight size={18} />
+                    </>
+                  )}
+                </button>
+              ) : (
+                <div
+                  data-testid="cart-address-required"
+                  className="p-4 rounded-2xl text-sm text-center"
+                  style={{ backgroundColor: '#FFF1E8', color: '#7A3A1A', border: '1px solid #FFD4B8' }}
+                >
+                  Add a complete delivery address to continue.
+                </div>
+              )}
 
               <p className="text-center text-xs mt-4" style={{ color: '#A0A0A0' }}>
-                By ordering you agree to our Terms & Privacy Policy
+                Payments are processed securely by Paystack.
               </p>
             </div>
           </div>

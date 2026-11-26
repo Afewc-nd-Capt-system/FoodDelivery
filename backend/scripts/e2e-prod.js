@@ -37,6 +37,10 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const RIDER_PARTNER_ID = process.env.RIDER_PARTNER_ID || '6adafa60150af7e777101440';
 const RESTAURANT_NAME = process.env.E2E_RESTAURANT_NAME || 'Mama Cass Kitchen';
 
+function e2eAddress(street = '12 E2E Test Street', city = 'Lagos', state = 'Lagos') {
+  return { street, area: 'Ikeja', city, state, phone: '+2348012345678' };
+}
+
 const accounts = {
   admin: {
     email: process.env.E2E_ADMIN_EMAIL,
@@ -903,7 +907,7 @@ async function runScenario() {
       body: {
         restaurantId: selfService.restaurantId,
         items: [{ menuItem: selfService.itemId, quantity: 1 }],
-        deliveryAddress: '12 E2E Street, Lagos',
+        deliveryAddress: e2eAddress('12 E2E Street'),
         paymentMethod: 'cash',
       },
     });
@@ -919,7 +923,7 @@ async function runScenario() {
           quantity: 2,
           customizations: [{ name: 'Size', option: 'Large' }],
         }],
-        deliveryAddress: '12 E2E Street, Lagos',
+        deliveryAddress: e2eAddress('12 E2E Street'),
         paymentMethod: 'cash',
       },
     });
@@ -928,6 +932,34 @@ async function runScenario() {
     assert(Number(order.body?.order?.totalAmount) === 3850, `total was ${order.body?.order?.totalAmount}`);
     if (order.body?.order?._id) created.orders.add(String(order.body.order._id));
     return 'subtotal=3600 total=3850';
+  });
+
+  await requestStep('address: outside service area is rejected', async () => {
+    const body = {
+      restaurantId: selfService.restaurantId,
+      items: [{
+        menuItem: selfService.itemId,
+        quantity: 1,
+        customizations: [{ name: 'Size', option: 'Large' }],
+      }],
+      paymentMethod: 'cash',
+    };
+    const outOfArea = await api('/orders', {
+      method: 'POST',
+      token: tokens.customer,
+      body: { ...body, deliveryAddress: e2eAddress('1 Maiduguri Road', 'Maiduguri', 'Borno') },
+    });
+    assert(outOfArea.status === 400 && outOfArea.body?.code === 'OUT_OF_SERVICE_AREA',
+      `Maiduguri address was not rejected: ${outOfArea.status} ${outOfArea.text}`);
+
+    const malformed = await api('/orders', {
+      method: 'POST',
+      token: tokens.customer,
+      body: { ...body, deliveryAddress: { street: '', area: '', city: '', state: '', phone: '' } },
+    });
+    assert(malformed.status === 400 && malformed.body?.code === 'INVALID_DELIVERY_ADDRESS',
+      `malformed address was not rejected: ${malformed.status} ${malformed.text}`);
+    return 'Maiduguri rejected; malformed rejected';
   });
 
   await requestStep('self-service: restaurant A cannot read or change B', async () => {
@@ -1412,7 +1444,7 @@ async function runScenario() {
         serviceFee: 9999,
         discount: 9999,
         promoDiscount: 9999,
-        deliveryAddress: '12 E2E Test Street, Ikeja, Lagos',
+        deliveryAddress: e2eAddress(),
         paymentMethod: 'card',
       },
     });
@@ -1451,7 +1483,7 @@ async function runScenario() {
             // Deliberately tampered price; the server must use the DB delta.
             customizations: [{ name: proteinGroup.name, option: option.name, price: 99999 }],
           }],
-          deliveryAddress: '12 E2E Test Street, Ikeja, Lagos',
+          deliveryAddress: e2eAddress(),
           paymentMethod: 'cash',
         },
       });
@@ -1479,7 +1511,7 @@ async function runScenario() {
       body: {
         restaurantId: restaurant.found._id,
         items: [{ menuItem: jollof._id, quantity: 1 }],
-        deliveryAddress: '12 E2E Test Street, Ikeja, Lagos',
+        deliveryAddress: e2eAddress(),
         paymentMethod: 'cash',
       },
     });
@@ -1501,7 +1533,7 @@ async function runScenario() {
           quantity: 1,
           customizations: [{ name: proteinGroup.name, option: 'Unicorn Meat', price: 0 }],
         }],
-        deliveryAddress: '12 E2E Test Street, Ikeja, Lagos',
+        deliveryAddress: e2eAddress(),
         paymentMethod: 'cash',
       },
     });
@@ -1521,7 +1553,7 @@ async function runScenario() {
           quantity: 1,
           customizations: [{ name: proteinGroup.name, option: chosen.name, price: 1 }],
         }],
-        deliveryAddress: '12 E2E Test Street, Ikeja, Lagos',
+        deliveryAddress: e2eAddress(),
         paymentMethod: 'cash',
       },
     });
@@ -1585,7 +1617,7 @@ async function runScenario() {
             quantity: 2,
             customizations: [{ name: 'Spice Level', option: 'Hot', price: 1 }],
           }],
-          deliveryAddress: '12 E2E Test Street, Ikeja, Lagos',
+          deliveryAddress: e2eAddress('12 E2E Test Street', 'Abuja', 'FCT'),
           paymentMethod: 'cash',
         },
       });
@@ -1621,7 +1653,7 @@ async function runScenario() {
           quantity,
           customizations: [{ name: proteinGroup.name, option: chosen.name }],
         }],
-        deliveryAddress: '12 E2E Test Street, Ikeja, Lagos',
+        deliveryAddress: e2eAddress(),
         paymentMethod: 'cash',
       },
     });
@@ -1633,6 +1665,38 @@ async function runScenario() {
     assert(Number(created.totalAmount) === expected,
       `quantity total ${created.totalAmount}, expected ${expected}`);
     return `qty=${quantity} total=${created.totalAmount}`;
+  });
+
+  await requestStep('expired access token is rejected and refresh recovers checkout', async () => {
+    assert(jollof && proteinGroup, 'required-option item not found');
+    const chosen = proteinGroup.options.find((option) => Number(option.price) > 0)
+      || proteinGroup.options[0];
+    const expiredToken = `${tokens.admin.slice(0, -6)}abcdef`;
+    const body = {
+      restaurantId: restaurant.found._id,
+      items: [{
+        menuItem: jollof._id,
+        quantity: 1,
+        customizations: [{ name: proteinGroup.name, option: chosen.name }],
+      }],
+      deliveryAddress: e2eAddress(),
+      paymentMethod: 'cash',
+    };
+    const rejected = await api('/orders', { method: 'POST', token: expiredToken, body });
+    assert(rejected.status === 401, `expired-token order returned ${rejected.status}: ${rejected.text}`);
+
+    const refresh = await api('/auth/refresh', {
+      method: 'POST',
+      body: { refreshToken: refreshTokens.admin },
+    });
+    assert(refresh.status === 200 && refresh.body?.token,
+      `refresh after an expired token failed: ${refresh.status} ${refresh.text}`);
+
+    const retried = await api('/orders', { method: 'POST', token: refresh.body.token, body });
+    assert(retried.status === 201 || retried.status === 200,
+      `checkout retry after refresh returned ${retried.status}: ${retried.text}`);
+    if (retried.body?.order?._id) created.orders.add(String(retried.body.order._id));
+    return 'expired access token -> 401; refreshed token -> order accepted';
   });
 
   const otherOrder = await requestStep('create order for ownership test', async () => {
@@ -1649,7 +1713,7 @@ async function runScenario() {
             option: customization.option.name,
           }] : [],
         }],
-        deliveryAddress: '99 Ownership Test Street, Lagos',
+        deliveryAddress: e2eAddress('99 Ownership Test Street'),
         paymentMethod: 'card',
       },
     });
