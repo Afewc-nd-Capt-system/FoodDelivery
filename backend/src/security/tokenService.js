@@ -7,6 +7,7 @@ const { getClient } = require('../middleware/redis');
 
 const ACCESS_TTL = '15m';
 const REFRESH_TTL_SECONDS = 7 * 24 * 60 * 60;
+const REFRESH_GRACE_SECONDS = 30;
 const ISSUER = 'vibechops';
 
 // Redis is the production store. The Map keeps local development and a
@@ -192,6 +193,28 @@ async function rotateRefreshToken(refreshToken) {
   if (!storedHash) {
     const usedKey = `refresh:used:${decoded.familyId}:${decoded.tokenId}`;
     if (await storeGet(usedKey)) {
+      // A concurrent tab (or a proactive refresh racing a 401 retry) may
+      // present the immediately previous token. Within the short grace window
+      // return the current pair instead of revoking the family; a genuine
+      // replay after the window still revokes everything.
+      const graceKey = `refresh:grace:${decoded.familyId}:${decoded.tokenId}`;
+      const grace = await storeGet(graceKey);
+      if (grace) {
+        await storeDel(graceKey);
+        try {
+          const pair = JSON.parse(grace);
+          const graceUser = await User.findById(pair.userId);
+          if (graceUser && pair.accessToken && pair.refreshToken) {
+            return {
+              accessToken: pair.accessToken,
+              refreshToken: pair.refreshToken,
+              familyId: decoded.familyId,
+              user: graceUser,
+              grace: true,
+            };
+          }
+        } catch { /* fall through to reuse revocation */ }
+      }
       await revokeFamily(decoded.familyId);
       throw new AuthError('Refresh token reuse detected; session revoked', 401, 'REFRESH_REUSE');
     }
@@ -217,6 +240,17 @@ async function rotateRefreshToken(refreshToken) {
   );
 
   const tokens = await issueTokens(user, decoded.familyId);
+  // Keep the just-rotated pair briefly so an immediate replay (two tabs,
+  // proactive + retry) receives the same pair while the window is open.
+  await storeSet(
+    `refresh:grace:${decoded.familyId}:${decoded.tokenId}`,
+    JSON.stringify({
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      userId: String(user._id),
+    }),
+    REFRESH_GRACE_SECONDS
+  );
   return { ...tokens, user };
 }
 
@@ -274,4 +308,5 @@ module.exports = {
   verifyMfaToken,
   ACCESS_TTL,
   REFRESH_TTL_SECONDS,
+  REFRESH_GRACE_SECONDS,
 };

@@ -571,8 +571,10 @@ async function measureHeroBackground(page, browser) {
   if (sessions.customer) {
     const { page } = sessions.customer;
     let authorizationUrl = null;
+    let paymentAmount = null;
     try {
       await page.route('**/payments/initialize', async (route) => {
+        try { paymentAmount = route.request().postDataJSON()?.amount ?? null; } catch {}
         const response = await route.fetch();
         try {
           const json = await response.json();
@@ -615,6 +617,11 @@ async function measureHeroBackground(page, browser) {
         await payButton.click();
         for (let i = 0; i < 30 && !authorizationUrl; i += 1) await page.waitForTimeout(500);
         check('cart initializes Paystack payment', !!authorizationUrl, authorizationUrl || 'no authorizationUrl returned');
+        const totalText = await page.getByTestId('cart-total').first().innerText().catch(() => '');
+        const displayedTotal = Number(String(totalText).replace(/[^0-9.]/g, ''));
+        check('cart total equals the Paystack amount',
+          Number.isFinite(displayedTotal) && Number.isFinite(Number(paymentAmount)) && displayedTotal === Number(paymentAmount),
+          `displayed=${displayedTotal} payment=${paymentAmount}`);
         check('expired access token still reaches Paystack after refresh', !!authorizationUrl,
           authorizationUrl ? 'refresh + retry succeeded' : 'no authorizationUrl after refresh');
         check('cart redirects to Paystack', /paystack/i.test(page.url()) || !!authorizationUrl, page.url());

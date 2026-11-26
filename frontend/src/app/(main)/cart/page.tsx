@@ -47,6 +47,9 @@ export default function CartPage() {
   const [restaurantCity, setRestaurantCity] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('paystack');
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [quote, setQuote] = useState<any>(null);
+  const [quoteError, setQuoteError] = useState('');
+  const [pendingOrder, setPendingOrder] = useState<{ id: string; total: number } | null>(null);
   const [placing, setPlacing] = useState(false);
   const [orderError, setOrderError] = useState('');
   const [placed, setPlaced] = useState(false);
@@ -96,10 +99,11 @@ export default function CartPage() {
   // means free delivery). Fetched live so the cart total matches the charged
   // total exactly.
   const [storeFees, setStoreFees] = useState<{ deliveryFee: number; serviceFee: number } | null>(null);
-  const deliveryFee = storeFees ? storeFees.deliveryFee : 40;
-  const serviceFee = storeFees ? storeFees.serviceFee : 0;
-  const discountAmount = appliedPromo ? appliedPromo.discount : 0;
-  const total = subtotal - discountAmount + deliveryFee + serviceFee;
+  const deliveryFee = quote ? Number(quote.deliveryFee) : (storeFees ? storeFees.deliveryFee : 40);
+  const serviceFee = quote ? Number(quote.serviceFee) : (storeFees ? storeFees.serviceFee : 0);
+  const discountAmount = quote ? Number(quote.promoDiscount || 0) : 0;
+  const quotedSubtotal = quote ? Number(quote.subtotal) : subtotal;
+  const total = quote ? Number(quote.totalAmount) : subtotal - discountAmount + deliveryFee + serviceFee;
   const addressComplete = Boolean(address.street.trim() && address.city.trim() && address.state && address.phone.trim());
   const serviceAreaMismatch = Boolean(
     restaurantCity
@@ -187,6 +191,28 @@ export default function CartPage() {
     }
   };
 
+  // The server quote is the single source of cart prices: option deltas,
+  // quantity, delivery/service fees and promo are never recalculated here.
+  useEffect(() => {
+    if (!user || !items.length) { setQuote(null); return; }
+    const first = items[0];
+    const body = {
+      items: items.map((item) => ({
+        menuItem: item.id,
+        quantity: item.quantity,
+        customizations: Object.entries(item.selectedOptions || {}).map(([name, option]) => ({ name, option })),
+      })),
+      ...(first.vendorId ? { vendorId: first.vendorId } : { restaurantId: first.restaurantId }),
+      ...(appliedPromo?.code ? { promoCode: appliedPromo.code } : {}),
+      ...(addressComplete ? { deliveryAddress: { ...address } } : {}),
+    };
+    let active = true;
+    apiPost('/orders/quote', body)
+      .then((result) => { if (active) { setQuote(result.quote); setQuoteError(''); } })
+      .catch((error) => { if (active) { setQuote(null); setQuoteError(error?.message || 'Could not price this cart.'); } });
+    return () => { active = false; };
+  }, [user, items, appliedPromo, addressComplete, address.street, address.city, address.state, address.phone]);
+
   // Promo codes are validated by the server; the same code is sent with the
   // order so the charged total matches the discount shown here.
   const handlePromo = async () => {
@@ -263,6 +289,10 @@ export default function CartPage() {
       setOrderError(`This store delivers in ${restaurantCity} only. Choose a ${restaurantCity} delivery address.`);
       return;
     }
+    if (!quote) {
+      setOrderError(quoteError || 'Updating the total. Please wait a moment.');
+      return;
+    }
 
     setPlacing(true);
     try {
@@ -296,14 +326,29 @@ export default function CartPage() {
       await persistAddressIfRequested();
 
       let orderData;
-      try {
-        orderData = await apiPost('/orders', orderPayload);
-      } catch (error: any) {
-        if (error?.code === 'EMAIL_NOT_VERIFIED') {
-          setVerificationRequired(true);
+      if (pendingOrder) {
+        if (Math.abs(Number(quote.totalAmount) - Number(pendingOrder.total)) > 0.01) {
+          setOrderError(`The total changed to ₦${Number(quote.totalAmount).toLocaleString()}. Review it and pay again to confirm.`);
           return;
         }
-        throw error;
+        orderData = { order: { _id: pendingOrder.id, totalAmount: pendingOrder.total } };
+      } else {
+        try {
+          orderData = await apiPost('/orders', orderPayload);
+        } catch (error: any) {
+          if (error?.code === 'EMAIL_NOT_VERIFIED') {
+            setVerificationRequired(true);
+            return;
+          }
+          throw error;
+        }
+        const serverOrder = orderData.order || orderData;
+        const serverTotal = Number(serverOrder.totalAmount);
+        if (Math.abs(serverTotal - Number(quote.totalAmount)) > 0.01) {
+          setPendingOrder({ id: String(serverOrder._id), total: serverTotal });
+          setOrderError(`The total changed to ₦${serverTotal.toLocaleString()}. Review it and pay again to confirm.`);
+          return;
+        }
       }
 
       // If Paystack, initialize payment through the same refresh-aware client.
@@ -312,7 +357,7 @@ export default function CartPage() {
         try {
           paystackData = await apiPost('/payments/initialize', {
             orderId: orderData._id || orderData.order?._id,
-            amount: total,
+            amount: Number(orderData.order?.totalAmount ?? orderData.totalAmount ?? total),
             email: user?.email || '',
           });
         } catch (error: any) {
@@ -702,12 +747,19 @@ export default function CartPage() {
                       {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && (
                         <p className="text-xs mb-1" style={{ color: '#A0A0A0' }}>
                           {Object.entries(item.selectedOptions)
-                            .map(([group, option]) => `${group}: ${option}`)
+                            .map(([group, option]) => {
+                              const quoted = quote?.items
+                                ?.find((entry: any) => String(entry.menuItem) === String(item.id))
+                                ?.customizations
+                                ?.find((entry: any) => entry.name === group && entry.option === option);
+                              const delta = Number(quoted?.price || 0);
+                              return `${group}: ${option}${delta > 0 ? ` (+₦${delta.toLocaleString()})` : ''}`;
+                            })
                             .join(' · ')}
                         </p>
                       )}
                       <span className="font-black text-sm" style={{ color: '#E8621A' }}>
-                        ₦{(item.price * item.quantity).toLocaleString()}
+                        ₦{Number(quote?.items?.find((entry: any) => String(entry.menuItem) === String(item.id))?.lineTotal ?? (item.price * item.quantity)).toLocaleString()}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -994,7 +1046,7 @@ export default function CartPage() {
               <div className="space-y-3 mb-5">
                 <div className="flex justify-between text-sm">
                   <span style={{ color: '#636366' }}>Subtotal</span>
-                  <span className="font-semibold" style={{ color: '#1C1C1E' }}>₦{subtotal.toLocaleString()}</span>
+                  <span className="font-semibold" style={{ color: '#1C1C1E' }}>₦{quotedSubtotal.toLocaleString()}</span>
                 </div>
                 {discountAmount > 0 && (
                   <div className="flex justify-between text-sm">
@@ -1015,7 +1067,7 @@ export default function CartPage() {
                   style={{ borderColor: '#F0EAE0' }}
                 >
                   <span style={{ color: '#1C1C1E' }}>Total</span>
-                  <span className="text-xl" style={{ color: '#E8621A' }}>₦{total.toLocaleString()}</span>
+                  <span className="text-xl" data-testid="cart-total" style={{ color: '#E8621A' }}>₦{total.toLocaleString()}</span>
                 </div>
               </div>
 
@@ -1055,8 +1107,13 @@ export default function CartPage() {
                   {orderError}
                 </div>
               )}
+              {quoteError && (
+                <div data-testid="cart-quote-error" className="mb-4 p-3 rounded-xl text-sm" style={{ backgroundColor: '#FFF1E8', color: '#7A3A1A', border: '1px solid #FFD4B8' }}>
+                  {quoteError}
+                </div>
+              )}
 
-              {addressComplete && !serviceAreaMismatch ? (
+              {addressComplete && !serviceAreaMismatch && quote ? (
                 <button
                   onClick={handlePlaceOrder}
                   disabled={placing}

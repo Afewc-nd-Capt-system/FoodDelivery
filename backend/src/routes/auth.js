@@ -12,8 +12,36 @@ const tokens = require('../security/tokenService');
 const mfaService = require('../security/mfaService');
 const { frontendUrl } = require('../config/frontend');
 const { sessionResponse, setTokenCookie, publicUser } = require('../utils/session');
+const rateLimit = require('express-rate-limit');
+const { RedisRateLimitStore } = require('../middleware/rateLimitStore');
 
 const router = express.Router();
+
+const refreshLimitDisabled = process.env.NODE_ENV !== 'production'
+  && process.env.DISABLE_RATE_LIMIT === 'true';
+const refreshLimiter = refreshLimitDisabled
+  ? (req, res, next) => next()
+  : rateLimit({
+      windowMs: 60 * 1000,
+      max: 60,
+      standardHeaders: true,
+      legacyHeaders: false,
+      // Keyed by the refresh family, never by IP: a burst of failed logins
+      // from the same address must not stop a valid session refreshing.
+      keyGenerator: (req) => {
+        const decoded = tokens.verifyRefreshToken(req.body?.refreshToken || req.cookies?.refreshToken || '');
+        return `refresh:${decoded?.familyId || decoded?.id || 'invalid'}`;
+      },
+      store: new RedisRateLimitStore('rl:refresh:'),
+      handler: (req, res) => {
+        const retryAfter = Number(res.getHeader('Retry-After')) || 60;
+        res.status(429).json({
+          success: false,
+          message: 'Too many refresh attempts. Please try again shortly.',
+          retryAfterSeconds: retryAfter,
+        });
+      },
+    });
 
 const NIGERIAN_PHONE_RE = /^(\+?234|0)[\s-]?\d{3}[\s-]?\d{3}[\s-]?\d{4}$/;
 const ALLOWED_DIETARY_PREFERENCES = ['vegan', 'vegetarian', 'halal', 'kosher', 'gluten-free', 'nut-free', 'dairy-free'];
@@ -407,9 +435,9 @@ const refreshHandler = async (req, res) => {
   }
 };
 
-router.post('/refresh', refreshHandler);
+router.post('/refresh', refreshLimiter, refreshHandler);
 // Older mobile clients call /auth/refresh-token.
-router.post('/refresh-token', refreshHandler);
+router.post('/refresh-token', refreshLimiter, refreshHandler);
 
 router.post('/logout', authMiddleware, async (req, res) => {
   try {

@@ -143,7 +143,12 @@ mongoose.connection.on('error', (err) => {
   console.error('MongoDB error:', err.message)
 })
 
-app.use('/api/v2/auth', authLimiter, authRoutes);
+const authLimiterUnlessRefresh = (req, res, next) => (
+  req.path === '/refresh' || req.path === '/refresh-token'
+    ? next()
+    : authLimiter(req, res, next)
+);
+app.use('/api/v2/auth', authLimiterUnlessRefresh, authRoutes);
 app.use('/api/v2/restaurants', require('./routes/v2/restaurant-docs'));
 app.use('/api/v2/restaurants', restaurantRoutes);
 app.use('/api/v2/restaurant', require('./routes/v2/restaurantSelfService'));

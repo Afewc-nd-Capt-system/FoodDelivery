@@ -137,9 +137,54 @@ export function redirectToLogin(next?: string) {
 }
 
 let refreshInFlight: Promise<string | null> | null = null
+const REFRESH_LOCK = 'vibechops-refresh-lock'
 
-async function performRefresh(): Promise<string | null> {
+async function withRefreshLock<T>(fn: () => Promise<T>): Promise<T> {
+  if (typeof navigator !== 'undefined' && (navigator as any).locks?.request) {
+    return (navigator as any).locks.request(REFRESH_LOCK, fn)
+  }
+  if (typeof localStorage === 'undefined') return fn()
+  const id = `${Date.now()}-${Math.random()}`
+  const deadline = Date.now() + 8000
+  while (Date.now() < deadline) {
+    let lock: any = null
+    try { lock = JSON.parse(localStorage.getItem(REFRESH_LOCK) || 'null') } catch {}
+    if (!lock || Number(lock.expires) <= Date.now()) {
+      localStorage.setItem(REFRESH_LOCK, JSON.stringify({ id, expires: Date.now() + 8000 }))
+      let check: any = null
+      try { check = JSON.parse(localStorage.getItem(REFRESH_LOCK) || 'null') } catch {}
+      if (check?.id === id) {
+        try {
+          return await fn()
+        } finally {
+          try {
+            const current = JSON.parse(localStorage.getItem(REFRESH_LOCK) || 'null')
+            if (current?.id === id) localStorage.removeItem(REFRESH_LOCK)
+          } catch {}
+        }
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  return fn()
+}
+
+async function performRefresh(failedAccessToken?: string): Promise<string | null> {
   if (typeof window === 'undefined') return null
+
+  // Another tab may already have refreshed while this request was in flight.
+  const currentAccess = localStorage.getItem('token')
+  if (failedAccessToken && currentAccess && currentAccess !== failedAccessToken) {
+    const payload = (() => {
+      try {
+        return JSON.parse(atob(currentAccess.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+      } catch { return null }
+    })()
+    if (!payload?.exp || payload.exp * 1000 - Date.now() > 30_000) {
+      return currentAccess
+    }
+  }
+
   const refreshToken = localStorage.getItem('refreshToken')
   if (!refreshToken) return null
 
@@ -149,7 +194,13 @@ async function performRefresh(): Promise<string | null> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken }),
       credentials: 'include',
+      signal: AbortSignal.timeout(15000),
     })
+    if (response.status === 429) {
+      // A limiter must not sign the customer out; keep the session and report.
+      setSessionMessage('Too many attempts. Please try again shortly.')
+      return null
+    }
     if (!response.ok) {
       setSessionMessage('Your session expired. Sign in to continue.')
       clearAuthSession()
@@ -170,11 +221,13 @@ async function performRefresh(): Promise<string | null> {
   }
 }
 
-// Concurrent callers share one refresh; rotating the refresh token twice
-// would revoke the family and sign the customer out mid-checkout.
-export function refreshAccessToken(): Promise<string | null> {
+// Concurrent callers (and other tabs) share one refresh. The refresh token is
+// re-read inside the lock so a pair saved by another tab is adopted instead of
+// being replayed and revoking the family.
+export function refreshAccessToken(failedAccessToken?: string): Promise<string | null> {
   if (!refreshInFlight) {
-    refreshInFlight = performRefresh().finally(() => { refreshInFlight = null })
+    refreshInFlight = withRefreshLock(() => performRefresh(failedAccessToken))
+      .finally(() => { refreshInFlight = null })
   }
   return refreshInFlight
 }

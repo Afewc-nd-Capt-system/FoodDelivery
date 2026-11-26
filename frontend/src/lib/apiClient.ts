@@ -71,7 +71,7 @@ export async function authFetch(path: string, options: RequestInit = {}): Promis
   let response = await send(token)
 
   if (response.status === 401 && !isAuthPath) {
-    const refreshed = refreshToken ? await refreshAccessToken() : null
+    const refreshed = refreshToken ? await refreshAccessToken(token || undefined) : null
     if (!refreshed) {
       expireAndRedirect()
       throw new SessionExpiredError()
@@ -165,13 +165,14 @@ export function installAuthFetchInterceptor() {
 
     const currentToken = localStorage.getItem('token')
     if (currentToken && needsProactiveRefresh(currentToken)) {
-      const refreshed = await refreshAccessToken()
+      const refreshed = await refreshAccessToken(currentToken)
       if (refreshed) headers.set('Authorization', `Bearer ${refreshed}`)
     }
 
     let response = await original(input as any, { ...init, headers })
     if (response.status === 401) {
-      const refreshed = await refreshAccessToken()
+      const failedToken = (headers.get('Authorization') || '').replace(/^Bearer\s+/i, '')
+      const refreshed = await refreshAccessToken(failedToken)
       if (!refreshed) {
         setSessionMessage('Your session expired. Sign in to continue.')
         redirectToLogin(currentPath())

@@ -156,6 +156,52 @@ async function verifyOTP(orderId, otp) {
   return storedOTP === otp;
 }
 
+// POST /api/v2/orders/quote - authoritative cart pricing before payment
+router.post('/quote', async (req, res) => {
+  try {
+    const { restaurantId, vendorId, items, promoCode, promo, deliveryAddress } = req.body;
+    const pricing = await priceOrder({
+      restaurantId: restaurantId || undefined,
+      vendorId: vendorId || undefined,
+      items,
+      promoCode: promoCode || promo,
+    });
+    if (deliveryAddress) {
+      const address = validateDeliveryAddress(deliveryAddress);
+      assertServiceArea(pricing.store, address);
+    }
+    const quoteItems = pricing.items.map((item) => {
+      const customizationTotal = (item.customizations || [])
+        .reduce((sum, entry) => sum + Number(entry.price || 0), 0);
+      const unitPrice = Math.round((Number(item.price) + customizationTotal) * 100) / 100;
+      return {
+        menuItem: item.menuItem,
+        name: item.name,
+        quantity: item.quantity,
+        basePrice: item.price,
+        unitPrice,
+        lineTotal: Math.round(unitPrice * item.quantity * 100) / 100,
+        customizations: item.customizations,
+      };
+    });
+    res.json({
+      success: true,
+      quote: {
+        items: quoteItems,
+        subtotal: pricing.subtotal,
+        deliveryFee: pricing.deliveryFee,
+        serviceFee: pricing.serviceFee,
+        promoCode: pricing.promoCode || null,
+        promoDiscount: pricing.promoDiscount,
+        totalAmount: pricing.totalAmount,
+        currency: pricing.currency,
+      },
+    });
+  } catch (error) {
+    res.status(error.status || 400).json({ message: error.message, ...(error.code ? { code: error.code } : {}) });
+  }
+});
+
 // POST /api/v2/orders - Customer places order
 router.post('/', authMiddleware, requireVerifiedEmail, async (req, res) => {
   try {
