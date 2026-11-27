@@ -197,6 +197,7 @@ app.use('/api/v2/earnings', authMiddleware, require('./routes/v2/earnings'));
 app.use('/api/v2/admin/approvals', authMiddleware, require('./routes/v2/admin-approvals'));
 app.use('/api/v2/admin/applications', require('./routes/v2/admin-applications'));
 app.use('/api/v2/admin/users', require('./routes/v2/admin-users'));
+app.use('/api/v2/admin/orders', require('./routes/v2/admin-payment-audit'));
 app.use('/api/v2/admin/migrations', require('./routes/v2/admin-migrations'));
 app.use('/api/v2/admin/email', require('./routes/v2/admin-email'));
 app.use('/api/v2/admin/revenue', authMiddleware, require('./routes/v2/admin-revenue'));

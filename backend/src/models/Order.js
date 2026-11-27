@@ -87,6 +87,21 @@ const orderSchema = new mongoose.Schema({
   paymentFees: Number,
   paymentFeeMismatch: Boolean,
   paymentReviewNotified: Boolean,
+  paymentAudit: [{
+    _id: false,
+    source: String,
+    event: String,
+    status: String,
+    reference: String,
+    amount: Number,
+    requested_amount: Number,
+    currency: String,
+    fees: Number,
+    channel: String,
+    gateway_response: String,
+    paid_at: String,
+    receivedAt: Date,
+  }],
   status: {
     type: String,
     enum: [

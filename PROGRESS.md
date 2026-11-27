@@ -1,22 +1,22 @@
-# PROGRESS — Paystack payment correctness (part 1)
+# PROGRESS — Paystack payment correctness (part 1b)
 
 ## Done
-- Owner decision: customers pay Paystack's fee; initialize sends the plain order total (no bearer, no gross-up).
-- Fee estimate helper: 1.5% + ₦100, waived below ₦2,500, capped at ₦2,000.
-- Quote returns estimated processing fee + estimated total.
-- Order stores paystack reference at initialize, requested amount, charged amount, fees, fee-mismatch flag, review-notified flag.
-- Confirmation rules (verify + webhook share `markOrderPaid`): Paystack success, stored reference equality, stored requested amount equals `order.totalAmount*100`, NGN, charged >= requested. Anything else after a success becomes `payment_review`, stores reference/amounts and sends the owner-review email through the mail service (EmailLog).
-- Idempotent verify/webhook: paid orders short-circuit; a reviewed order with the same reference is not re-emailed.
-- Cart labels: "Payment processing fee (estimated)", "Total to pay (estimated)", fee note, Pay button includes the estimated total.
+- Baseline on `work/paystack-completion`: `test:local` **37/37**, `test:boot` **5/5**.
+- Owner decision enforced: initialize sends the plain order total, no bearer, no gross-up.
+- Confirmation rules shared by verify + webhook: success, stored reference equality, stored requested amount equals `order.totalAmount*100`, NGN, charged >= requested; otherwise `payment_review` + owner-review email. Idempotent.
+- Fee estimate (1.5% + ₦100, waived below ₦2,500, capped ₦2,000) in quote/cart/estimated total.
+- Sanitized payment audit entries on orders (source/event/status/reference/amount/requested_amount/currency/fees/channel/gateway_response/paid_at/receivedAt) for verify and webhook.
+- Admin-only `GET /api/v2/admin/orders/:id/payment-audit` mounted.
 
 ## In progress
-- Step 1 real Paystack TEST checkout evidence (raw initialize request/response, checkout amount, verify fields, webhook payload).
-- Step 4 mocked Paystack tests and displayed-estimate cases.
+- Commit this step + PROGRESS and push.
+- Mocked-Paystack local tests (all listed cases, initialize body no bearer/no gross-up, estimate combinations).
+- `test:paystack-real` Playwright script (write only, do not run).
 
 ## Next
-- Step 5: `test:local` + `test:boot`, merge, deploy, `/version.json`, `/health`, one real production "Success" payment, cleanup.
+- Add the mocked tests, real-checkout script, run local/boot again, commit/push each.
 
 ## Open
-- No real payment evidence or webhook payload captured.
-- No new mocked-payment tests wired into test-local yet.
-- No deploy/real check in this part.
+- No mocked Paystack cases wired yet; no redaction test yet.
+- Real-checkout script not written.
+- No merge/deploy (explicitly out of scope for 1b).

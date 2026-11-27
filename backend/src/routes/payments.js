@@ -74,6 +74,30 @@ function assertPaymentMatchesOrder(order, payment) {
   }
 }
 
+function paymentAuditEntry(source, event, payment) {
+  const data = payment || {};
+  return {
+    source,
+    event: String(event || ''),
+    status: String(data.status || ''),
+    reference: String(data.reference || ''),
+    amount: Number(data.amount || 0),
+    requested_amount: Number(data.requested_amount ?? 0),
+    currency: String(data.currency || ''),
+    fees: Number(data.fees || 0),
+    channel: String(data.channel || ''),
+    gateway_response: String(data.gateway_response || ''),
+    paid_at: data.paid_at ? String(data.paid_at) : '',
+    receivedAt: new Date(),
+  };
+}
+
+function appendPaymentAudit(order, source, event, payment) {
+  const entry = paymentAuditEntry(source, event, payment);
+  order.paymentAudit = [...(order.paymentAudit || []), entry].slice(-50);
+  return entry;
+}
+
 async function notifyPaymentReview(order, reason) {
   const owner = String(process.env.EMAIL_OWNER || '').trim();
   if (!owner) return;
@@ -188,6 +212,9 @@ async function verifyReference(req, reference) {
     error.status = 404;
     throw error;
   }
+
+  appendPaymentAudit(order, 'verify', data.data?.status === 'success' ? 'charge.success' : 'charge.failed', data.data);
+  await order.save();
 
   return markOrderPaid(req, order, reference, data.data);
 }
@@ -347,6 +374,9 @@ router.post('/webhook', async (req, res) => {
     if (order.isPaid) {
       return res.json({ message: 'Webhook already processed' });
     }
+
+    appendPaymentAudit(order, 'webhook', event.event, event.data);
+    await order.save();
 
     const result = await markOrderPaid(req, order, reference, event.data);
     res.json({
