@@ -15,7 +15,7 @@ const OrderCompletionService = require('../../services/OrderCompletionService');
 const { priceOrder } = require('../../services/orderPricingService');
 const PromoCode = require('../../models/PromoCode');
 const { validateDeliveryAddress, formatAddress, assertServiceArea } = require('../../config/deliveryArea');
-const { processingFeeNaira } = require('../../services/paystackFees');
+const { estimatedProcessingFee, estimatedTotal } = require('../../services/paystackFees');
 const { sendOrderConfirmation, sendOrderStatusUpdate } = require('../../utils/email');
 const router = express.Router();
 
@@ -195,8 +195,8 @@ router.post('/quote', async (req, res) => {
         promoCode: pricing.promoCode || null,
         promoDiscount: pricing.promoDiscount,
         totalAmount: pricing.totalAmount,
-        processingFee: processingFeeNaira(pricing.totalAmount),
-        totalWithProcessingFee: Math.round((pricing.totalAmount + processingFeeNaira(pricing.totalAmount)) * 100) / 100,
+        processingFee: estimatedProcessingFee(pricing.totalAmount),
+        totalWithProcessingFee: estimatedTotal(pricing.totalAmount),
         currency: pricing.currency,
       },
     });

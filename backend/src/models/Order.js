@@ -82,11 +82,16 @@ const orderSchema = new mongoose.Schema({
   },
   paymentExpectedAmount: Number,
   paymentProcessingFee: Number,
+  paymentRequestedAmount: Number,
+  paymentChargedAmount: Number,
+  paymentFees: Number,
+  paymentFeeMismatch: Boolean,
   status: {
     type: String,
     enum: [
       'pending',
       'confirmed',
+      'payment_review',
       'accepted',
       'preparing',
       'ready',

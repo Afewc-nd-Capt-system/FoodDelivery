@@ -5,7 +5,8 @@ const requireVerifiedEmail = require('../middleware/requireVerifiedEmail');
 const Order = require('../models/Order');
 const User = require('../models/User');
 const { frontendUrl } = require('../config/frontend');
-const { expectedChargeKobo, processingFeeNaira } = require('../services/paystackFees');
+const { estimatedProcessingFee } = require('../services/paystackFees');
+const mailService = require('../services/mailService');
 
 const router = express.Router();
 
@@ -55,19 +56,36 @@ function emitNewOrder(req, order) {
 }
 
 function assertPaymentMatchesOrder(order, payment) {
-  const expectedAmount = Number(order.paymentExpectedAmount)
+  const expectedAmount = Number(order.paymentRequestedAmount)
     || Math.round(Number(order.totalAmount || 0) * 100);
   const expectedCurrency = String(order.currency || 'NGN').toUpperCase();
-  const actualAmount = Number(payment?.amount);
+  // Paystack returns the amount we requested separately from the charged
+  // amount (which includes their customer fee). Compare the requested amount.
+  const actualRequested = Number(payment?.requested_amount ?? expectedAmount);
   const actualCurrency = String(payment?.currency || '').toUpperCase();
 
-  if (!Number.isInteger(actualAmount) || actualAmount !== expectedAmount
+  if (!Number.isInteger(actualRequested) || actualRequested !== expectedAmount
     || actualCurrency !== expectedCurrency) {
     const error = new Error(
-      `Payment amount/currency does not match the expected charge (expected ₦${(expectedAmount / 100).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${expectedCurrency})`
+      `Payment requested amount/currency does not match the order (expected ₦${(expectedAmount / 100).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${expectedCurrency})`
     );
     error.status = 400;
     throw error;
+  }
+}
+
+async function notifyPaymentReview(order, reason) {
+  const owner = String(process.env.EMAIL_OWNER || '').trim();
+  if (!owner) return;
+  try {
+    await mailService.queueEmail({
+      type: 'payment-review',
+      to: owner,
+      subject: `Payment needs review — order ${String(order._id).slice(-8).toUpperCase()}`,
+      text: `A Paystack payment succeeded but could not be auto-confirmed.\n\nOrder: ${order._id}\nCustomer: ${order.user}\nReference: ${order.paystackReference || 'n/a'}\nRequested: ₦${(Number(order.paymentRequestedAmount || 0) / 100).toFixed(2)}\nCharged: ₦${(Number(order.paymentChargedAmount || 0) / 100).toFixed(2)}\nReason: ${reason}\n\nReview it in the admin payments list.`,
+    });
+  } catch (error) {
+    console.error('[payments] owner review email failed:', error.message);
   }
 }
 
@@ -82,7 +100,24 @@ async function markOrderPaid(req, order, reference, payment) {
     throw error;
   }
 
-  assertPaymentMatchesOrder(order, payment);
+  order.paymentChargedAmount = Number(payment?.amount || 0);
+  order.paymentFees = Number(payment?.fees || 0);
+  const expectedCharged = Number(order.paymentRequestedAmount || 0)
+    + Math.round(Number(order.paymentProcessingFee || 0) * 100);
+  if (expectedCharged > 0 && Math.abs(Number(payment?.amount || 0) - expectedCharged) > 2000) {
+    order.paymentFeeMismatch = true;
+  }
+
+  try {
+    assertPaymentMatchesOrder(order, payment);
+  } catch (error) {
+    order.status = 'payment_review';
+    order.paymentStatus = 'review';
+    order.paystackReference = reference;
+    await order.save();
+    await notifyPaymentReview(order, error.message);
+    return { order, review: true, alreadyProcessed: false };
+  }
 
   order.paymentStatus = 'paid';
   order.isPaid = true;
@@ -165,15 +200,14 @@ router.post('/initialize', authMiddleware, requireVerifiedEmail, async (req, res
     }
 
     // The amount is always the server-computed order total, never req.body.amount.
-    const amount = expectedChargeKobo(order.totalAmount);
-    const processingFee = processingFeeNaira(order.totalAmount);
+    // Paystack's dashboard passes its fee to the customer on top of this.
+    const amount = Math.round(Number(order.totalAmount || 0) * 100);
+    const processingFee = estimatedProcessingFee(order.totalAmount);
     if (!Number.isFinite(amount) || amount < 1) {
       return res.status(400).json({ message: 'Order has no payable amount' });
     }
 
-    // Persist the exact expected Paystack charge (kobo) so verify and webhook
-    // compare like-for-like and a paid customer is never marked failed.
-    order.paymentExpectedAmount = amount;
+    order.paymentRequestedAmount = amount;
     order.paymentProcessingFee = processingFee;
     await order.save();
 
@@ -191,7 +225,6 @@ router.post('/initialize', authMiddleware, requireVerifiedEmail, async (req, res
       body: JSON.stringify({
         email: user.email,
         amount,
-        bearer: 'account',
         reference: `order_${order._id}_${Date.now()}`,
         callback_url: frontendUrl('/orders/verify'),
         metadata: {
@@ -221,10 +254,13 @@ router.post('/initialize', authMiddleware, requireVerifiedEmail, async (req, res
 
 router.get('/verify/:reference', authMiddleware, async (req, res) => {
   try {
-    const { order, alreadyProcessed } = await verifyReference(req, req.params.reference);
+    const { order, alreadyProcessed, review } = await verifyReference(req, req.params.reference);
     res.json({
-      message: alreadyProcessed ? 'Payment already verified' : 'Payment verified successfully',
+      message: review
+        ? 'Payment received and under review'
+        : (alreadyProcessed ? 'Payment already verified' : 'Payment verified successfully'),
       alreadyProcessed,
+      review: Boolean(review),
       order,
     });
   } catch (error) {
@@ -237,10 +273,13 @@ router.get('/verify/:reference', authMiddleware, async (req, res) => {
 // backwards compatibility with older clients.
 router.post('/verify', authMiddleware, async (req, res) => {
   try {
-    const { order, alreadyProcessed } = await verifyReference(req, req.body?.reference);
+    const { order, alreadyProcessed, review } = await verifyReference(req, req.body?.reference);
     res.json({
-      message: alreadyProcessed ? 'Payment already verified' : 'Payment verified successfully',
+      message: review
+        ? 'Payment received and under review'
+        : (alreadyProcessed ? 'Payment already verified' : 'Payment verified successfully'),
       alreadyProcessed,
+      review: Boolean(review),
       order,
     });
   } catch (error) {
