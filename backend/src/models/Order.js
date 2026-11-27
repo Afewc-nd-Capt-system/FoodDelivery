@@ -86,6 +86,7 @@ const orderSchema = new mongoose.Schema({
   paymentChargedAmount: Number,
   paymentFees: Number,
   paymentFeeMismatch: Boolean,
+  paymentReviewNotified: Boolean,
   status: {
     type: String,
     enum: [

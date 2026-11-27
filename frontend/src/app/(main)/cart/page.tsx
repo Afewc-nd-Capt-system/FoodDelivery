@@ -1065,14 +1065,14 @@ export default function CartPage() {
                   <span className="font-semibold" style={{ color: '#1C1C1E' }}>₦{Number(serviceFee).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span style={{ color: '#636366' }}>Payment processing fee</span>
+                  <span style={{ color: '#636366' }}>Payment processing fee (estimated)</span>
                   <span className="font-semibold" style={{ color: '#1C1C1E' }}>₦{Number(quote?.processingFee || 0).toFixed(2)}</span>
                 </div>
                 <div
                   className="flex justify-between font-black pt-3 border-t"
                   style={{ borderColor: '#F0EAE0' }}
                 >
-                  <span style={{ color: '#1C1C1E' }}>Total</span>
+                  <span style={{ color: '#1C1C1E' }}>Total to pay (estimated)</span>
                   <span className="text-xl" data-testid="cart-total" style={{ color: '#E8621A' }}>₦{total.toLocaleString()}</span>
                 </div>
               </div>
@@ -1113,6 +1113,9 @@ export default function CartPage() {
                   {orderError}
                 </div>
               )}
+              <p className="text-[11px] leading-snug mb-3" style={{ color: '#A0A0A0' }}>
+                The exact processing fee depends on your payment method and is confirmed at Paystack.
+              </p>
               {quoteError && (
                 <div data-testid="cart-quote-error" className="mb-4 p-3 rounded-xl text-sm" style={{ backgroundColor: '#FFF1E8', color: '#7A3A1A', border: '1px solid #FFD4B8' }}>
                   {quoteError}
@@ -1139,7 +1142,7 @@ export default function CartPage() {
                     </>
                   ) : (
                     <>
-                      Pay with {PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label}
+                      Pay ₦{Number(total).toLocaleString()} with {PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label}
                       <ChevronRight size={18} />
                     </>
                   )}

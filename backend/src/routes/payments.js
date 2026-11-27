@@ -100,22 +100,37 @@ async function markOrderPaid(req, order, reference, payment) {
     throw error;
   }
 
+  if (String(order.status) === 'payment_review' && String(order.paystackReference) === String(reference)) {
+    return { order, review: true, alreadyProcessed: true };
+  }
+
   order.paymentChargedAmount = Number(payment?.amount || 0);
   order.paymentFees = Number(payment?.fees || 0);
-  const expectedCharged = Number(order.paymentRequestedAmount || 0)
-    + Math.round(Number(order.paymentProcessingFee || 0) * 100);
+  const requestedAmount = Number(order.paymentRequestedAmount || 0);
+  const expectedTotal = Math.round(Number(order.totalAmount || 0) * 100);
+  const expectedCharged = requestedAmount + Math.round(Number(order.paymentProcessingFee || 0) * 100);
   if (expectedCharged > 0 && Math.abs(Number(payment?.amount || 0) - expectedCharged) > 2000) {
     order.paymentFeeMismatch = true;
   }
 
-  try {
-    assertPaymentMatchesOrder(order, payment);
-  } catch (error) {
+  const confirmationOk = String(payment?.status || '') === 'success'
+    && Boolean(order.paystackReference)
+    && String(order.paystackReference) === String(reference)
+    && Number.isInteger(requestedAmount)
+    && requestedAmount === expectedTotal
+    && String(payment?.currency || '').toUpperCase() === 'NGN'
+    && Number(payment?.amount || 0) >= requestedAmount;
+
+  if (!confirmationOk) {
     order.status = 'payment_review';
     order.paymentStatus = 'review';
     order.paystackReference = reference;
     await order.save();
-    await notifyPaymentReview(order, error.message);
+    if (!order.paymentReviewNotified) {
+      order.paymentReviewNotified = true;
+      await order.save();
+      await notifyPaymentReview(order, 'Paystack success failed the confirmation rules (reference/requested amount/currency/underpayment).');
+    }
     return { order, review: true, alreadyProcessed: false };
   }
 
@@ -209,6 +224,8 @@ router.post('/initialize', authMiddleware, requireVerifiedEmail, async (req, res
 
     order.paymentRequestedAmount = amount;
     order.paymentProcessingFee = processingFee;
+    const reference = `order_${order._id}_${Date.now()}`;
+    order.paystackReference = reference;
     await order.save();
 
     const user = await User.findById(req.user.id).select('email');
@@ -225,7 +242,7 @@ router.post('/initialize', authMiddleware, requireVerifiedEmail, async (req, res
       body: JSON.stringify({
         email: user.email,
         amount,
-        reference: `order_${order._id}_${Date.now()}`,
+        reference,
         callback_url: frontendUrl('/orders/verify'),
         metadata: {
           orderId: String(order._id),
@@ -314,7 +331,7 @@ router.post('/webhook', async (req, res) => {
     // Webhook retries are expected. A reference already recorded on an order
     // means this exact charge has been processed.
     const existingOrder = await Order.findOne({ paystackReference: reference });
-    if (existingOrder) {
+    if (existingOrder?.isPaid) {
       return res.json({ message: 'Webhook already processed' });
     }
 
